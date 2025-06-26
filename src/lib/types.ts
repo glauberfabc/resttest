@@ -1,0 +1,23 @@
+export type MenuItemCategory = "Lanches" | "Porções" | "Bebidas" | "Salgados" | "Pratos Quentes" | "Saladas" | "Destilados" | "Caipirinhas" | "Bebidas Quentes";
+
+export interface MenuItem {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  category: MenuItemCategory;
+  imageUrl?: string;
+}
+
+export interface OrderItem {
+  menuItem: MenuItem;
+  quantity: number;
+}
+
+export interface Order {
+  id: string;
+  type: 'table' | 'name';
+  identifier: string | number;
+  items: OrderItem[];
+  status: 'open' | 'paying' | 'paid';
+}
