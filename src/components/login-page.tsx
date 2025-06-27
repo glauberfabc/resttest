@@ -64,9 +64,6 @@ export function LoginPage() {
             <Button type="submit" className="w-full">
               Entrar
             </Button>
-            <Button variant="outline" className="w-full">
-              Entrar com Google
-            </Button>
           </CardFooter>
         </form>
       </Card>
