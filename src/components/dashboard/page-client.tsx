@@ -7,6 +7,7 @@ import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
 import { PlusCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface DashboardPageClientProps {
   initialOrders: Order[];
@@ -78,25 +79,48 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold tracking-tight">Comandas Abertas</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Comandas</h2>
         <Button onClick={() => setIsNewOrderDialogOpen(true)}>
           <PlusCircle className="mr-2 h-4 w-4" />
           Nova Comanda
         </Button>
       </div>
 
-      {openOrders.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {openOrders.map((order) => (
-            <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
-          ))}
-        </div>
-      ) : (
-        <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center">
-            <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda aberta</h3>
-            <p className="text-sm text-muted-foreground">Crie uma nova comanda para começar.</p>
-        </div>
-      )}
+      <Tabs defaultValue="abertas" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="abertas">Abertas ({openOrders.length})</TabsTrigger>
+          <TabsTrigger value="fechadas">Fechadas ({paidOrders.length})</TabsTrigger>
+        </TabsList>
+        <TabsContent value="abertas" className="mt-4">
+           {openOrders.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {openOrders.map((order) => (
+                <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
+                <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda aberta</h3>
+                <p className="text-sm text-muted-foreground">Crie uma nova comanda para começar.</p>
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="fechadas" className="mt-4">
+            {paidOrders.length > 0 ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {paidOrders.map((order) => (
+                  <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
+                  <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda fechada</h3>
+                  <p className="text-sm text-muted-foreground">As comandas pagas aparecerão aqui.</p>
+              </div>
+            )}
+        </TabsContent>
+      </Tabs>
+
 
       {selectedOrder && (
         <OrderDetailsSheet

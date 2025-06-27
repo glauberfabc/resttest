@@ -16,6 +16,7 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
   const remainingAmount = total - paidAmount;
   const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
   const isPartiallyPaid = paidAmount > 0 && remainingAmount > 0.01;
+  const isPaid = order.status === 'paid';
 
   return (
     <Card 
@@ -28,6 +29,7 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
           <span className="truncate">{order.identifier}</span>
         </CardTitle>
         <div className="flex flex-col items-end gap-1">
+            {isPaid && <Badge variant="secondary">Pago</Badge>}
             {order.status === 'paying' && <Badge variant="destructive">Pagando</Badge>}
             {isPartiallyPaid && <Badge variant="outline">Parcial</Badge>}
         </div>
@@ -44,9 +46,10 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
       </CardContent>
       <CardFooter>
         <div className="flex flex-col w-full">
-            {isPartiallyPaid && <p className="text-xs text-muted-foreground">Restante</p>}
+            {(isPartiallyPaid) && <p className="text-xs text-muted-foreground">Restante</p>}
+            {isPaid && <p className="text-xs text-muted-foreground">Total Pago</p>}
             <div className="text-2xl font-bold">
-              R$ {remainingAmount.toFixed(2).replace('.', ',')}
+              R$ {(isPaid ? total : remainingAmount).toFixed(2).replace('.', ',')}
             </div>
         </div>
       </CardFooter>
