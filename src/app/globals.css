@@ -86,3 +86,26 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .printable-receipt, .printable-receipt * {
+    visibility: visible;
+  }
+  .printable-receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10px;
+  }
+  .printable-receipt .print-no-break {
+    page-break-inside: avoid;
+  }
+  .printable-receipt .print-hide {
+    display: none;
+  }
+}

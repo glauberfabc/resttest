@@ -7,6 +7,9 @@ export interface MenuItem {
   price: number;
   category: MenuItemCategory;
   imageUrl?: string;
+  stock?: number;
+  lowStockThreshold?: number;
+  unit?: string;
 }
 
 export interface OrderItem {

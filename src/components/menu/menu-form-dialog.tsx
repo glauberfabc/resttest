@@ -41,6 +41,10 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState<MenuItemCategory | ''>('');
   const [imageUrl, setImageUrl] = useState('');
+  const [stock, setStock] = useState('');
+  const [lowStockThreshold, setLowStockThreshold] = useState('');
+  const [unit, setUnit] = useState('');
+
   const { toast } = useToast();
 
   useEffect(() => {
@@ -50,12 +54,18 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
       setPrice(String(item.price));
       setCategory(item.category);
       setImageUrl(item.imageUrl || '');
+      setStock(item.stock?.toString() || '');
+      setLowStockThreshold(item.lowStockThreshold?.toString() || '');
+      setUnit(item.unit || '');
     } else {
         setName('');
         setDescription('');
         setPrice('');
         setCategory('');
         setImageUrl('');
+        setStock('0');
+        setLowStockThreshold('0');
+        setUnit('un');
     }
   }, [item]);
 
@@ -90,6 +100,9 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
       price: parseFloat(price),
       category,
       imageUrl,
+      stock: parseInt(stock, 10) || 0,
+      lowStockThreshold: parseInt(lowStockThreshold, 10) || 0,
+      unit: unit,
     };
     onSave(savedItem);
   };
@@ -103,7 +116,7 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
             Preencha os detalhes do item do cardápio.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit} className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto px-2">
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="name" className="text-right">Nome</Label>
                 <Input id="name" value={name} onChange={e => setName(e.target.value)} className="col-span-3" required />
@@ -141,7 +154,19 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
                     </div>
                 </div>
             )}
-             <DialogFooter className="mt-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="stock" className="text-right">Estoque</Label>
+                <Input id="stock" type="number" value={stock} onChange={e => setStock(e.target.value)} className="col-span-3" placeholder="Qtd. inicial"/>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="lowStockThreshold" className="text-right">Alerta Mín.</Label>
+                <Input id="lowStockThreshold" type="number" value={lowStockThreshold} onChange={e => setLowStockThreshold(e.target.value)} className="col-span-3" placeholder="Qtd. para alerta"/>
+            </div>
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="unit" className="text-right">Unidade</Label>
+                <Input id="unit" value={unit} onChange={e => setUnit(e.target.value)} className="col-span-3" placeholder="Ex: un, kg, L"/>
+            </div>
+             <DialogFooter className="mt-4 sticky bottom-0 bg-background py-4">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                 <Button type="submit">Salvar</Button>
             </DialogFooter>

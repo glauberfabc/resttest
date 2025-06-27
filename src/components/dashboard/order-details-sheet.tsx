@@ -16,7 +16,8 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle } from "lucide-react";
+import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer } from "lucide-react";
 
 interface OrderDetailsSheetProps {
   order: Order;
@@ -71,6 +72,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const handlePayment = (amount: number, method: string) => {
     onProcessPayment(order.id, amount, method);
     setIsPaymentDialogOpen(false);
+  };
+  
+  const handlePrint = () => {
+    window.print();
   };
 
   return (
@@ -153,6 +158,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                     <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
                         <Share className="h-4 w-4" />
                     </Button>
+                     <Button variant="outline" size="icon" onClick={handlePrint}>
+                        <Printer className="h-4 w-4" />
+                    </Button>
                     <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0 || remainingAmount < 0.01}>
                         <Wallet className="mr-2 h-4 w-4" />
                         Pagar
@@ -162,6 +170,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      <div className="hidden">
+         <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />
+      </div>
 
       {isMenuPickerOpen && (
         <MenuPicker
