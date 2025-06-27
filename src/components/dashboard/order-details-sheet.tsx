@@ -37,7 +37,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const isPaid = order.status === 'paid';
 
   const updateQuantity = (itemId: string, delta: number) => {
-    if (isPaid) return;
     const updatedItems = order.items.map(item => {
       if (item.menuItem.id === itemId) {
         const newQuantity = item.quantity + delta;
@@ -49,7 +48,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
 
   const addItemToOrder = (menuItem: MenuItem) => {
-    if (isPaid) return;
     const existingItem = order.items.find(item => item.menuItem.id === menuItem.id);
     if (existingItem) {
       updateQuantity(menuItem.id, 1);
@@ -84,127 +82,141 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
-        <SheetContent className="sm:max-w-lg w-full flex flex-col">
+        <SheetContent className={`sm:max-w-${isPaid ? 'md' : 'lg'} w-full flex flex-col`}>
           <SheetHeader>
             <SheetTitle className="text-2xl">
-              Comanda: {order.type === 'table' ? 'Mesa' : ''} {order.identifier}
+              {isPaid ? 'Comprovante' : 'Comanda'}: {order.type === 'table' ? 'Mesa' : ''} {order.identifier}
             </SheetTitle>
             <SheetDescription>
               {isPaid && order.paidAt
-                ? `Comanda paga em ${new Date(order.paidAt).toLocaleDateString('pt-BR')}.`
+                ? `Pago em ${new Date(order.paidAt).toLocaleDateString('pt-BR')} às ${new Date(order.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
                 : 'Visualize, adicione ou remova itens da comanda.'}
             </SheetDescription>
           </SheetHeader>
-          <Separator />
           
-          <ScrollArea className="flex-1">
-            {order.items.length > 0 ? (
-              <div className="pr-4">
-                {order.items.map(({ menuItem, quantity }) => (
-                  <div key={menuItem.id} className="flex items-center gap-4 py-3">
-                    <Image
-                      src={menuItem.imageUrl || 'https://placehold.co/64x64'}
-                      alt={menuItem.name}
-                      width={64}
-                      height={64}
-                      className="rounded-md object-cover"
-                      data-ai-hint="food drink"
-                    />
-                    <div className="flex-1">
-                      <p className="font-semibold">{menuItem.name}</p>
-                      <p className="text-sm text-muted-foreground">R$ {menuItem.price.toFixed(2).replace('.', ',')}</p>
-                    </div>
-                    {isPaid ? (
-                      <div className="font-bold text-lg text-muted-foreground">x{quantity}</div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(menuItem.id, -1)}>
-                          {quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
-                        </Button>
-                        <span className="font-bold w-6 text-center">{quantity}</span>
-                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(menuItem.id, 1)}>
-                          <Plus className="h-4 w-4" />
-                        </Button>
+          {isPaid ? (
+            <>
+                <div className="flex-1 my-4 p-4 border rounded-md bg-white text-black overflow-y-auto font-mono">
+                    <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} className="!block !relative !w-full !p-0 !text-black !bg-white !shadow-none !border-none !text-sm" />
+                </div>
+                <SheetFooter className="mt-auto">
+                    <Button variant="outline" className="w-full" onClick={handlePrint}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir
+                    </Button>
+                </SheetFooter>
+            </>
+          ) : (
+            <>
+              <Separator />
+              <ScrollArea className="flex-1">
+                {order.items.length > 0 ? (
+                  <div className="pr-4">
+                    {order.items.map(({ menuItem, quantity }) => (
+                      <div key={menuItem.id} className="flex items-center gap-4 py-3">
+                        <Image
+                          src={menuItem.imageUrl || 'https://placehold.co/64x64'}
+                          alt={menuItem.name}
+                          width={64}
+                          height={64}
+                          className="rounded-md object-cover"
+                          data-ai-hint="food drink"
+                        />
+                        <div className="flex-1">
+                          <p className="font-semibold">{menuItem.name}</p>
+                          <p className="text-sm text-muted-foreground">R$ {menuItem.price.toFixed(2).replace('.', ',')}</p>
+                        </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(menuItem.id, -1)}>
+                              {quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
+                            </Button>
+                            <span className="font-bold w-6 text-center">{quantity}</span>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(menuItem.id, 1)}>
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </div>
                       </div>
-                    )}
+                    ))}
                   </div>
-                ))}
-              </div>
-            ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center p-8">
-                    <p className="text-muted-foreground">Nenhum item na comanda.</p>
-                    {!isPaid && <Button variant="link" className="mt-2" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>}
-                </div>
-            )}
-          </ScrollArea>
-          
-          {!isPaid && (
-              <>
-                <Separator />
-                <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full mt-2">
-                    <PlusCircle className="mr-2 h-4 w-4"/>
-                    Adicionar Itens
-                </Button>
-              </>
-          )}
-
-          <SheetFooter className="mt-auto pt-4">
-            <div className="w-full space-y-4">
-                {paidAmount > 0 && (
-                  <>
-                    <div className="flex justify-between items-center text-sm text-muted-foreground">
-                      <span>Total Original</span>
-                      <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                ) : (
+                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                        <p className="text-muted-foreground">Nenhum item na comanda.</p>
+                        <Button variant="link" className="mt-2" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
                     </div>
-                    <div className="flex justify-between items-center text-sm text-muted-foreground">
-                      <span>Total Pago</span>
-                      <span className="font-medium">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    <Separator />
-                  </>
                 )}
-                <div className="flex justify-between items-center text-xl font-bold">
-                    <span>{paidAmount > 0 && !isPaid ? 'Restante' : 'Total'}</span>
-                    <span>R$ {isPaid ? total.toFixed(2).replace('.',',') : remainingAmount.toFixed(2).replace('.', ',')}</span>
+              </ScrollArea>
+              
+              <Separator />
+              <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full mt-2">
+                  <PlusCircle className="mr-2 h-4 w-4"/>
+                  Adicionar Itens
+              </Button>
+
+              <SheetFooter className="mt-auto pt-4">
+                <div className="w-full space-y-4">
+                    {paidAmount > 0 && (
+                      <>
+                        <div className="flex justify-between items-center text-sm text-muted-foreground">
+                          <span>Total Original</span>
+                          <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-sm text-muted-foreground">
+                          <span>Total Pago</span>
+                          <span className="font-medium">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                        <Separator />
+                      </>
+                    )}
+                    <div className="flex justify-between items-center text-xl font-bold">
+                        <span>{paidAmount > 0 ? 'Restante' : 'Total'}</span>
+                        <span>R$ {remainingAmount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
+                            <Share className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" onClick={handlePrint}>
+                            <Printer className="h-4 w-4" />
+                        </Button>
+                        <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0 || remainingAmount < 0.01}>
+                            <Wallet className="mr-2 h-4 w-4" />
+                            Pagar
+                        </Button>
+                    </div>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
-                        <Share className="h-4 w-4" />
-                    </Button>
-                     <Button variant="outline" size="icon" onClick={handlePrint}>
-                        <Printer className="h-4 w-4" />
-                    </Button>
-                    <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={isPaid || order.items.length === 0 || remainingAmount < 0.01}>
-                        <Wallet className="mr-2 h-4 w-4" />
-                        Pagar
-                    </Button>
-                </div>
-            </div>
-          </SheetFooter>
+              </SheetFooter>
+            </>
+          )}
         </SheetContent>
       </Sheet>
 
+      {/* This hidden receipt is used for the actual printing action */}
       <div className="hidden">
          <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />
       </div>
 
-      {!isPaid && isMenuPickerOpen && (
-        <MenuPicker
-          menuItems={menuItems}
-          onAddItem={addItemToOrder}
-          isOpen={isMenuPickerOpen}
-          onOpenChange={setIsMenuPickerOpen}
-        />
-      )}
-      
-      {!isPaid && isPaymentDialogOpen && (
-        <PaymentDialog
-          order={order}
-          total={total}
-          isOpen={isPaymentDialogOpen}
-          onOpenChange={setIsPaymentDialogOpen}
-          onConfirmPayment={handlePayment}
-        />
+      {/* Dialogs are only for open orders */}
+      {!isPaid && (
+          <>
+            {isMenuPickerOpen && (
+                <MenuPicker
+                menuItems={menuItems}
+                onAddItem={addItemToOrder}
+                isOpen={isMenuPickerOpen}
+                onOpenChange={setIsMenuPickerOpen}
+                />
+            )}
+            
+            {isPaymentDialogOpen && (
+                <PaymentDialog
+                order={order}
+                total={total}
+                isOpen={isPaymentDialogOpen}
+                onOpenChange={setIsPaymentDialogOpen}
+                onConfirmPayment={handlePayment}
+                />
+            )}
+        </>
       )}
     </>
   );

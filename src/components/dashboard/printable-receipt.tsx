@@ -1,25 +1,27 @@
 
 import type { Order } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 interface PrintableReceiptProps {
   order: Order;
   total: number;
   paidAmount: number;
   remainingAmount: number;
+  className?: string;
 }
 
-export function PrintableReceipt({ order, total, paidAmount, remainingAmount }: PrintableReceiptProps) {
+export function PrintableReceipt({ order, total, paidAmount, remainingAmount, className }: PrintableReceiptProps) {
   const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
-  const now = new Date();
-  const formattedDate = now.toLocaleDateString('pt-BR');
-  const formattedTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const receiptDate = order.paidAt ? new Date(order.paidAt) : new Date();
+  const formattedDate = receiptDate.toLocaleDateString('pt-BR');
+  const formattedTime = receiptDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   const paymentMethods = order.payments?.map(p => p.method).join(', ') || 'Pendente';
 
   const line = "----------------------------------------";
 
   return (
-    <div className="printable-receipt hidden">
+    <div className={cn("printable-receipt hidden", className)}>
         <div className="text-center space-y-1">
             <h2 className="text-base font-bold uppercase">Cupom Fiscal</h2>
             <p className="font-bold">Lanchonete Bar Sinuca</p>
