@@ -19,6 +19,7 @@ export const initialOrders: Order[] = [
     type: 'table',
     identifier: 5,
     status: 'open',
+    createdAt: new Date(Date.now() - 86400000 * 2).toISOString(), // 2 days ago
     items: [
       { menuItem: menuItems.find(i => i.id === '1')!, quantity: 1 },
       { menuItem: menuItems.find(i => i.id === '3')!, quantity: 2 },
@@ -30,6 +31,7 @@ export const initialOrders: Order[] = [
     type: 'name',
     identifier: 'João Silva',
     status: 'open',
+    createdAt: new Date(Date.now() - 3600000).toISOString(), // 1 hour ago
     items: [
       { menuItem: menuItems.find(i => i.id === '4')!, quantity: 4 },
       { menuItem: menuItems.find(i => i.id === '5')!, quantity: 2 },
@@ -40,9 +42,45 @@ export const initialOrders: Order[] = [
     type: 'table',
     identifier: 12,
     status: 'paying',
+    createdAt: new Date().toISOString(),
     items: [
       { menuItem: menuItems.find(i => i.id === '9')!, quantity: 2 },
       { menuItem: menuItems.find(i => i.id === '8')!, quantity: 1 },
+    ],
+  },
+  {
+    id: 'order-4',
+    type: 'name',
+    identifier: 'Ana Paula',
+    status: 'paid',
+    createdAt: new Date(Date.now() - 86400000 * 1).toISOString(), // yesterday
+    paidAt: new Date(Date.now() - 86400000 * 1 + 10000).toISOString(),
+    items: [
+      { menuItem: menuItems.find(i => i.id === '6')!, quantity: 1 },
+      { menuItem: menuItems.find(i => i.id === '3')!, quantity: 1 },
+    ],
+  },
+  {
+    id: 'order-5',
+    type: 'table',
+    identifier: 8,
+    status: 'paid',
+    createdAt: new Date().toISOString(),
+    paidAt: new Date().toISOString(),
+    items: [
+      { menuItem: menuItems.find(i => i.id === '1')!, quantity: 2 },
+    ],
+  },
+  {
+    id: 'order-6',
+    type: 'table',
+    identifier: 3,
+    status: 'paid',
+    createdAt: new Date(Date.now() - 86400000 * 5).toISOString(), // 5 days ago
+    paidAt: new Date(Date.now() - 86400000 * 5 + 10000).toISOString(),
+    items: [
+      { menuItem: menuItems.find(i => i.id === '7')!, quantity: 1 },
+      { menuItem: menuItems.find(i => i.id === '9')!, quantity: 1 },
     ],
   }
 ];

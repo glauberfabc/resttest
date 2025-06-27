@@ -22,7 +22,7 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { ComandaZapLogo } from "@/components/icons";
-import { BookMarked, LogOut, Settings, LayoutGrid } from "lucide-react";
+import { BookMarked, LogOut, Settings, LayoutGrid, BarChart2 } from "lucide-react";
 
 export default function DashboardLayoutClient({
   children,
@@ -32,6 +32,11 @@ export default function DashboardLayoutClient({
   const pathname = usePathname();
 
   const menuItems = [
+    {
+      href: "/dashboard/analytics",
+      label: "Analytics",
+      icon: BarChart2,
+    },
     {
       href: "/dashboard",
       label: "Comandas",

@@ -24,6 +24,9 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
 
   const handleUpdateOrder = (updatedOrder: Order) => {
     setOrders(orders.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+    if (selectedOrder?.id === updatedOrder.id) {
+      setSelectedOrder(updatedOrder);
+    }
   };
   
   const handleCreateOrder = (type: 'table' | 'name', identifier: string | number) => {
@@ -33,6 +36,7 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
       identifier,
       items: [],
       status: 'open',
+      createdAt: new Date().toISOString(),
     };
     setOrders([newOrder, ...orders]);
     setIsNewOrderDialogOpen(false);
@@ -42,7 +46,7 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
   const handleFinalizePayment = (orderId: string) => {
     const orderToPay = orders.find(o => o.id === orderId);
     if (orderToPay) {
-      handleUpdateOrder({ ...orderToPay, status: 'paid' });
+      handleUpdateOrder({ ...orderToPay, status: 'paid', paidAt: new Date().toISOString() });
     }
     setSelectedOrder(null);
   }

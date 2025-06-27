@@ -20,4 +20,6 @@ export interface Order {
   identifier: string | number;
   items: OrderItem[];
   status: 'open' | 'paying' | 'paid';
+  createdAt: string;
+  paidAt?: string;
 }
