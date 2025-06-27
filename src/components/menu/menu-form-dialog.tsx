@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import type { MenuItem, MenuItemCategory } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 interface MenuFormDialogProps {
   isOpen: boolean;
@@ -39,6 +41,7 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
   const [price, setPrice] = useState('');
   const [category, setCategory] = useState<MenuItemCategory | ''>('');
   const [imageUrl, setImageUrl] = useState('');
+  const { toast } = useToast();
 
   useEffect(() => {
     if (item) {
@@ -55,6 +58,26 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
         setImageUrl('');
     }
   }, [item]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024 * 2) { // 2MB limit
+        toast({
+            variant: 'destructive',
+            title: 'Imagem muito grande',
+            description: 'Por favor, selecione uma imagem com menos de 2MB.'
+        });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,10 +129,18 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormD
                     </SelectContent>
                 </Select>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="imageUrl" className="text-right">URL da Imagem</Label>
-                <Input id="imageUrl" value={imageUrl} onChange={e => setImageUrl(e.target.value)} className="col-span-3" placeholder="(Opcional)" />
+             <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="image-upload" className="text-right">Imagem</Label>
+                <Input id="image-upload" type="file" accept="image/*" onChange={handleImageChange} className="col-span-3" />
             </div>
+            {imageUrl && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <div/>
+                    <div className="col-span-3">
+                        <Image src={imageUrl} alt="Pré-visualização" width={100} height={100} className="rounded-md object-cover" />
+                    </div>
+                </div>
+            )}
              <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                 <Button type="submit">Salvar</Button>

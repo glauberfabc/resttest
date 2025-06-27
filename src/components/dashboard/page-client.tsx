@@ -37,19 +37,40 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
       items: [],
       status: 'open',
       createdAt: new Date().toISOString(),
+      payments: [],
     };
     setOrders([newOrder, ...orders]);
     setIsNewOrderDialogOpen(false);
     setSelectedOrder(newOrder);
   };
   
-  const handleFinalizePayment = (orderId: string) => {
-    const orderToPay = orders.find(o => o.id === orderId);
-    if (orderToPay) {
-      handleUpdateOrder({ ...orderToPay, status: 'paid', paidAt: new Date().toISOString() });
+  const handleProcessPayment = (orderId: string, amount: number, method: string) => {
+    const orderToPay = orders.find((o) => o.id === orderId);
+    if (!orderToPay) return;
+
+    const newPayment = { amount, method, paidAt: new Date().toISOString() };
+    const updatedPayments = [...(orderToPay.payments || []), newPayment];
+
+    const orderTotal = orderToPay.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+    const totalPaid = updatedPayments.reduce((acc, p) => acc + p.amount, 0);
+    
+    // Use a small tolerance for floating point comparisons
+    const isFullyPaid = totalPaid >= orderTotal - 0.001;
+
+    const updatedOrder: Order = {
+      ...orderToPay,
+      payments: updatedPayments,
+      status: isFullyPaid ? 'paid' : 'open',
+      paidAt: isFullyPaid ? new Date().toISOString() : undefined,
+    };
+
+    handleUpdateOrder(updatedOrder);
+    
+    if (isFullyPaid) {
+      setSelectedOrder(null);
     }
-    setSelectedOrder(null);
-  }
+  };
+
 
   const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
   const paidOrders = orders.filter(o => o.status === 'paid');
@@ -83,7 +104,7 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
           menuItems={menuItems}
           onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
           onUpdateOrder={handleUpdateOrder}
-          onFinalizePayment={handleFinalizePayment}
+          onProcessPayment={handleProcessPayment}
         />
       )}
 

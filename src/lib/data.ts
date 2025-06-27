@@ -25,6 +25,7 @@ export const initialOrders: Order[] = [
       { menuItem: menuItems.find(i => i.id === '3')!, quantity: 2 },
       { menuItem: menuItems.find(i => i.id === '2')!, quantity: 1 },
     ],
+    payments: [],
   },
   {
     id: 'order-2',
@@ -36,6 +37,7 @@ export const initialOrders: Order[] = [
       { menuItem: menuItems.find(i => i.id === '4')!, quantity: 4 },
       { menuItem: menuItems.find(i => i.id === '5')!, quantity: 2 },
     ],
+    payments: [],
   },
   {
     id: 'order-3',
@@ -47,6 +49,7 @@ export const initialOrders: Order[] = [
       { menuItem: menuItems.find(i => i.id === '9')!, quantity: 2 },
       { menuItem: menuItems.find(i => i.id === '8')!, quantity: 1 },
     ],
+    payments: [],
   },
   {
     id: 'order-4',
@@ -59,6 +62,7 @@ export const initialOrders: Order[] = [
       { menuItem: menuItems.find(i => i.id === '6')!, quantity: 1 },
       { menuItem: menuItems.find(i => i.id === '3')!, quantity: 1 },
     ],
+    payments: [{ amount: 53.00, method: 'Crédito', paidAt: new Date(Date.now() - 86400000 * 1 + 10000).toISOString()}],
   },
   {
     id: 'order-5',
@@ -70,6 +74,7 @@ export const initialOrders: Order[] = [
     items: [
       { menuItem: menuItems.find(i => i.id === '1')!, quantity: 2 },
     ],
+    payments: [{ amount: 51.00, method: 'Débito', paidAt: new Date().toISOString()}],
   },
   {
     id: 'order-6',
@@ -82,5 +87,6 @@ export const initialOrders: Order[] = [
       { menuItem: menuItems.find(i => i.id === '7')!, quantity: 1 },
       { menuItem: menuItems.find(i => i.id === '9')!, quantity: 1 },
     ],
+    payments: [{ amount: 46.00, method: 'Dinheiro', paidAt: new Date(Date.now() - 86400000 * 5 + 10000).toISOString()}],
   }
 ];

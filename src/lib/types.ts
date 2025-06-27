@@ -14,6 +14,12 @@ export interface OrderItem {
   quantity: number;
 }
 
+export interface Payment {
+    amount: number;
+    method: string;
+    paidAt: string;
+}
+
 export interface Order {
   id: string;
   type: 'table' | 'name';
@@ -22,4 +28,5 @@ export interface Order {
   status: 'open' | 'paying' | 'paid';
   createdAt: string;
   paidAt?: string;
+  payments?: Payment[];
 }

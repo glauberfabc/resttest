@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import type { Order, MenuItem, OrderItem } from "@/lib/types";
+import type { Order, MenuItem, OrderItem, Payment } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -23,14 +23,16 @@ interface OrderDetailsSheetProps {
   menuItems: MenuItem[];
   onOpenChange: (isOpen: boolean) => void;
   onUpdateOrder: (order: Order) => void;
-  onFinalizePayment: (orderId: string) => void;
+  onProcessPayment: (orderId: string, amount: number, method: string) => void;
 }
 
-export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onFinalizePayment }: OrderDetailsSheetProps) {
+export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+  const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+  const remainingAmount = total - paidAmount;
 
   const updateQuantity = (itemId: string, delta: number) => {
     const updatedItems = order.items.map(item => {
@@ -58,9 +60,17 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const itemsText = order.items.map(item => 
       `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
     ).join('\n');
-    const footer = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
-    const message = encodeURIComponent(header + itemsText + footer);
+    const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
+    const paidText = paidAmount > 0 ? `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*` : '';
+    const remainingText = paidAmount > 0 ? `\n*Restante: R$ ${remainingAmount.toFixed(2).replace('.', ',')}*` : '';
+    
+    const message = encodeURIComponent(header + itemsText + totalText + paidText + remainingText);
     window.open(`https://wa.me/?text=${message}`);
+  };
+
+  const handlePayment = (amount: number, method: string) => {
+    onProcessPayment(order.id, amount, method);
+    setIsPaymentDialogOpen(false);
   };
 
   return (
@@ -87,7 +97,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                       alt={menuItem.name}
                       width={64}
                       height={64}
-                      className="rounded-md"
+                      className="rounded-md object-cover"
                       data-ai-hint="food drink"
                     />
                     <div className="flex-1">
@@ -122,15 +132,28 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
           <SheetFooter className="mt-auto pt-4">
             <div className="w-full space-y-4">
+                {paidAmount > 0 && (
+                  <>
+                    <div className="flex justify-between items-center text-sm text-muted-foreground">
+                      <span>Total Original</span>
+                      <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm text-muted-foreground">
+                      <span>Total Pago</span>
+                      <span className="font-medium text-green-600">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <Separator />
+                  </>
+                )}
                 <div className="flex justify-between items-center text-xl font-bold">
-                    <span>Total</span>
-                    <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                    <span>{paidAmount > 0 ? 'Restante' : 'Total'}</span>
+                    <span>R$ {remainingAmount.toFixed(2).replace('.', ',')}</span>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
                         <Share className="h-4 w-4" />
                     </Button>
-                    <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0}>
+                    <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0 || remainingAmount < 0.01}>
                         <Wallet className="mr-2 h-4 w-4" />
                         Pagar
                     </Button>
@@ -155,7 +178,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
           total={total}
           isOpen={isPaymentDialogOpen}
           onOpenChange={setIsPaymentDialogOpen}
-          onConfirmPayment={() => onFinalizePayment(order.id)}
+          onConfirmPayment={handlePayment}
         />
       )}
     </>
