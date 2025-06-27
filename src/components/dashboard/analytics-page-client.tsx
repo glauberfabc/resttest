@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Order } from "@/lib/types";
+import Link from "next/link";
+import type { Order, MenuItem } from "@/lib/types";
 import { addDays, format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
@@ -17,18 +18,27 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock } from "lucide-react";
+import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AnalyticsPageClientProps {
   orders: Order[];
+  menuItems: MenuItem[];
 }
 
-export default function AnalyticsPageClient({ orders }: AnalyticsPageClientProps) {
+export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPageClientProps) {
   const [date, setDate] = useState<DateRange | undefined>({
     from: addDays(new Date(), -30),
     to: new Date(),
   });
+
+  const lowStockItems = menuItems.filter(
+    (item) => item.stock !== undefined && item.lowStockThreshold !== undefined && item.stock > 0 && item.stock <= item.lowStockThreshold
+  );
+
+  const outOfStockItems = menuItems.filter(
+    (item) => item.stock !== undefined && item.stock === 0
+  );
 
   const openOrders = orders.filter(
     (o) => o.status === "open" || o.status === "paying"
@@ -65,7 +75,7 @@ export default function AnalyticsPageClient({ orders }: AnalyticsPageClientProps
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold tracking-tight">Dashboard de Vendas</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Painel Geral</h2>
         <div className="flex items-center gap-2">
           <Popover>
             <PopoverTrigger asChild>
@@ -106,7 +116,7 @@ export default function AnalyticsPageClient({ orders }: AnalyticsPageClientProps
         </div>
       </div>
       
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -143,6 +153,22 @@ export default function AnalyticsPageClient({ orders }: AnalyticsPageClientProps
             <p className="text-xs text-muted-foreground">
               Total em comandas abertas
             </p>
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Alertas de Estoque
+            </CardTitle>
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{lowStockItems.length + outOfStockItems.length}</div>
+            <Link href="/dashboard/inventory">
+                <p className="text-xs text-muted-foreground hover:underline">
+                  {lowStockItems.length} em alerta, {outOfStockItems.length} esgotados
+                </p>
+            </Link>
           </CardContent>
         </Card>
       </div>

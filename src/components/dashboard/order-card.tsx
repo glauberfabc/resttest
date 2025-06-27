@@ -17,6 +17,7 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
   const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
   const isPartiallyPaid = paidAmount > 0 && remainingAmount > 0.01;
   const isPaid = order.status === 'paid';
+  const paymentMethods = order.payments?.map(p => p.method).filter((v, i, a) => a.indexOf(v) === i).join(', ');
 
   return (
     <Card 
@@ -28,10 +29,13 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
           {order.type === 'table' ? <Table2 className="h-5 w-5 text-muted-foreground" /> : <User className="h-5 w-5 text-muted-foreground" />}
           <span className="truncate">{order.identifier}</span>
         </CardTitle>
-        <div className="flex flex-col items-end gap-1">
+        <div className="flex flex-col items-end gap-1 text-right">
             {isPaid && <Badge variant="secondary">Pago</Badge>}
             {order.status === 'paying' && <Badge variant="destructive">Pagando</Badge>}
             {isPartiallyPaid && <Badge variant="outline">Parcial</Badge>}
+            {isPaid && paymentMethods && (
+                <span className="text-xs text-muted-foreground truncate max-w-[120px]" title={paymentMethods}>{paymentMethods}</span>
+            )}
         </div>
       </CardHeader>
       <CardContent className="pb-2 flex-1">

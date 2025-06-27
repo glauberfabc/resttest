@@ -1,13 +1,19 @@
 import AnalyticsPageClient from "@/components/dashboard/analytics-page-client";
-import { initialOrders } from "@/lib/data";
-import type { Order } from "@/lib/types";
+import { initialOrders, menuItems } from "@/lib/data";
+import type { Order, MenuItem } from "@/lib/types";
 
 async function getOrders(): Promise<Order[]> {
     // In a real app, you would fetch this from a database or API
     return Promise.resolve(initialOrders);
 }
 
+async function getMenuItems(): Promise<MenuItem[]> {
+    // In a real app, you would fetch this from a database
+    return Promise.resolve(menuItems);
+}
+
 export default async function AnalyticsPage() {
     const orders = await getOrders();
-    return <AnalyticsPageClient orders={orders} />;
+    const items = await getMenuItems();
+    return <AnalyticsPageClient orders={orders} menuItems={items} />;
 }
