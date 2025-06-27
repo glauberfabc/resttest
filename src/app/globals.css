@@ -98,14 +98,13 @@ body {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
+    width: 280px; /* Typical thermal printer width */
     font-family: 'Courier New', Courier, monospace;
-    font-size: 10px;
+    font-size: 12px;
+    color: black;
+    background: white;
   }
-  .printable-receipt .print-no-break {
-    page-break-inside: avoid;
-  }
-  .printable-receipt .print-hide {
+   .printable-receipt .print-hide {
     display: none;
   }
 }

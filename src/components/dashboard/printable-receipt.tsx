@@ -10,77 +10,73 @@ interface PrintableReceiptProps {
 
 export function PrintableReceipt({ order, total, paidAmount, remainingAmount }: PrintableReceiptProps) {
   const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+  const now = new Date();
+  const formattedDate = now.toLocaleDateString('pt-BR');
+  const formattedTime = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  const paymentMethods = order.payments?.map(p => p.method).join(', ') || 'Pendente';
+
+  const line = "----------------------------------------";
 
   return (
     <div className="printable-receipt hidden">
-        <div className="text-center space-y-1 p-4 border-b border-dashed">
-            <h1 className="text-lg font-bold">ComandaZap</h1>
-            <p>Rua Fictícia, 123 - Bairro Imaginário</p>
-            <p>CNPJ: 00.000.000/0001-00</p>
-            <p>{new Date().toLocaleString('pt-BR')}</p>
+        <div className="text-center space-y-1">
+            <h2 className="text-base font-bold uppercase">Cupom Fiscal</h2>
+            <p className="font-bold">Lanchonete Bar Sinuca</p>
         </div>
         
-        <div className="p-4 border-b border-dashed">
-            <h2 className="text-center font-bold mb-2">CUPOM NÃO FISCAL</h2>
-            <p className="font-bold">Comanda: {order.type === 'table' ? 'Mesa' : 'Nome'} {order.identifier}</p>
+        <div className="my-2 text-sm">
+            <p>Comanda: {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}</p>
+            <p>Data: {formattedDate} Hora: {formattedTime}</p>
+        </div>
+        
+        <p className="break-words">{line}</p>
+        <div className="flex justify-between font-bold text-sm">
+            <span>QTD | ITEM</span>
+            <span className="text-right">VALOR</span>
+        </div>
+        <p className="break-words">{line}</p>
+        
+        <div className="space-y-1 my-1 text-sm">
+            {order.items.map(({ menuItem, quantity }) => (
+                <div key={menuItem.id} className="flex justify-between">
+                    <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
+                    <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
+                </div>
+            ))}
         </div>
 
-        <div className="p-4 print-no-break">
-            <table className="w-full text-left">
-                <thead>
-                    <tr>
-                        <th className="w-1/2 pb-1">Item</th>
-                        <th className="text-center pb-1">Qtd</th>
-                        <th className="text-right pb-1">Unit.</th>
-                        <th className="text-right pb-1">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {order.items.map(({ menuItem, quantity }) => (
-                        <tr key={menuItem.id}>
-                            <td>{menuItem.name}</td>
-                            <td className="text-center">{quantity}</td>
-                            <td className="text-right">{formatCurrency(menuItem.price)}</td>
-                            <td className="text-right">{formatCurrency(menuItem.price * quantity)}</td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
+        <p className="break-words">{line}</p>
         
-        <div className="p-4 border-t border-dashed space-y-2 print-no-break">
-             <div className="flex justify-between">
-                <span>Subtotal</span>
+        <div className="space-y-1 text-sm">
+            <div className="flex justify-between font-bold text-base">
+                <span>TOTAL</span>
                 <span>{formatCurrency(total)}</span>
             </div>
-            
-            {paidAmount > 0 && (
-                 <div className="flex justify-between">
-                    <span>Pago</span>
+
+            {paidAmount > 0.001 && (
+              <>
+                <div className="flex justify-between">
+                    <span>Total Pago</span>
                     <span>{formatCurrency(paidAmount)}</span>
                 </div>
+                {remainingAmount > 0.001 && (
+                    <div className="flex justify-between font-bold">
+                        <span>Restante</span>
+                        <span>{formatCurrency(remainingAmount)}</span>
+                    </div>
+                )}
+              </>
             )}
-           
-            <div className="flex justify-between font-bold text-lg">
-                <span>{paidAmount > 0 ? 'Restante' : 'Total'}</span>
-                <span>{formatCurrency(remainingAmount)}</span>
+
+            <div className="flex justify-between">
+                <span>Forma de Pagamento:</span>
+                <span className="text-right">{paymentMethods}</span>
             </div>
-
-            {order.payments && order.payments.length > 0 && (
-                <div className="pt-2">
-                    <h3 className="font-bold">Pagamentos:</h3>
-                    {order.payments.map((p, index) => (
-                        <div key={index} className="flex justify-between">
-                            <span>{p.method}</span>
-                            <span>{formatCurrency(p.amount)}</span>
-                        </div>
-                    ))}
-                </div>
-            )}
         </div>
-
-        <div className="text-center p-4 border-t border-dashed">
-            <p>Obrigado pela preferência!</p>
+        
+        <div className="text-center mt-4 text-sm">
+            <p>Obrigado e volte sempre!</p>
         </div>
     </div>
   );
