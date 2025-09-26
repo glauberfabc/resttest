@@ -26,13 +26,13 @@ export default function InventoryPageClient({ initialMenuItems }: InventoryPageC
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
 
   const getStockStatus = (item: MenuItem): { text: string; variant: "default" | "destructive" | "secondary" | "outline" } => {
-    if (item.stock === undefined || item.lowStockThreshold === undefined) {
+    if (item.stock === undefined || (item.stock === 0 && (item.lowStockThreshold === undefined || item.lowStockThreshold === 0))) {
       return { text: "Não gerenciado", variant: "secondary" };
     }
     if (item.stock <= 0) {
       return { text: "Esgotado", variant: "destructive" };
     }
-    if (item.stock <= item.lowStockThreshold) {
+    if (item.lowStockThreshold && item.stock <= item.lowStockThreshold) {
       return { text: "Estoque Baixo", variant: "outline" };
     }
     return { text: "Em Estoque", variant: "default" };
@@ -73,7 +73,7 @@ export default function InventoryPageClient({ initialMenuItems }: InventoryPageC
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell className="text-right">
-                    {item.stock !== undefined ? item.stock : "-"}
+                    {item.stock !== undefined && status.variant !== 'secondary' ? item.stock : "-"}
                   </TableCell>
                   <TableCell>{item.unit || "-"}</TableCell>
                   <TableCell>
