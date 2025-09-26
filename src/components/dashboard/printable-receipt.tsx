@@ -28,7 +28,7 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
     <div className={cn("printable-receipt hidden", className)}>
         <div className="text-center space-y-1">
             <h2 className="text-base font-bold uppercase">Cupom Fiscal</h2>
-            <p className="font-bold">Lanchonete Bar Sinuca</p>
+            <p className="font-bold">Snooker Bar</p>
         </div>
         
         <div className="my-2 text-sm">

@@ -22,7 +22,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar";
-import { ComandaZapLogo } from "@/components/icons";
+import { SnookerBarLogo } from "@/components/icons";
 import { BookMarked, LogOut, Archive, LayoutGrid, Home } from "lucide-react";
 import { useUser } from "@/context/user-context";
 
@@ -74,8 +74,8 @@ export default function DashboardLayoutClient({
         <SidebarContent>
           <SidebarHeader>
             <div className="flex items-center gap-2">
-              <ComandaZapLogo className="size-7 text-primary" />
-              <span className="text-lg font-semibold">ComandaZap</span>
+              <SnookerBarLogo className="size-7 text-primary" />
+              <span className="text-lg font-semibold">Snooker Bar</span>
             </div>
           </SidebarHeader>
           <SidebarMenu>

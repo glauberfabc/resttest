@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ComandaZapLogo } from "@/components/icons";
+import { SnookerBarLogo } from "@/components/icons";
 import { useUser } from "@/context/user-context";
 
 export function LoginPage() {
@@ -34,8 +34,8 @@ export function LoginPage() {
       <div className="absolute inset-0 -z-10 h-full w-full bg-background bg-[linear-gradient(to_right,#D0BCFF_1px,transparent_1px),linear-gradient(to_bottom,#D0BCFF_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-20"></div>
       
       <div className="mb-8 flex items-center gap-3 text-2xl font-bold text-primary">
-        <ComandaZapLogo className="h-10 w-10" />
-        <h1 className="text-3xl font-bold">ComandaZap</h1>
+        <SnookerBarLogo className="h-10 w-10" />
+        <h1 className="text-3xl font-bold">Snooker Bar</h1>
       </div>
 
       <Card className="w-full max-w-sm">
