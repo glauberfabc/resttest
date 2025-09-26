@@ -73,8 +73,8 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
         <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
             <div className="px-12 py-4">
                 <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
-                    <CarouselContent>
-                        <CarouselItem className="basis-auto">
+                    <CarouselContent className="-ml-1">
+                        <CarouselItem className="pl-1">
                             <TabsList>
                                 <TabsTrigger value="Todos">Todos</TabsTrigger>
                                 {categories.map((cat) => (
