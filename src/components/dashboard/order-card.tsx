@@ -1,9 +1,12 @@
+
 "use client";
 
 import type { Order } from "@/lib/types";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { User, Table2 } from "lucide-react";
+import { formatInTimeZone } from 'date-fns-tz';
+
 
 interface OrderCardProps {
   order: Order;
@@ -18,6 +21,20 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
   const isPartiallyPaid = paidAmount > 0 && remainingAmount > 0.01;
   const isPaid = order.status === 'paid';
   const paymentMethods = order.payments?.map(p => p.method).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+
+  const getFormattedPaidAt = () => {
+    if (!order.paidAt) return '';
+    try {
+        const paidDate = new Date(order.paidAt);
+        const timeZone = 'America/Sao_Paulo'; // GMT-3
+        const date = formatInTimeZone(paidDate, timeZone, 'dd/MM/yy');
+        const time = formatInTimeZone(paidDate, timeZone, 'HH:mm');
+        return `${date} às ${time}`;
+    } catch (error) {
+        console.error("Error formatting date:", error);
+        return 'Data inválida';
+    }
+  };
 
   return (
     <Card 
@@ -45,6 +62,11 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
         {isPartiallyPaid && (
              <div className="text-xs text-muted-foreground mt-1">
                 Pago R$ {paidAmount.toFixed(2).replace('.', ',')} de R$ {total.toFixed(2).replace('.', ',')}
+            </div>
+        )}
+        {isPaid && order.paidAt && (
+             <div className="text-xs text-muted-foreground mt-1">
+                {getFormattedPaidAt()}
             </div>
         )}
       </CardContent>

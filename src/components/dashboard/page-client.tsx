@@ -82,7 +82,7 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
 
 
   const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
-  const paidOrders = orders.filter(o => o.status === 'paid');
+  const paidOrders = orders.filter(o => o.status === 'paid' && o.type === 'name');
 
   return (
     <div className="flex flex-col gap-6">

@@ -59,9 +59,11 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
     return total + orderTotal;
   }, 0);
 
-  const paidOrders = orders.filter(
+  const allPaidOrders = orders.filter(o => o.status === 'paid');
+
+  const paidOrdersInDateRange = allPaidOrders.filter(
     (o) => {
-        if (o.status !== 'paid' || !o.paidAt) return false;
+        if (!o.paidAt) return false;
         const paidDate = new Date(o.paidAt);
         const fromDate = date?.from ? new Date(new Date(date.from).setHours(0,0,0,0)) : null;
         const toDate = date?.to ? new Date(new Date(date.to).setHours(23,59,59,999)) : null;
@@ -71,7 +73,7 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
     }
   );
 
-  const totalSales = paidOrders.reduce((total, order) => {
+  const totalSales = paidOrdersInDateRange.reduce((total, order) => {
     const orderTotal = order.items.reduce(
       (acc, item) => acc + item.menuItem.price * item.quantity,
       0
@@ -136,7 +138,7 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
           <CardContent>
             <div className="text-2xl font-bold">R$ {totalSales.toFixed(2).replace('.', ',')}</div>
             <p className="text-xs text-muted-foreground">
-              {paidOrders.length} {paidOrders.length === 1 ? 'venda no período' : 'vendas no período'}
+              {paidOrdersInDateRange.length} {paidOrdersInDateRange.length === 1 ? 'venda no período' : 'vendas no período'}
             </p>
           </CardContent>
         </Card>
