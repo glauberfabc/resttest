@@ -64,18 +64,16 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
         </DialogHeader>
 
         <div className="px-6">
-            <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
-                <TabsList className="whitespace-nowrap">
-                    <ScrollArea orientation="horizontal" className="w-full pb-2">
-                        <div className="flex gap-2">
-                            <TabsTrigger value="Todos">Todos</TabsTrigger>
-                            {categories.map(cat => (
-                                <TabsTrigger key={cat} value={cat}>{cat}</TabsTrigger>
-                            ))}
-                        </div>
-                    </ScrollArea>
-                </TabsList>
-            </Tabs>
+          <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
+            <ScrollArea className="w-full whitespace-nowrap" orientation="horizontal">
+              <TabsList>
+                  <TabsTrigger value="Todos">Todos</TabsTrigger>
+                  {categories.map(cat => (
+                      <TabsTrigger key={cat} value={cat}>{cat}</TabsTrigger>
+                  ))}
+              </TabsList>
+            </ScrollArea>
+          </Tabs>
         </div>
 
         <ScrollArea className="flex-1 px-6">
