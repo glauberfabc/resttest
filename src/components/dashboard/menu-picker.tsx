@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -69,25 +70,24 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
           </div>
         </DialogHeader>
 
-        <div className="px-12 py-4">
-          <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
-            <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
-              <CarouselContent>
-                <CarouselItem className="basis-auto">
-                   <TabsTrigger value="Todos">Todos</TabsTrigger>
-                </CarouselItem>
-                {categories.map((cat) => (
-                  <CarouselItem key={cat} className="basis-auto">
-                    <TabsTrigger value={cat}>{cat}</TabsTrigger>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              <CarouselPrevious className="-left-8" />
-              <CarouselNext className="-right-8" />
-            </Carousel>
-          </Tabs>
-        </div>
-
+        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
+            <div className="px-12 py-4">
+                <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
+                    <CarouselContent>
+                        <CarouselItem className="basis-auto">
+                            <TabsList>
+                                <TabsTrigger value="Todos">Todos</TabsTrigger>
+                                {categories.map((cat) => (
+                                    <TabsTrigger key={cat} value={cat}>{cat}</TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </CarouselItem>
+                    </CarouselContent>
+                    <CarouselPrevious className="-left-8" />
+                    <CarouselNext className="-right-8" />
+                </Carousel>
+            </div>
+        </Tabs>
 
         <ScrollArea className="flex-1 px-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
