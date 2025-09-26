@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -55,8 +56,14 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
     const orderTotal = orderToPay.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
     const totalPaid = updatedPayments.reduce((acc, p) => acc + p.amount, 0);
     
-    // Use a small tolerance for floating point comparisons
     const isFullyPaid = totalPaid >= orderTotal - 0.001;
+
+    if (isFullyPaid && orderToPay.type === 'table') {
+        // Remove the paid table order from the list
+        setOrders(orders.filter(o => o.id !== orderId));
+        setSelectedOrder(null);
+        return;
+    }
 
     const updatedOrder: Order = {
       ...orderToPay,
@@ -68,7 +75,8 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
     handleUpdateOrder(updatedOrder);
     
     if (isFullyPaid) {
-      setSelectedOrder(null);
+      // For 'name' orders, keep it selected to show the receipt.
+      setSelectedOrder(updatedOrder); 
     }
   };
 
@@ -115,7 +123,7 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
             ) : (
               <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
                   <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda fechada</h3>
-                  <p className="text-sm text-muted-foreground">As comandas pagas aparecerão aqui.</p>
+                  <p className="text-sm text-muted-foreground">As comandas pagas por nome aparecerão aqui.</p>
               </div>
             )}
         </TabsContent>

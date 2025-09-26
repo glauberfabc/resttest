@@ -1,6 +1,8 @@
 
 import type { Order } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { formatInTimeZone } from 'date-fns-tz';
+
 
 interface PrintableReceiptProps {
   order: Order;
@@ -12,9 +14,11 @@ interface PrintableReceiptProps {
 
 export function PrintableReceipt({ order, total, paidAmount, remainingAmount, className }: PrintableReceiptProps) {
   const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+  const timeZone = 'America/Sao_Paulo'; // GMT-3
+
   const receiptDate = order.paidAt ? new Date(order.paidAt) : new Date();
-  const formattedDate = receiptDate.toLocaleDateString('pt-BR');
-  const formattedTime = receiptDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const formattedDate = formatInTimeZone(receiptDate, timeZone, 'dd/MM/yyyy');
+  const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
 
   const paymentMethods = order.payments?.map(p => p.method).join(', ') || 'Pendente';
 

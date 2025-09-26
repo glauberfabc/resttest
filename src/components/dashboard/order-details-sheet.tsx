@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -18,6 +19,7 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer } from "lucide-react";
+import { formatInTimeZone } from 'date-fns-tz';
 
 interface OrderDetailsSheetProps {
   order: Order;
@@ -35,6 +37,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
+  const timeZone = 'America/Sao_Paulo'; // GMT-3
 
   const updateQuantity = (itemId: string, delta: number) => {
     const updatedItems = order.items.map(item => {
@@ -72,11 +75,23 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const handlePayment = (amount: number, method: string) => {
     onProcessPayment(order.id, amount, method);
-    setIsPaymentDialogOpen(false);
   };
   
   const handlePrint = () => {
     window.print();
+  };
+  
+  const getFormattedPaidAt = () => {
+    if (!order.paidAt) return '';
+    try {
+        const paidDate = new Date(order.paidAt);
+        const date = formatInTimeZone(paidDate, timeZone, 'dd/MM/yyyy');
+        const time = formatInTimeZone(paidDate, timeZone, 'HH:mm');
+        return `Pago em ${date} às ${time}`;
+    } catch (error) {
+        console.error("Error formatting date:", error);
+        return 'Pago em data inválida';
+    }
   };
 
   return (
@@ -88,9 +103,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
               {isPaid ? 'Comprovante' : 'Comanda'}: {order.type === 'table' ? 'Mesa' : ''} {order.identifier}
             </SheetTitle>
             <SheetDescription>
-              {isPaid && order.paidAt
-                ? `Pago em ${new Date(order.paidAt).toLocaleDateString('pt-BR')} às ${new Date(order.paidAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
-                : 'Visualize, adicione ou remova itens da comanda.'}
+              {isPaid ? getFormattedPaidAt() : 'Visualize, adicione ou remova itens da comanda.'}
             </SheetDescription>
           </SheetHeader>
           
@@ -190,12 +203,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         </SheetContent>
       </Sheet>
 
-      {/* This hidden receipt is used for the actual printing action */}
       <div className="hidden">
          <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />
       </div>
 
-      {/* Dialogs are only for open orders */}
       {!isPaid && (
           <>
             {isMenuPickerOpen && (
