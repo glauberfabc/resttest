@@ -25,17 +25,17 @@ interface ClientFormDialogProps {
 export function ClientFormDialog({ isOpen, onOpenChange, onSave, client }: ClientFormDialogProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [documentValue, setDocumentValue] = useState('');
 
   useEffect(() => {
     if (client) {
       setName(client.name);
       setPhone(client.phone || '');
-      setEmail(client.email || '');
+      setDocumentValue(client.document || '');
     } else {
       setName('');
       setPhone('');
-      setEmail('');
+      setDocumentValue('');
     }
   }, [client]);
 
@@ -47,7 +47,7 @@ export function ClientFormDialog({ isOpen, onOpenChange, onSave, client }: Clien
       id: client?.id || '', // ID will be generated in parent if new
       name,
       phone,
-      email,
+      document: documentValue,
     };
     onSave(savedClient);
   };
@@ -71,8 +71,8 @@ export function ClientFormDialog({ isOpen, onOpenChange, onSave, client }: Clien
                 <Input id="phone" value={phone} onChange={e => setPhone(e.target.value)} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="email" className="text-right">Email</Label>
-                <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="col-span-3" />
+                <Label htmlFor="document" className="text-right">Documento</Label>
+                <Input id="document" value={documentValue} onChange={e => setDocumentValue(e.target.value)} className="col-span-3" />
             </div>
              <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -83,4 +83,3 @@ export function ClientFormDialog({ isOpen, onOpenChange, onSave, client }: Clien
     </Dialog>
   );
 }
-

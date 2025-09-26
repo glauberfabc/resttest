@@ -95,7 +95,7 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
-              <TableHead>Contato (Telefone/Email)</TableHead>
+              <TableHead>Contato (Telefone/Documento)</TableHead>
               <TableHead className="w-[150px] text-right">Dívida Ativa</TableHead>
               <TableHead className="w-[80px]">Ações</TableHead>
             </TableRow>
@@ -107,7 +107,7 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
                 return (
                     <TableRow key={client.id} className={debt > 0 ? "bg-destructive/10" : ""}>
                         <TableCell className="font-medium">{client.name}</TableCell>
-                        <TableCell>{client.phone || client.email || "-"}</TableCell>
+                        <TableCell>{client.phone || client.document || "-"}</TableCell>
                         <TableCell className="text-right font-mono">
                             {debt > 0 ? `R$ ${debt.toFixed(2).replace('.', ',')}` : "-"}
                         </TableCell>

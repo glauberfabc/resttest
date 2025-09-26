@@ -95,7 +95,7 @@ export const initialOrders: Order[] = [
 ];
 
 export const initialClients: Client[] = [
-    { id: 'client-1', name: 'João Silva', phone: '11987654321', email: 'joao.silva@example.com' },
-    { id: 'client-2', name: 'Ana Paula', phone: '21912345678', email: 'ana.paula@example.com' },
-    { id: 'client-3', name: 'Carlos Souza', phone: '31999998888', email: 'carlos.souza@example.com' },
+    { id: 'client-1', name: 'João Silva', phone: '11987654321', document: '123.456.789-00' },
+    { id: 'client-2', name: 'Ana Paula', phone: '21912345678', document: '987.654.321-11' },
+    { id: 'client-3', name: 'Carlos Souza', phone: '31999998888', document: '111.222.333-44' },
 ];
