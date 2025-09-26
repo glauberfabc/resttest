@@ -23,7 +23,7 @@ import {
   AvatarImage,
 } from "@/components/ui/avatar";
 import { SnookerBarLogo } from "@/components/icons";
-import { BookMarked, LogOut, Archive, LayoutGrid, Home } from "lucide-react";
+import { BookMarked, LogOut, Archive, LayoutGrid, Home, Users } from "lucide-react";
 import { useUser } from "@/context/user-context";
 
 export default function DashboardLayoutClient({
@@ -60,6 +60,11 @@ export default function DashboardLayoutClient({
       href: "/dashboard/inventory",
       label: "Estoque",
       icon: Archive,
+    },
+    {
+      href: "/dashboard/clients",
+      label: "Clientes",
+      icon: Users,
     },
   ];
 

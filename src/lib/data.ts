@@ -1,4 +1,4 @@
-import type { MenuItem, Order } from './types';
+import type { MenuItem, Order, Client } from './types';
 
 export const menuItems: MenuItem[] = [
   { id: '1', name: 'X-Bacon', description: 'Pão, hambúrguer, queijo, bacon, alface e tomate.', price: 25.50, category: 'Lanches', imageUrl: 'https://picsum.photos/seed/1/200/200', stock: 50, lowStockThreshold: 10, unit: 'un' },
@@ -92,4 +92,10 @@ export const initialOrders: Order[] = [
     ],
     payments: [{ amount: 46.00, method: 'Dinheiro', paidAt: new Date(Date.now() - 86400000 * 5 + 10000).toISOString()}],
   }
+];
+
+export const initialClients: Client[] = [
+    { id: 'client-1', name: 'João Silva', phone: '11987654321', email: 'joao.silva@example.com' },
+    { id: 'client-2', name: 'Ana Paula', phone: '21912345678', email: 'ana.paula@example.com' },
+    { id: 'client-3', name: 'Carlos Souza', phone: '31999998888', email: 'carlos.souza@example.com' },
 ];

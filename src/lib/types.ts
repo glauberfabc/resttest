@@ -33,3 +33,10 @@ export interface Order {
   paidAt?: string;
   payments?: Payment[];
 }
+
+export interface Client {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string;
+}
