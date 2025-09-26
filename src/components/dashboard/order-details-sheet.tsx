@@ -128,7 +128,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                     {order.items.map(({ menuItem, quantity }) => (
                       <div key={menuItem.id} className="flex items-center gap-4 py-3">
                         <Image
-                          src={menuItem.imageUrl || 'https://placehold.co/64x64'}
+                          src={menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={menuItem.name}
                           width={64}
                           height={64}

@@ -4,7 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Order, MenuItem } from "@/lib/types";
-import { addDays, format, startOfDay, endOfDay } from "date-fns";
+import { addDays, format, startOfDay, endOfDay, eachDayOfInterval, parseISO } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
   Card,
@@ -22,6 +22,7 @@ import {
 import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
+import { SalesChart } from "./sales-chart";
 
 
 interface AnalyticsPageClientProps {
@@ -80,6 +81,36 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
     );
     return total + orderTotal;
   }, 0);
+
+  const salesByDay = React.useMemo(() => {
+    if (!date?.from || !date?.to) {
+        return [];
+    }
+
+    const interval = eachDayOfInterval({
+        start: date.from,
+        end: date.to,
+    });
+
+    const dailySales = interval.map(day => ({
+        date: format(day, 'dd/MM'),
+        total: 0,
+    }));
+
+    paidOrdersInDateRange.forEach(order => {
+        if (order.paidAt) {
+            const orderDateStr = format(parseISO(order.paidAt), 'dd/MM');
+            const dayData = dailySales.find(d => d.date === orderDateStr);
+            if (dayData) {
+                const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+                dayData.total += orderTotal;
+            }
+        }
+    });
+
+    return dailySales;
+  }, [paidOrdersInDateRange, date]);
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -183,6 +214,16 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
           </CardContent>
         </Card>
       </div>
+      {isAdmin && (
+        <Card>
+            <CardHeader>
+                <CardTitle>Vendas por Dia</CardTitle>
+            </CardHeader>
+            <CardContent className="pl-2">
+                <SalesChart data={salesByDay} />
+            </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

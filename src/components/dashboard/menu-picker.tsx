@@ -72,7 +72,7 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
                 {filteredItems.map(item => (
                 <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow cursor-pointer" onClick={() => onAddItem(item)}>
                     <Image
-                    src={item.imageUrl || 'https://placehold.co/200x200'}
+                    src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
                     alt={item.name}
                     width={200}
                     height={200}

@@ -81,7 +81,7 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
               <TableRow key={item.id}>
                 <TableCell>
                   <Image
-                    src={item.imageUrl || "https://placehold.co/64x64"}
+                    src={item.imageUrl || "https://picsum.photos/seed/placeholder/64/64"}
                     alt={item.name}
                     width={64}
                     height={64}
