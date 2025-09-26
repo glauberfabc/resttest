@@ -1,22 +1,16 @@
+
 export const SnookerBarLogo = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 256 256"
-    width="1em"
-    height="1em"
-    {...props}
-  >
-    <path fill="none" d="M0 0h256v256H0z" />
-    <circle
-      cx="128"
-      cy="128"
-      r="96"
-      fill="none"
-      stroke="currentColor"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={24}
-    />
-    <circle cx="128" cy="128" r="40" fill="currentColor" />
-  </svg>
+    <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 256 256"
+        width="1em"
+        height="1em"
+        {...props}
+    >
+        <g fillRule="evenodd">
+            <circle cx="128" cy="128" r="128" fill="currentColor" className="text-foreground" />
+            <circle cx="128" cy="128" r="64" fill="#fff" />
+            <path d="M136.26 150.3c-5.18 4.2-10.4 6.3-15.68 6.3-5.28 0-9.8-2.1-13.56-6.3-3.75-4.2-5.63-9.56-5.63-16.09 0-6.19 1.8-11.4 5.4-15.64 3.6-4.24 8.24-6.36 13.92-6.36 5.68 0 10.28 2.12 13.8 6.36 3.52 4.24 5.28 9.45 5.28 15.64 0 6.53-1.92 11.89-5.75 16.09zm-15.6-4.82c1.9 0 3.5-1.2 4.78-3.62 1.28-2.4 1.92-5.33 1.92-8.77 0-3.76-.6-6.83-1.8-9.23-1.2-2.4-2.8-3.6-4.82-3.6s-3.58 1.2-4.86 3.6c-1.28 2.4-1.92 5.47-1.92 9.23 0 3.44.64 6.37 1.92 8.77 1.28 2.42 2.95 3.62 4.88 3.62z" fill="#000" />
+        </g>
+    </svg>
 );
