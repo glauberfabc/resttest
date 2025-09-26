@@ -11,6 +11,9 @@ export const menuItems: MenuItem[] = [
   { id: '8', name: 'Dose de Jack Daniel\'s', description: 'Whisky Jack Daniel\'s Old No. 7.', price: 22.00, category: 'Destilados', imageUrl: 'https://placehold.co/100x100', stock: 30, lowStockThreshold: 5, unit: 'doses' },
   { id: '9', name: 'Caipirinha de Limão', description: 'Cachaça, limão, açúcar e gelo.', price: 18.00, category: 'Caipirinhas', imageUrl: 'https://placehold.co/100x100', stock: 99, lowStockThreshold: 10, unit: 'un' },
   { id: '10', name: 'Café Espresso', description: 'Café forte e encorpado.', price: 6.00, category: 'Bebidas Quentes', imageUrl: 'https://placehold.co/100x100', stock: 200, lowStockThreshold: 20, unit: 'un' },
+  { id: '11', name: 'Salada (Adicional)', description: 'Adicional de salada para o seu lanche.', price: 2.00, category: 'Adicional', imageUrl: 'https://placehold.co/100x100', stock: 100, lowStockThreshold: 10, unit: 'un' },
+  { id: '12', name: 'Queijo (Adicional)', description: 'Adicional de queijo para o seu lanche.', price: 3.00, category: 'Adicional', imageUrl: 'https://placehold.co/100x100', stock: 100, lowStockThreshold: 10, unit: 'un' },
+  { id: '13', name: 'Hambúrguer (Adicional)', description: 'Adicional de hambúrguer para o seu lanche.', price: 5.00, category: 'Adicional', imageUrl: 'https://placehold.co/100x100', stock: 100, lowStockThreshold: 10, unit: 'un' },
 ];
 
 export const initialOrders: Order[] = [
