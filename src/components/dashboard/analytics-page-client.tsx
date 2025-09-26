@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import type { Order, MenuItem } from "@/lib/types";
 import { addDays, format, startOfDay, endOfDay, eachDayOfInterval, parseISO } from "date-fns";
