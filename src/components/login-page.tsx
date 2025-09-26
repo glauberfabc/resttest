@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,13 +15,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ComandaZapLogo } from "@/components/icons";
+import { useUser } from "@/context/user-context";
 
 export function LoginPage() {
   const router = useRouter();
+  const { login } = useUser();
+  const [email, setEmail] = useState("admin@comandazap.com");
+  const [password, setPassword] = useState("123456");
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    router.push("/dashboard");
+    login({ email, password });
+    router.push("/dashboard/analytics");
   };
 
   return (
@@ -35,7 +42,7 @@ export function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Entre com suas credenciais de funcionário ou administrador.
+            Use `admin@comandazap.com` ou `colab@comandazap.com`.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -47,7 +54,8 @@ export function LoginPage() {
                 type="email"
                 placeholder="m@example.com"
                 required
-                defaultValue="admin@comandazap.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
@@ -56,7 +64,8 @@ export function LoginPage() {
                 id="password" 
                 type="password" 
                 required 
-                defaultValue="123456"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
               />
             </div>
           </CardContent>

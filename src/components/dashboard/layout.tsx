@@ -1,7 +1,8 @@
+
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarProvider,
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/avatar";
 import { ComandaZapLogo } from "@/components/icons";
 import { BookMarked, LogOut, Archive, LayoutGrid, Home } from "lucide-react";
+import { useUser } from "@/context/user-context";
 
 export default function DashboardLayoutClient({
   children,
@@ -30,6 +32,13 @@ export default function DashboardLayoutClient({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useUser();
+
+  const handleLogout = () => {
+    logout();
+    router.push("/");
+  };
 
   const menuItems = [
     {
@@ -53,6 +62,11 @@ export default function DashboardLayoutClient({
       icon: Archive,
     },
   ];
+
+  if (!user) {
+    // Or a loading spinner
+    return null;
+  }
 
   return (
     <SidebarProvider>
@@ -82,18 +96,16 @@ export default function DashboardLayoutClient({
         <SidebarFooter>
           <div className="flex items-center gap-2">
             <Avatar className="size-8">
-              <AvatarImage src="https://placehold.co/40x40" alt="Admin" />
-              <AvatarFallback>A</AvatarFallback>
+              <AvatarImage src={`https://placehold.co/40x40/7C3AED/FFFFFF?text=${user.name.charAt(0).toUpperCase()}`} alt={user.name} />
+              <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col text-sm">
-              <span className="font-semibold">Administrador</span>
-              <span className="text-muted-foreground">admin@comandazap.com</span>
+              <span className="font-semibold">{user.name}</span>
+              <span className="text-muted-foreground">{user.email}</span>
             </div>
-            <Link href="/" className="ml-auto">
-              <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" onClick={handleLogout} className="ml-auto">
                 <LogOut className="size-4" />
-              </Button>
-            </Link>
+            </Button>
           </div>
         </SidebarFooter>
       </Sidebar>

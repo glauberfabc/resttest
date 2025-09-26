@@ -1,9 +1,10 @@
+
 "use client";
 
 import { useState } from "react";
 import Link from "next/link";
 import type { Order, MenuItem } from "@/lib/types";
-import { addDays, format } from "date-fns";
+import { addDays, format, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
   Card,
@@ -20,6 +21,8 @@ import {
 } from "@/components/ui/popover";
 import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUser } from "@/context/user-context";
+
 
 interface AnalyticsPageClientProps {
   orders: Order[];
@@ -27,10 +30,14 @@ interface AnalyticsPageClientProps {
 }
 
 export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPageClientProps) {
-  const [date, setDate] = useState<DateRange | undefined>({
-    from: addDays(new Date(), -30),
-    to: new Date(),
-  });
+  const { user } = useUser();
+  const isAdmin = user?.role === 'admin';
+
+  const [date, setDate] = useState<DateRange | undefined>(
+    isAdmin
+      ? { from: addDays(new Date(), -30), to: new Date() }
+      : { from: startOfDay(new Date()), to: endOfDay(new Date()) }
+  );
 
   const lowStockItems = menuItems.filter(
     (item) => item.stock !== undefined && item.lowStockThreshold !== undefined && item.stock > 0 && item.stock <= item.lowStockThreshold
@@ -76,44 +83,46 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
     <div className="flex flex-col gap-6">
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Painel Geral</h2>
-        <div className="flex items-center gap-2">
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                id="date"
-                variant={"outline"}
-                className={cn(
-                  "w-full sm:w-[260px] justify-start text-left font-normal",
-                  !date && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {date?.from ? (
-                  date.to ? (
-                    <>
-                      {format(date.from, "dd/MM/y")} -{" "}
-                      {format(date.to, "dd/MM/y")}
-                    </>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  id="date"
+                  variant={"outline"}
+                  className={cn(
+                    "w-full sm:w-[260px] justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date?.from ? (
+                    date.to ? (
+                      <>
+                        {format(date.from, "dd/MM/y")} -{" "}
+                        {format(date.to, "dd/MM/y")}
+                      </>
+                    ) : (
+                      format(date.from, "dd/MM/y")
+                    )
                   ) : (
-                    format(date.from, "dd/MM/y")
-                  )
-                ) : (
-                  <span>Selecione o período</span>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={date?.from}
-                selected={date}
-                onSelect={setDate}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
+                    <span>Selecione o período</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={date?.from}
+                  selected={date}
+                  onSelect={setDate}
+                  numberOfMonths={2}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
