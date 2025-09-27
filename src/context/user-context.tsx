@@ -66,7 +66,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             } else {
                  console.error("Login successful but no profile found for user:", currentUser.id);
                  // This case might happen transiently during signup, before the profile is created.
-                 // We will let the signup function handle profile creation.
                  if (event !== 'USER_UPDATED') {
                     toast({
                         variant: 'destructive',
@@ -133,12 +132,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             // Optional: delete the user if profile creation fails
             // await supabase.auth.admin.deleteUser(signUpData.user.id);
             await supabase.auth.signOut();
-        } else {
-             toast({
-                title: 'Cadastro realizado com sucesso!',
-                description: 'Você já pode fazer o login.'
-             });
-             router.push('/');
         }
     }
   };

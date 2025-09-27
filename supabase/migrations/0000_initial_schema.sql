@@ -7,11 +7,23 @@ create table if not exists public.profiles (
 );
 alter table public.profiles enable row level security;
 
+-- Function to get claims from the JWT
+create or replace function public.get_my_claims()
+returns jsonb
+language sql stable
+as $$
+  select coalesce(
+    current_setting('request.jwt.claims', true),
+    '{}'
+  )::jsonb;
+$$;
+
+
 -- Policies for profiles
 drop policy if exists "Users can view their own profile." on public.profiles;
 create policy "Users can view their own profile."
   on public.profiles for select
-  using ( auth.uid() = id );
+  using (((get_my_claims() ->> 'sub'::text))::uuid = id);
 
 drop policy if exists "Users can insert their own profile." on public.profiles;
 create policy "Users can insert their own profile."
@@ -22,29 +34,6 @@ drop policy if exists "Users can update own profile." on public.profiles;
 create policy "Users can update own profile."
   on public.profiles for update
   using ( auth.uid() = id );
-
--- This trigger automatically creates a profile entry for new users.
-drop function if exists public.handle_new_user() cascade;
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  -- Temporarily disable RLS to allow insertion by the trigger
-  set session_replication_role = replica;
-  
-  insert into public.profiles (id, email)
-  values (new.id, new.email);
-  
-  -- Re-enable RLS
-  set session_replication_role = origin;
-  return new;
-end;
-$$ language plpgsql security definer;
-
--- Trigger the function after a new user is created
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
 
 
 -- Create menu_items table
@@ -69,10 +58,10 @@ create policy "Users can manage their own menu items."
     on public.menu_items for all
     using ( auth.uid() = user_id );
 
-drop policy if exists "Menu items are viewable by authenticated users." on public.menu_items;
-create policy "Menu items are viewable by authenticated users."
+drop policy if exists "Menu items are viewable by everyone." on public.menu_items;
+create policy "Menu items are viewable by everyone."
     on public.menu_items for select
-    using ( auth.role() = 'authenticated' );
+    using ( true );
 
 
 -- Create clients table
@@ -91,6 +80,7 @@ drop policy if exists "Users can manage their own clients." on public.clients;
 create policy "Users can manage their own clients."
     on public.clients for all
     using ( auth.uid() = user_id );
+
 
 -- Create product_images bucket
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
