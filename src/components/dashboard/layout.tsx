@@ -73,6 +73,8 @@ export default function DashboardLayoutClient({
     return null;
   }
 
+  const userNameInitial = user?.name?.charAt(0)?.toUpperCase() || '';
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -102,8 +104,8 @@ export default function DashboardLayoutClient({
         <SidebarFooter>
           <div className="flex items-center gap-2">
             <Avatar className="size-8">
-              <AvatarImage src={`https://placehold.co/40x40/7C3AED/FFFFFF?text=${user.name.charAt(0).toUpperCase()}`} alt={user.name} />
-              <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+              <AvatarImage src={`https://placehold.co/40x40/7C3AED/FFFFFF?text=${userNameInitial}`} alt={user.name || ''} />
+              <AvatarFallback>{userNameInitial}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col text-sm">
               <span className="font-semibold">{user.name}</span>
