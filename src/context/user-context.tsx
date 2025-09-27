@@ -33,22 +33,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const fetchUser = async (currentUser: SupabaseUser) => {
-        const { data: profile, error } = await supabase
+        const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('name, role')
             .eq('id', currentUser.id)
             .limit(1)
             .maybeSingle();
 
-        if (error) {
-            console.error("Error fetching profile:", error.message);
-            toast({
-              variant: 'destructive',
-              title: 'Erro ao buscar perfil',
-              description: 'Não foi possível carregar os dados do usuário. Tentando deslogar para corrigir.'
-            });
+        if (profileError) {
+            console.error("Error fetching profile after login:", profileError.message);
+            toast({ variant: 'destructive', title: "Erro ao buscar perfil", description: profileError.message });
             await supabase.auth.signOut();
-            setUser(null);
         } else if (profile) {
             const userData: User = {
                 id: currentUser.id,
@@ -58,7 +53,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             };
             setUser(userData);
             if(window.location.pathname === '/' || window.location.pathname === '/signup') {
-              router.push('/dashboard/analytics');
+              router.push('/dashboard');
             }
         } else {
              console.error("Profile not found for user:", currentUser.id);
@@ -89,7 +84,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 router.push('/');
             }
         } else if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-            // Refetch user profile on sign in or token refresh to ensure data is fresh.
             fetchUser(currentUser);
         }
     });
@@ -105,21 +99,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
        toast({ variant: 'destructive', title: "Login falhou", description: "A senha é obrigatória." });
        return;
     }
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
         console.error("Login failed:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: error.message });
-    } else if (data.user) {
-        // The onAuthStateChange listener will handle fetching the profile and updating the state.
-        // This avoids race conditions and ensures a single source of truth for user data.
     }
+    // onAuthStateChange listener will handle the rest
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     const { name, email, password } = credentials;
 
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    const { error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -134,14 +126,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: 'destructive', title: 'Erro no Cadastro', description: signUpError.message });
       return;
     }
-
-    if (!signUpData.user) {
-      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: 'Não foi possível criar o usuário.' });
-      return;
-    }
     
     // The onAuthStateChange listener will now handle fetching the profile.
-    // We can show a success message here.
     toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo!' });
   };
 
