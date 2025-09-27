@@ -41,13 +41,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
         if (error) {
             console.error("Error fetching profile:", error.message);
+            // This toast is important for debugging but might be annoying in production
+            // if it's just a transient network error.
             toast({
               variant: 'destructive',
               title: 'Erro ao buscar perfil',
-              description: 'Não foi possível carregar os dados do usuário. O perfil pode não existir ou haver um problema de permissão.'
+              description: 'Não foi possível carregar os dados do usuário. Tentando deslogar para corrigir.'
             });
-            // Don't sign out here, as it might be a transient network error
-            // or the user is signing up.
+            // If we can't fetch the profile, something is wrong, sign out to be safe.
+            await supabase.auth.signOut();
             setUser(null);
         } else if (profile) {
             const userData: User = {
@@ -60,6 +62,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             if(window.location.pathname === '/' || window.location.pathname === '/signup') {
               router.push('/dashboard/analytics');
             }
+        } else {
+             // This case is important: user exists in auth, but not in profiles.
+             console.error("Profile not found for user:", currentUser.id);
+             toast({
+              variant: 'destructive',
+              title: 'Perfil não encontrado',
+              description: 'Sua conta de autenticação existe, mas seu perfil de usuário não. Tentando deslogar.'
+            });
+            await supabase.auth.signOut();
+            setUser(null);
         }
     }
 
@@ -73,18 +85,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
         const currentUser = session?.user;
-        if (currentUser) {
-          // On SIGNED_IN, the profile might not be created yet if it's a new signup.
-          // The signup function will handle setting the user.
-          // For other events like TOKEN_REFRESHED, we fetch the user.
-          if (event !== 'SIGNED_IN') {
-             fetchUser(currentUser);
-          }
-        } else {
+        
+        // On SIGNED_IN, let the login/signup functions handle the user state
+        // to avoid race conditions. We only act on other events or if there's no user.
+        if (event === 'SIGNED_OUT') {
             setUser(null);
             if (window.location.pathname !== '/' && window.location.pathname !== '/signup') {
                 router.push('/');
             }
+        } else if (currentUser && (event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+            fetchUser(currentUser);
         }
     });
 
@@ -132,10 +142,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     const { name, email, password } = credentials;
 
-    // 1. Sign up the user
+    // 1. Sign up the user with metadata
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+            name: name // Pass name here to be used by the trigger
+        }
+      }
     });
 
     if (signUpError) {
@@ -148,34 +163,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       toast({ variant: 'destructive', title: 'Erro no Cadastro', description: 'Não foi possível criar o usuário.' });
       return;
     }
-
-    // 2. Create the profile for the new user
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .insert({ id: signUpData.user.id, name, email, role: 'collaborator' });
     
-    if (profileError) {
-      console.error('Error creating profile:', profileError.message);
-      toast({
-          variant: 'destructive',
-          title: 'Erro ao criar perfil',
-          description: 'Sua conta foi criada, mas houve um erro ao configurar seu perfil. Por favor, contate o suporte.'
-      });
-      // Clean up the created user if profile creation fails
-      await supabase.auth.signOut();
-      // You might want to delete the user here if you have admin rights configured
-      return;
-    }
-
-    // 3. Manually set the user in the context to avoid race conditions
+    // The trigger 'on_auth_user_created' will automatically create the profile.
+    // We can now manually set the user in the context to provide immediate feedback to the user.
     const newUser: User = {
       id: signUpData.user.id,
       email: signUpData.user.email!,
       name: name,
-      role: 'collaborator',
+      role: 'collaborator', // Default role
     };
     setUser(newUser);
     router.push('/dashboard/analytics');
+    toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo!' });
   };
 
 
@@ -185,8 +184,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
        console.error("Logout failed:", error.message);
        toast({ variant: 'destructive', title: "Erro ao sair", description: error.message });
     } else {
-      setUser(null);
-      router.push('/');
+      // The onAuthStateChange listener will handle setting user to null and redirecting
     }
   };
 
@@ -204,3 +202,4 @@ export const useUser = () => {
   }
   return context;
 };
+
