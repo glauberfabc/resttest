@@ -4,7 +4,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { AuthChangeEvent, Session, User as SupabaseUser } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session, User as SupabaseUser, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 
 
@@ -20,6 +20,7 @@ interface User {
 interface UserContextType {
   user: User | null;
   login: (credentials: { email: string; password?: string }) => Promise<void>;
+  signup: (credentials: SignUpWithPasswordCredentials & { name: string }) => Promise<void>;
   logout: () => void;
 }
 
@@ -59,22 +60,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     role: profile.role as UserRole,
                 };
                 setUser(userData);
-                if(window.location.pathname === '/') {
+                if(window.location.pathname === '/' || window.location.pathname === '/signup') {
                   router.push('/dashboard/analytics');
                 }
             } else {
                  console.error("Login successful but no profile found for user:", currentUser.id);
-                 toast({
-                    variant: 'destructive',
-                    title: 'Perfil não encontrado',
-                    description: 'Seu usuário existe, mas não há um perfil associado. Contate o suporte.'
-                 });
-                 await supabase.auth.signOut();
-                 setUser(null);
+                 // This case might happen transiently during signup, before the profile is created.
+                 // We will let the signup function handle profile creation.
+                 if (event !== 'USER_UPDATED') {
+                    toast({
+                        variant: 'destructive',
+                        title: 'Perfil não encontrado',
+                        description: 'Seu usuário existe, mas não há um perfil associado. Contate o suporte.'
+                    });
+                    await supabase.auth.signOut();
+                    setUser(null);
+                 }
             }
         } else {
             setUser(null);
-            if (window.location.pathname !== '/') {
+            if (window.location.pathname !== '/' && window.location.pathname !== '/signup') {
                 router.push('/');
             }
         }
@@ -99,6 +104,46 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
+    const { name, email, password } = credentials;
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (signUpError) {
+      console.error('Signup failed:', signUpError.message);
+      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: signUpError.message });
+      return;
+    }
+
+    if (signUpData.user) {
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({ id: signUpData.user.id, name, email, role: 'collaborator' });
+        
+        if (profileError) {
+            console.error('Error creating profile:', profileError.message);
+            toast({
+                variant: 'destructive',
+                title: 'Erro ao criar perfil',
+                description: 'Sua conta foi criada, mas houve um erro ao configurar seu perfil. Por favor, contate o suporte.'
+            });
+            // Optional: delete the user if profile creation fails
+            // await supabase.auth.admin.deleteUser(signUpData.user.id);
+            await supabase.auth.signOut();
+        } else {
+             toast({
+                title: 'Cadastro realizado com sucesso!',
+                description: 'Você já pode fazer o login.'
+             });
+             router.push('/');
+        }
+    }
+  };
+
+
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
@@ -111,7 +156,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <UserContext.Provider value={{ user, login, logout }}>
+    <UserContext.Provider value={{ user, login, signup, logout }}>
       {children}
     </UserContext.Provider>
   );

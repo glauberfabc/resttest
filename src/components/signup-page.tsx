@@ -18,16 +18,22 @@ import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
 import { useUser } from "@/context/user-context";
 
-export function LoginPage() {
+export function SignupPage() {
   const router = useRouter();
-  const { login } = useUser();
-  const [email, setEmail] = useState("admin@comandazap.com");
-  const [password, setPassword] = useState("123456");
+  const { signup } = useUser();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login({ email, password });
-    // The redirect is now handled by the UserProvider's onAuthStateChange
+    if (password !== confirmPassword) {
+      alert("As senhas não coincidem.");
+      return;
+    }
+    await signup({ name, email, password });
+    // The redirect is handled by the UserProvider
   };
 
   return (
@@ -41,13 +47,24 @@ export function LoginPage() {
 
       <Card className="w-full max-w-sm">
         <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
+          <CardTitle className="text-2xl">Cadastro</CardTitle>
           <CardDescription>
-            Entre com suas credenciais de usuário.
+            Crie sua conta para começar.
           </CardDescription>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleSignup}>
           <CardContent className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Nome</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Seu nome"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -65,19 +82,30 @@ export function LoginPage() {
                 id="password" 
                 type="password" 
                 required 
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="confirm-password">Confirmar Senha</Label>
+              <Input 
+                id="confirm-password" 
+                type="password" 
+                required 
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full">
-              Entrar
+              Cadastrar
             </Button>
             <div className="text-center text-sm">
-                Não tem uma conta?{" "}
-                <Link href="/signup" className="underline">
-                    Cadastre-se
+                Já tem uma conta?{" "}
+                <Link href="/" className="underline">
+                    Faça Login
                 </Link>
             </div>
           </CardFooter>
