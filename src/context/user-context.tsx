@@ -37,6 +37,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             .from('profiles')
             .select('name, role')
             .eq('id', currentUser.id)
+            .limit(1) // Fetch only the first match
             .single();
 
         if (error) {
@@ -120,6 +121,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             .from('profiles')
             .select('name, role')
             .eq('id', data.user.id)
+            .limit(1) // Fetch only the first match
             .single();
 
         if (profileError) {
