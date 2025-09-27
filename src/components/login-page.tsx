@@ -23,10 +23,10 @@ export function LoginPage() {
   const [email, setEmail] = useState("admin@comandazap.com");
   const [password, setPassword] = useState("123456");
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    login({ email, password });
-    router.push("/dashboard/analytics");
+    await login({ email, password });
+    // The redirect is now handled by the UserProvider's onAuthStateChange
   };
 
   return (
@@ -42,7 +42,7 @@ export function LoginPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
-            Use `admin@comandazap.com` ou `colab@comandazap.com`.
+            Use as credenciais de seu usuário Supabase.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
