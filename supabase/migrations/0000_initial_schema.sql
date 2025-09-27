@@ -1,136 +1,165 @@
--- Drop existing objects in reverse order of creation, using CASCADE for dependencies.
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
-DROP FUNCTION IF EXISTS public.current_user_id();
+-- Drop existing objects to start fresh, using CASCADE to handle dependencies
+drop table if exists public.menu_items cascade;
+drop table if exists public.clients cascade;
+drop table if exists public.orders cascade;
+drop table if exists public.order_items cascade;
+drop table if exists public.order_payments cascade;
+drop table if exists public.profiles cascade;
 
-DROP TABLE IF EXISTS public.clients CASCADE;
-DROP TABLE IF EXISTS public.menu_items CASCADE;
-DROP TABLE IF EXISTS public.profiles CASCADE;
-
+-- Drop function if it exists
+drop function if exists public.current_user_id() cascade;
+drop function if exists public.handle_new_user() cascade;
 
 -- Create profiles table
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id uuid NOT NULL,
-  updated_at timestamp with time zone NULL,
-  name character varying NULL,
-  role text NOT NULL DEFAULT 'collaborator'::text,
-  CONSTRAINT profiles_pkey PRIMARY KEY (id),
-  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  name text,
+  email text,
+  role text default 'collaborator',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
--- comments
-COMMENT ON TABLE public.profiles IS 'Stores user-profiles and their associated roles.';
 
 -- Create menu_items table
-CREATE TABLE IF NOT EXISTS public.menu_items (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  name text NOT NULL,
-  description text,
-  price numeric(10,2) NOT NULL,
-  category text,
-  image_url text,
-  stock integer,
-  low_stock_threshold integer,
-  unit text,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT menu_items_pkey PRIMARY KEY (id),
-  CONSTRAINT menu_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
+create table if not exists public.menu_items (
+    id uuid primary key default gen_random_uuid(),
+    name text not null,
+    description text,
+    price numeric not null,
+    category text not null,
+    image_url text,
+    stock integer,
+    low_stock_threshold integer,
+    unit text,
+    user_id uuid references public.profiles(id) on delete cascade not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
--- comments
-COMMENT ON TABLE public.menu_items IS 'Stores the menu items for the restaurant.';
 
 -- Create clients table
-CREATE TABLE IF NOT EXISTS public.clients (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL,
-  name text NOT NULL,
-  phone text,
-  document text,
-  created_at timestamp with time zone DEFAULT now(),
-  updated_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT clients_pkey PRIMARY KEY (id),
-  CONSTRAINT clients_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
+create table if not exists public.clients (
+    id uuid primary key default gen_random_uuid(),
+    name text not null,
+    phone text,
+    document text,
+    user_id uuid references public.profiles(id) on delete cascade not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
--- comments
-COMMENT ON TABLE public.clients IS 'Stores client information for orders.';
+
+-- Create orders table
+create table if not exists public.orders (
+    id uuid primary key default gen_random_uuid(),
+    type text not null,
+    identifier text not null,
+    status text not null,
+    user_id uuid references public.profiles(id) on delete cascade not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    paid_at timestamp with time zone
+);
+
+-- Create order_items table
+create table if not exists public.order_items (
+    order_id uuid references public.orders(id) on delete cascade,
+    menu_item_id uuid references public.menu_items(id) on delete restrict,
+    quantity integer not null,
+    primary key (order_id, menu_item_id)
+);
+
+-- Create order_payments table
+create table if not exists public.order_payments (
+    id uuid primary key default gen_random_uuid(),
+    order_id uuid references public.orders(id) on delete cascade,
+    amount numeric not null,
+    method text not null,
+    paid_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
 
 
--- Secure the tables with Row-Level Security (RLS)
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-
--- Function to get the current user's ID from JWT claims
-CREATE OR REPLACE FUNCTION public.current_user_id()
-RETURNS uuid
-LANGUAGE sql STABLE
-AS $$
-  SELECT NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
+-- Function to get current user ID from JWT
+create or replace function public.current_user_id()
+returns uuid
+language sql
+stable
+as $$
+  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
 $$;
-COMMENT ON FUNCTION public.current_user_id() IS 'Returns the user ID from the JWT claims.';
 
---
--- Policies for 'profiles' table
---
-DROP POLICY IF EXISTS "Users can view their own profile." ON public.profiles;
-CREATE POLICY "Users can view their own profile." ON public.profiles FOR SELECT
-  USING (current_user_id() = id);
-
-DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
-CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT
-  WITH CHECK (current_user_id() = id);
-
-DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
-CREATE POLICY "Users can update own profile." ON public.profiles FOR UPDATE
-  USING (current_user_id() = id)
-  WITH CHECK (current_user_id() = id);
-
---
--- Policies for 'menu_items' table
---
-DROP POLICY IF EXISTS "Users can manage their own menu items." ON public.menu_items;
-CREATE POLICY "Users can manage their own menu items." ON public.menu_items FOR ALL
-  USING (current_user_id() = user_id)
-  WITH CHECK (current_user_id() = user_id);
-
---
--- Policies for 'clients' table
---
-DROP POLICY IF EXISTS "Users can manage their own clients." ON public.clients;
-CREATE POLICY "Users can manage their own clients." ON public.clients FOR ALL
-  USING (current_user_id() = user_id)
-  WITH CHECK (current_user_id() = user_id);
-
---
 -- Function to handle new user creation
---
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, role)
-  VALUES (
-    NEW.id,
-    NEW.raw_user_meta_data ->> 'name',
-    'collaborator'
-  );
-  RETURN NEW;
-END;
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, name, email, role)
+  values (new.id, new.raw_user_meta_data ->> 'name', new.email, 'collaborator');
+  return new;
+end;
 $$;
-COMMENT ON FUNCTION public.handle_new_user() IS 'Trigger function to create a profile for a new user.';
+
+-- Trigger to call handle_new_user on new user signup
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
 
---
--- Trigger to execute the function on new user sign-up
---
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+-- POLICIES
+-- Profiles
+alter table public.profiles enable row level security;
+drop policy if exists "Users can insert their own profile." on public.profiles;
+drop policy if exists "Users can view their own profile." on public.profiles;
+drop policy if exists "Users can update own profile." on public.profiles;
+
+create policy "Users can insert their own profile." on public.profiles for insert
+    with check ( user_id = public.current_user_id() );
+
+create policy "Users can view their own profile." on public.profiles for select
+    using ( id = public.current_user_id() );
+
+create policy "Users can update own profile." on public.profiles for update
+    using ( user_id = public.current_user_id() );
+
+-- Menu Items
+alter table public.menu_items enable row level security;
+drop policy if exists "Users can manage their own menu items." on public.menu_items;
+
+create policy "Users can manage their own menu items." on public.menu_items for all
+    using ( user_id = public.current_user_id() );
+
+-- Clients
+alter table public.clients enable row level security;
+drop policy if exists "Users can manage their own clients." on public.clients;
+
+create policy "Users can manage their own clients." on public.clients for all
+    using ( user_id = public.current_user_id() );
+
+-- Orders
+alter table public.orders enable row level security;
+drop policy if exists "Users can manage their own orders." on public.orders;
+drop policy if exists "Users can view their own orders." on public.orders;
+
+create policy "Users can manage their own orders." on public.orders for all
+    using ( user_id = public.current_user_id() );
+    
+create policy "Users can view their own orders." on public.orders for select
+    using ( user_id = public.current_user_id() );
 
 
--- Seed initial data for storage policies (optional, but good practice)
--- This ensures that even if you have storage policies, they don't block profile creation.
--- In this specific case, we are not adding storage policies yet, but this is where they would go.
+-- Order Items
+alter table public.order_items enable row level security;
+-- This policy assumes that if a user can see the order, they can see the items.
+-- It checks if the user_id on the associated order matches the current user.
+drop policy if exists "Users can manage items for their own orders." on public.order_items;
+
+create policy "Users can manage items for their own orders." on public.order_items for all
+    using (
+        (select user_id from public.orders where id = order_id) = public.current_user_id()
+    );
+
+-- Order Payments
+alter table public.order_payments enable row level security;
+-- This policy assumes that if a user can see the order, they can see the payments.
+drop policy if exists "Users can manage payments for their own orders." on public.order_payments;
+
+create policy "Users can manage payments for their own orders." on public.order_payments for all
+    using (
+        (select user_id from public.orders where id = order_id) = public.current_user_id()
+    );
