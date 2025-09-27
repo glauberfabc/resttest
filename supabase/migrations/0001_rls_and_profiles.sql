@@ -1,135 +1,156 @@
--- supabase/migrations/0001_rls_and_profiles.sql
+-- 1. Create app_role type
+create type app_role as enum ('admin', 'collaborator');
 
--- 1. Create a table for public profiles
+-- 2. Create a table for public profiles
 create table profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  updated_at timestamp with time zone,
+  id uuid references auth.users not null primary key,
   full_name text,
   avatar_url text,
-  role text default 'collaborator'
+  role app_role default 'collaborator'
 );
+-- This table will be publicly accessible
+alter table profiles enable row level security;
 
--- Set up Row Level Security (RLS)
--- See https://supabase.com/docs/guides/auth/row-level-security
-alter table profiles
-  enable row level security;
-
-create policy "Public profiles are viewable by everyone." on profiles
-  for select using (true);
-
-create policy "Users can insert their own profile." on profiles
-  for insert with check (auth.uid() = id);
-
-create policy "Users can update own profile." on profiles
-  for update using (auth.uid() = id);
-
--- This trigger automatically creates a profile entry when a new user signs up.
--- See https://supabase.com/docs/guides/auth/managing-user-data#using-triggers
+-- 3. Set up a trigger to create a profile for each new user
 create function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, full_name, avatar_url, role)
-  values (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url', 'collaborator');
+  insert into public.profiles (id, full_name, avatar_url)
+  values (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url');
   return new;
 end;
 $$ language plpgsql security definer;
+
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
-
--- Function to check role
-create or replace function public.get_user_role()
-returns text as $$
+-- 4. Helper functions for RLS
+create function check_if_user_is_admin()
+returns boolean as $$
 begin
-  return (
-    select role from public.profiles where id = auth.uid()
+  return exists (
+    select 1
+    from profiles
+    where profiles.id = auth.uid() and profiles.role = 'admin'
   );
 end;
-$$ language plpgsql security invoker;
+$$ language plpgsql security definer;
+
+create function check_if_user_is_collaborator()
+returns boolean as $$
+begin
+  return exists (
+    select 1
+    from profiles
+    where profiles.id = auth.uid() and profiles.role = 'collaborator'
+  );
+end;
+$$ language plpgsql security definer;
 
 
--- Enable RLS for all tables
+-- 5. Enable RLS for all tables
 alter table public.menu_items enable row level security;
 alter table public.clients enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.payments enable row level security;
 
--- Policies for menu_items
-create policy "Allow all access for admin on menu_items"
+-- 6. RLS Policies
+
+-- profiles
+create policy "Users can read their own profile"
+on public.profiles for select
+using (auth.uid() = id);
+
+create policy "Admins can read all profiles"
+on public.profiles for select
+using (check_if_user_is_admin());
+
+-- menu_items
+create policy "Admins can manage menu items"
 on public.menu_items for all
-using (public.get_user_role() = 'admin')
-with check (public.get_user_role() = 'admin');
+using (check_if_user_is_admin());
 
-create policy "Allow read access for collaborator on menu_items"
+create policy "Collaborators can read menu items"
 on public.menu_items for select
-using (public.get_user_role() = 'collaborator');
+using (auth.role() = 'authenticated');
 
-create policy "Allow insert/update for collaborator on menu_items"
-on public.menu_items for insert, update
-using (public.get_user_role() = 'collaborator')
-with check (public.get_user_role() = 'collaborator');
+create policy "Collaborators can create menu items"
+on public.menu_items for insert
+with check (check_if_user_is_collaborator());
 
--- Policies for clients
-create policy "Allow all access for admin on clients"
+create policy "Collaborators can update menu items"
+on public.menu_items for update
+using (check_if_user_is_collaborator());
+
+
+-- clients
+create policy "Admins can manage clients"
 on public.clients for all
-using (public.get_user_role() = 'admin')
-with check (public.get_user_role() = 'admin');
+using (check_if_user_is_admin());
 
-create policy "Allow read access for collaborator on clients"
+create policy "Collaborators can read clients"
 on public.clients for select
-using (public.get_user_role() = 'collaborator');
+using (auth.role() = 'authenticated');
 
-create policy "Allow insert/update for collaborator on clients"
-on public.clients for insert, update
-using (public.get_user_role() = 'collaborator')
-with check (public.get_user_role() = 'collaborator');
+create policy "Collaborators can create clients"
+on public.clients for insert
+with check (check_if_user_is_collaborator());
 
+create policy "Collaborators can update clients"
+on public.clients for update
+using (check_if_user_is_collaborator());
 
--- Policies for orders
-create policy "Allow all access for admin on orders"
+-- orders
+create policy "Admins can manage orders"
 on public.orders for all
-using (public.get_user_role() = 'admin')
-with check (public.get_user_role() = 'admin');
+using (check_if_user_is_admin());
 
-create policy "Allow read access for collaborator on orders"
+create policy "Collaborators can read orders"
 on public.orders for select
-using (public.get_user_role() = 'collaborator');
+using (auth.role() = 'authenticated');
 
-create policy "Allow insert/update for collaborator on orders"
-on public.orders for insert, update
-using (public.get_user_role() = 'collaborator')
-with check (public.get_user_role() = 'collaborator');
+create policy "Collaborators can create orders"
+on public.orders for insert
+with check (check_if_user_is_collaborator());
+
+create policy "Collaborators can update orders"
+on public.orders for update
+using (check_if_user_is_collaborator());
 
 
--- Policies for order_items
-create policy "Allow all access for admin on order_items"
+-- order_items
+create policy "Admins can manage order items"
 on public.order_items for all
-using (public.get_user_role() = 'admin')
-with check (public.get_user_role() = 'admin');
+using (check_if_user_is_admin());
 
-create policy "Allow read access for collaborator on order_items"
+create policy "Collaborators can read order items"
 on public.order_items for select
-using (public.get_user_role() = 'collaborator');
+using (auth.role() = 'authenticated');
 
-create policy "Allow insert/update for collaborator on order_items"
-on public.order_items for insert, update
-using (public.get_user_role() = 'collaborator')
-with check (public.get_user_role() = 'collaborator');
+create policy "Collaborators can create order items"
+on public.order_items for insert
+with check (check_if_user_is_collaborator());
+
+create policy "Collaborators can update order items"
+on public.order_items for update
+using (check_if_user_is_collaborator());
 
 
--- Policies for payments
-create policy "Allow all access for admin on payments"
+-- payments
+create policy "Admins can manage payments"
 on public.payments for all
-using (public.get_user_role() = 'admin')
-with check (public.get_user_role() = 'admin');
+using (check_if_user_is_admin());
 
-create policy "Allow read access for collaborator on payments"
+create policy "Collaborators can read payments"
 on public.payments for select
-using (public.get_user_role() = 'collaborator');
+using (auth.role() = 'authenticated');
 
-create policy "Allow insert/update for collaborator on payments"
-on public.payments for insert, update
-using (public.get_user_role() = 'collaborator')
-with check (public.get_user_role() = 'collaborator');
+create policy "Collaborators can create payments"
+on public.payments for insert
+with check (check_if_user_is_collaborator());
+
+create policy "Collaborators can update payments"
+on public.payments for update
+using (check_if_user_is_collaborator());
