@@ -10,6 +10,7 @@ export interface MenuItem {
   stock?: number;
   lowStockThreshold?: number;
   unit?: string;
+  user_id: string;
 }
 
 export interface OrderItem {
@@ -39,4 +40,7 @@ export interface Client {
   name: string;
   phone?: string;
   document?: string;
+  user_id: string;
 }
+
+    
