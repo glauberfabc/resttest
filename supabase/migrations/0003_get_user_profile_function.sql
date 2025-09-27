@@ -1,15 +1,21 @@
--- Function to get user profile
-create or replace function public.get_user_profile()
-returns table (
+CREATE OR REPLACE FUNCTION public.get_user_profile()
+RETURNS TABLE (
     name text,
-    role text
+    role app_role
 )
-language sql
-security definer
-as $$
-    select
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    -- This function runs with the privileges of the user who created it,
+    -- bypassing RLS to fetch the user's own profile data securely.
+    RETURN QUERY
+    SELECT
         p.name,
         p.role
-    from public.profiles p
-    where p.id = auth.uid();
+    FROM
+        public.profiles p
+    WHERE
+        p.id = auth.uid();
+END;
 $$;
