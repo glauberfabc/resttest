@@ -1,56 +1,83 @@
-
--- Enable Row Level Security
-alter table public.profiles enable row level security;
-alter table public.menu_items enable row level security;
-alter table public.clients enable row level security;
-
--- Drop existing policies and functions to ensure a clean migration
-DROP POLICY IF EXISTS "Users can manage their own menu items." ON public.menu_items;
+-- Drop existing objects in reverse order of dependency to avoid errors
 DROP POLICY IF EXISTS "Users can manage their own clients." ON public.clients;
+DROP POLICY IF EXISTS "Users can manage their own menu items." ON public.menu_items;
+DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Users can view their own profile." ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
+
+ALTER TABLE public.clients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.menu_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
+
 DROP FUNCTION IF EXISTS public.current_user_id() CASCADE;
 
+DROP TABLE IF EXISTS public.clients;
+DROP TABLE IF EXISTS public.menu_items;
+DROP TABLE IF EXISTS public.profiles;
 
--- Function to get user_id from JWT claims, avoiding recursion
-create or replace function public.current_user_id()
-returns uuid
-language sql stable
-as $$
-  select nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub'
+
+-- Recreate tables
+CREATE TABLE IF NOT EXISTS public.profiles (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT DEFAULT 'collaborator',
+    email TEXT,
+    CONSTRAINT id_fk FOREIGN KEY (id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.menu_items (
+    id TEXT PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    price NUMERIC(10, 2) NOT NULL,
+    category TEXT NOT NULL,
+    image_url TEXT,
+    stock INTEGER,
+    low_stock_threshold INTEGER,
+    unit TEXT,
+    user_id UUID NOT NULL,
+    CONSTRAINT user_id_fk FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS public.clients (
+    id TEXT PRIMARY KEY DEFAULT extensions.uuid_generate_v4(),
+    name TEXT NOT NULL,
+    phone TEXT,
+    document TEXT,
+    user_id UUID NOT NULL,
+    CONSTRAINT user_id_fk FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE
+);
+
+-- Secure function to get user ID from JWT claims
+CREATE OR REPLACE FUNCTION public.current_user_id()
+RETURNS uuid
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
 $$;
 
 
--- Policies for profiles
-create policy "Users can insert their own profile." on public.profiles for insert with check ( auth.uid() = id );
-create policy "Users can view their own profile." on public.profiles for select using ( auth.uid() = id );
-create policy "Users can update own profile." on public.profiles for update using ( auth.uid() = id );
+-- Re-enable RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 
 
--- Policies for menu_items
-create policy "Users can manage their own menu items." on public.menu_items for all
-    using ( auth.uid() = user_id )
-    with check ( auth.uid() = user_id );
+-- Recreate policies using the secure function
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT
+    WITH CHECK ( current_user_id() = id );
 
--- Policies for clients
-create policy "Users can manage their own clients." on public.clients for all
-    using ( auth.uid() = user_id )
-    with check ( auth.uid() = user_id );
+CREATE POLICY "Users can view their own profile." ON public.profiles FOR SELECT
+    USING ( current_user_id() = id );
 
+CREATE POLICY "Users can update own profile." ON public.profiles FOR UPDATE
+    USING ( current_user_id() = id );
 
--- Function and Trigger for new user profiles (this part is ok, as it runs after user creation, not during a select)
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (id, name, email, role)
-  values (new.id, new.raw_user_meta_data->>'name', new.email, 'collaborator');
-  return new;
-end;
-$$;
+CREATE POLICY "Users can manage their own menu items." ON public.menu_items FOR ALL
+    USING ( current_user_id() = user_id )
+    WITH CHECK ( current_user_id() = user_id );
 
--- drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
-
+CREATE POLICY "Users can manage their own clients." ON public.clients FOR ALL
+    USING ( current_user_id() = user_id )
+    WITH CHECK ( current_user_id() = user_id );
