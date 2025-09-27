@@ -24,11 +24,15 @@ create policy "Users can update own profile."
   using ( auth.uid() = id );
 
 -- This trigger automatically creates a profile entry for new users.
+-- We are using `set session_replication_role = replica;` to temporarily bypass RLS and prevent the infinite recursion error.
+drop function if exists public.handle_new_user cascade;
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, email, name, role)
-  values (new.id, new.email, new.raw_user_meta_data->>'name', 'collaborator');
+  set session_replication_role = replica;
+  insert into public.profiles (id, email)
+  values (new.id, new.email);
+  set session_replication_role = origin;
   return new;
 end;
 $$ language plpgsql security definer;
@@ -62,10 +66,10 @@ create policy "Users can manage their own menu items."
     on public.menu_items for all
     using ( auth.uid() = user_id );
 
-drop policy if exists "Menu items are viewable by everyone." on public.menu_items;
-create policy "Menu items are viewable by everyone."
+drop policy if exists "Menu items are viewable by authenticated users." on public.menu_items;
+create policy "Menu items are viewable by authenticated users."
     on public.menu_items for select
-    using ( true );
+    using ( auth.role() = 'authenticated' );
 
 
 -- Create clients table
@@ -86,22 +90,13 @@ create policy "Users can manage their own clients."
     using ( auth.uid() = user_id );
 
 -- Create product_images bucket
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'product_images') THEN
-        insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-        values ('product_images', 'product_images', true, 2097152, '{"image/*"}' );
-    END IF;
-END $$;
-
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('product_images', 'product_images', true, 2097152, '{"image/*"}' )
+on conflict (id) do nothing;
 
 -- Policies for product_images bucket
 drop policy if exists "Users can manage their own product images." on storage.objects;
 create policy "Users can manage their own product images."
     on storage.objects for all
-    with check ( bucket_id = 'product_images' and auth.uid() = owner );
-
-drop policy if exists "Anyone can view product images." on storage.objects;
-create policy "Anyone can view product images."
-    on storage.objects for select
-    using ( bucket_id = 'product_images' );
+    using ( bucket_id = 'product_images' and owner = auth.uid() )
+    with check ( bucket_id = 'product_images' and owner = auth.uid() );
