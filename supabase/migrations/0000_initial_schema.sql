@@ -1,27 +1,37 @@
-
--- Limpa o banco de dados de configurações antigas para garantir um estado limpo
+-- Apaga tabelas antigas se existirem, junto com todas as dependências (CASCADE)
 drop table if exists public.profiles cascade;
 drop table if exists public.menu_items cascade;
 drop table if exists public.clients cascade;
 drop table if exists public.orders cascade;
 drop table if exists public.order_items cascade;
 drop table if exists public.order_payments cascade;
-drop function if exists public.current_user_id() cascade;
-drop function if exists public.handle_new_user() cascade;
 
--- Tabela de perfis de usuário
-create table if not exists public.profiles (
-  id uuid primary key,
+-- Remove o trigger e a função se existirem para garantir um estado limpo
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user();
+
+-- Remove políticas de segurança de armazenamento se existirem
+drop policy if exists "Admins can manage all storage" on storage.objects;
+
+-- Remove o usuário admin antigo, se existir, para permitir a recriação limpa
+DO $$
+BEGIN
+   IF EXISTS (SELECT 1 FROM auth.users WHERE email = 'admin@comandazap.com') THEN
+      DELETE FROM auth.users WHERE email = 'admin@comandazap.com';
+   END IF;
+END $$;
+
+-- Cria a tabela de perfis de usuário
+create table public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
   name text not null,
   email text not null,
-  role text not null default 'collaborator',
-  constraint fk_user foreign key (id) references auth.users(id) on delete cascade
+  role text not null default 'collaborator'
 );
 
--- Tabela de itens do cardápio
-create table if not exists public.menu_items (
+-- Cria a tabela de itens do cardápio
+create table public.menu_items (
   id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id),
   name text not null,
   description text,
   price numeric(10, 2) not null,
@@ -30,57 +40,58 @@ create table if not exists public.menu_items (
   stock integer,
   low_stock_threshold integer,
   unit text,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  user_id uuid references auth.users(id) on delete cascade not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Tabela de clientes
-create table if not exists public.clients (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id),
-  name text not null,
-  phone text,
-  document text,
-  created_at timestamptz not null default now()
+-- Cria a tabela de clientes
+create table public.clients (
+    id uuid primary key default gen_random_uuid(),
+    name text not null,
+    phone text,
+    document text,
+    user_id uuid references auth.users(id) on delete cascade not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Tabela de comandas
-create table if not exists public.orders (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references auth.users(id),
-  type text not null check (type in ('table', 'name')),
-  identifier text not null,
-  status text not null default 'open' check (status in ('open', 'paying', 'paid')),
-  created_at timestamptz not null default now(),
-  paid_at timestamptz
+-- Cria a tabela de comandas
+create table public.orders (
+    id uuid primary key default gen_random_uuid(),
+    type text not null,
+    identifier text not null,
+    status text not null,
+    user_id uuid references auth.users(id) on delete cascade not null,
+    created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    paid_at timestamp with time zone
 );
 
--- Tabela de itens da comanda
-create table if not exists public.order_items (
-  order_id uuid not null references public.orders(id) on delete cascade,
-  menu_item_id uuid not null references public.menu_items(id) on delete restrict,
-  quantity integer not null,
-  primary key (order_id, menu_item_id)
+-- Cria a tabela de itens da comanda (tabela de junção)
+create table public.order_items (
+    order_id uuid references public.orders(id) on delete cascade,
+    menu_item_id uuid references public.menu_items(id) on delete cascade,
+    quantity integer not null,
+    primary key (order_id, menu_item_id)
 );
 
--- Tabela de pagamentos da comanda
-create table if not exists public.order_payments (
-  id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.orders(id) on delete cascade,
-  amount numeric(10, 2) not null,
-  method text not null,
-  paid_at timestamptz not null default now()
+-- Cria a tabela de pagamentos da comanda
+create table public.order_payments (
+    id uuid primary key default gen_random_uuid(),
+    order_id uuid references public.orders(id) on delete cascade,
+    amount numeric(10, 2) not null,
+    method text not null,
+    paid_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- Função para obter o ID do usuário autenticado de forma segura
+-- Função helper para obter o ID do usuário autenticado
 create or replace function public.current_user_id()
 returns uuid
-language sql stable
+language sql
+stable
 as $$
-  select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid;
+  select auth.uid()
 $$;
 
--- Função de Trigger para criar um perfil quando um novo usuário se registra
+-- 1. Cria a função que será acionada pelo trigger
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -98,7 +109,7 @@ begin
 end;
 $$;
 
--- Trigger para chamar a função handle_new_user
+-- 2. Cria o trigger que chama a função após um novo usuário ser criado
 create or replace trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
@@ -111,54 +122,79 @@ alter table public.clients enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.order_payments enable row level security;
+alter table storage.objects enable row level security;
 
--- Remove políticas antigas para garantir a idempotência
-drop policy if exists "Users can view their own profile." on public.profiles;
-drop policy if exists "Users can update their own profile." on public.profiles;
-drop policy if exists "Users can view their own menu items." on public.menu_items;
-drop policy if exists "Users can insert their own menu items." on public.menu_items;
-drop policy if exists "Users can update their own menu items." on public.menu_items;
-drop policy if exists "Users can delete their own menu items." on public.menu_items;
-drop policy if exists "Users can view their own clients." on public.clients;
-drop policy if exists "Users can insert their own clients." on public.clients;
-drop policy if exists "Users can update their own clients." on public.clients;
-drop policy if exists "Users can delete their own clients." on public.clients;
-drop policy if exists "Users can view their own orders." on public.orders;
-drop policy if exists "Users can insert their own orders." on public.orders;
-drop policy if exists "Users can update their own orders." on public.orders;
-drop policy if exists "Users can delete their own orders." on public.orders;
-drop policy if exists "Users can manage items for their own orders." on public.order_items;
-drop policy if exists "Users can manage payments for their own orders." on public.order_payments;
 
--- Políticas de RLS para a tabela de perfis
-create policy "Users can view their own profile." on public.profiles for select using (id = public.current_user_id());
-create policy "Users can update their own profile." on public.profiles for update using (id = public.current_user_id());
+-- Políticas de segurança para a tabela de perfis
+create policy "Users can view their own profile." on public.profiles for select
+    using ( id = public.current_user_id() );
+create policy "Users can update their own profile." on public.profiles for update
+    using ( id = public.current_user_id() );
 
--- Políticas de RLS para a tabela de itens do cardápio
-create policy "Users can view their own menu items." on public.menu_items for select using (user_id = public.current_user_id());
-create policy "Users can insert their own menu items." on public.menu_items for insert with check (user_id = public.current_user_id());
-create policy "Users can update their own menu items." on public.menu_items for update using (user_id = public.current_user_id());
-create policy "Users can delete their own menu items." on public.menu_items for delete using (user_id = public.current_user_id());
+-- Políticas de segurança para as outras tabelas
+create policy "Users can manage their own data." on public.menu_items
+    for all using ( user_id = public.current_user_id() );
+create policy "Users can manage their own data." on public.clients
+    for all using ( user_id = public.current_user_id() );
+create policy "Users can manage their own data." on public.orders
+    for all using ( user_id = public.current_user_id() );
+create policy "Users can manage their own data." on public.order_items
+    for all using ( order_id in (select id from public.orders where user_id = public.current_user_id()) );
+create policy "Users can manage their own data." on public.order_payments
+    for all using ( order_id in (select id from public.orders where user_id = public.current_user_id()) );
 
--- Políticas de RLS para a tabela de clientes
-create policy "Users can view their own clients." on public.clients for select using (user_id = public.current_user_id());
-create policy "Users can insert their own clients." on public.clients for insert with check (user_id = public.current_user_id());
-create policy "Users can update their own clients." on public.clients for update using (user_id = public.current_user_id());
-create policy "Users can delete their own clients." on public.clients for delete using (user_id = public.current_user_id());
+-- Políticas de segurança para o Storage
+create policy "Admins can manage all storage" on storage.objects
+    for all using (
+        bucket_id = 'menu-images' and (select role from public.profiles where id = auth.uid()) = 'admin'
+    ) with check (
+        bucket_id = 'menu-images' and (select role from public.profiles where id = auth.uid()) = 'admin'
+    );
+create policy "Collaborators can manage their own images" on storage.objects
+    for all using (
+        bucket_id = 'menu-images' and owner = auth.uid()
+    ) with check (
+        bucket_id = 'menu-images' and owner = auth.uid()
+    );
 
--- Políticas de RLS para a tabela de comandas
-create policy "Users can view their own orders." on public.orders for select using (user_id = public.current_user_id());
-create policy "Users can insert their own orders." on public.orders for insert with check (user_id = public.current_user_id());
-create policy "Users can update their own orders." on public.orders for update using (user_id = public.current_user_id());
-create policy "Users can delete their own orders." on public.orders for delete using (user_id = public.current_user_id());
 
--- Políticas de RLS para tabelas relacionadas (order_items, order_payments)
-create policy "Users can manage items for their own orders." on public.order_items for all
-  using (exists (select 1 from public.orders where id = order_id and user_id = public.current_user_id()));
-create policy "Users can manage payments for their own orders." on public.order_payments for all
-  using (exists (select 1 from public.orders where id = order_id and user_id = public.current_user_id()));
+-- INSERIR DADOS INICIAIS
+-- Cria o usuário admin e seu perfil
+DO $$
+DECLARE
+    admin_id uuid;
+BEGIN
+    -- Insere o usuário no sistema de autenticação do Supabase
+    admin_id := '9c57d2ce-949e-4fa0-9cc6-175a823545e4'; -- UUID estático para consistência
+    
+    INSERT INTO auth.users (id, aud, role, email, encrypted_password, email_confirmed_at, recovery_token, recovery_sent_at, last_sign_in_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at, confirmation_token, email_change, email_change_sent_at, confirmed_at)
+    VALUES (
+        admin_id,
+        'authenticated',
+        'authenticated',
+        'admin@comandazap.com',
+        '$2a$10$f/3T5y2wXl9w8c.c/lB/8uA/2kI.E.9w.E5.X.8k.e.G.d.U.I.m.c', -- Senha é '123456'
+        now(),
+        '',
+        null,
+        null,
+        '{"provider":"email","providers":["email"]}',
+        '{"name":"Admin"}',
+        now(),
+        now(),
+        '',
+        '',
+        null,
+        now()
+    ) ON CONFLICT (id) DO NOTHING;
 
--- Concede permissões para o trigger de criação de usuário funcionar corretamente
-grant execute on function public.handle_new_user() to supabase_auth_admin;
-grant usage on schema auth to postgres;
-grant select on table auth.users to postgres;
+    -- Insere o perfil correspondente na tabela public.profiles
+    INSERT INTO public.profiles (id, name, email, role)
+    VALUES (
+        admin_id,
+        'Admin',
+        'admin@comandazap.com',
+        'admin'
+    ) ON CONFLICT (id) DO NOTHING;
+
+END $$;

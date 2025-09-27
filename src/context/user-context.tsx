@@ -2,7 +2,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import type { AuthChangeEvent, Session, User as SupabaseUser, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,7 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -52,7 +53,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 role: profile.role as UserRole,
             };
             setUser(userData);
-            if(window.location.pathname === '/' || window.location.pathname === '/signup') {
+            if(pathname === '/' || pathname === '/signup') {
               router.push('/dashboard');
             }
         } else {
@@ -60,7 +61,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              toast({
               variant: 'destructive',
               title: 'Perfil não encontrado',
-              description: 'Sua conta de autenticação existe, mas seu perfil de usuário não. Tentando deslogar.'
+              description: 'Seu perfil de usuário não foi encontrado. Por favor, tente deslogar e logar novamente.'
             });
             await supabase.auth.signOut();
             setUser(null);
@@ -80,7 +81,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         
         if (event === 'SIGNED_OUT') {
             setUser(null);
-            if (window.location.pathname !== '/' && window.location.pathname !== '/signup') {
+            if (pathname !== '/' && pathname !== '/signup') {
                 router.push('/');
             }
         } else if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
@@ -91,7 +92,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener.subscription.unsubscribe();
     };
-  }, [router, toast]);
+  }, [router, toast, pathname]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
@@ -103,7 +104,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     if (error) {
         console.error("Login failed:", error.message);
-        toast({ variant: 'destructive', title: "Erro no Login", description: error.message });
+        toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
     }
     // onAuthStateChange listener will handle the rest
   };
@@ -111,7 +112,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     const { name, email, password } = credentials;
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -127,8 +128,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    // The onAuthStateChange listener will now handle fetching the profile.
-    toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo!' });
+    if (signUpData.user) {
+        toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo!' });
+    }
   };
 
 
