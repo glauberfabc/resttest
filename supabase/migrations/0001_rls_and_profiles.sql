@@ -1,145 +1,171 @@
--- Create the app_role type
+-- Create a table for public profiles
+create table if not exists public.profiles (
+  id uuid references auth.users not null primary key,
+  name text,
+  role text
+);
+
+-- Set up Row Level Security (RLS)
+-- See https://supabase.com/docs/guides/auth/row-level-security
+alter table public.profiles enable row level security;
+
+-- Create a custom type for app roles
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
-        CREATE TYPE app_role AS ENUM ('admin', 'collaborator');
+        create type public.app_role as enum ('admin', 'collaborator');
     END IF;
 END
 $$;
 
--- Create the profiles table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.profiles (
-    id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    name text,
-    role app_role NOT NULL DEFAULT 'collaborator'
-);
-
--- Function to get a claim from the JWT
-create or replace function get_my_claim(claim_name text)
-returns text
-language sql
-stable
-as $$
-  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> claim_name, '')::text;
-$$;
-
--- Function to get the user role
-create or replace function get_my_role()
-returns text
+-- Create a function to handle new user creation
+create or replace function public.handle_new_user()
+returns trigger
 language plpgsql
-security definer
-set search_path = public
+security definer set search_path = public
 as $$
 begin
-  return (select role from profiles where id = auth.uid())::text;
+  insert into public.profiles (id, name, role)
+  values (new.id, new.raw_user_meta_data->>'name', 'collaborator');
+  return new;
 end;
 $$;
 
--- Function to handle new user creation
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, role)
-  VALUES (
-    NEW.id,
-    NEW.raw_user_meta_data->>'name',
-    (NEW.raw_user_meta_data->>'role')::app_role
-  );
-  -- Set the user's role in the custom claims
-  PERFORM set_custom_claim(NEW.id, 'user_role', (NEW.raw_user_meta_data->>'role'));
-  RETURN NEW;
-END;
-$$;
+-- trigger the function every time a user is created
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure public.handle_new_user();
 
--- Trigger to call handle_new_user on new user sign up
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- Policies for profiles
+drop policy if exists "Public profiles are viewable by everyone." on public.profiles;
+create policy "Public profiles are viewable by everyone."
+  on public.profiles for select
+  using ( true );
 
+drop policy if exists "Users can insert their own profile." on public.profiles;
+create policy "Users can insert their own profile."
+  on public.profiles for insert
+  with check ( auth.uid() = id );
 
--- Enable RLS for the tables
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+drop policy if exists "Users can update own profile." on public.profiles;
+create policy "Users can update own profile."
+  on public.profiles for update
+  using ( auth.uid() = id );
 
--- Drop existing policies to avoid conflicts
-DROP POLICY IF EXISTS "Allow authenticated users to read their own profile" ON public.profiles;
-DROP POLICY IF EXISTS "Admins can do anything" ON public.profiles;
-DROP POLICY IF EXISTS "Allow collaborators to insert" ON public.profiles;
-DROP POLICY IF EXISTS "Allow collaborators to update" ON public.profiles;
+-- Policies for menu_items
+alter table public.menu_items enable row level security;
 
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.menu_items;
-DROP POLICY IF EXISTS "Admins can do anything" ON public.menu_items;
-DROP POLICY IF EXISTS "Collaborators can insert" ON public.menu_items;
-DROP POLICY IF EXISTS "Collaborators can update" ON public.menu_items;
+drop policy if exists "Menu items are viewable by everyone." on public.menu_items;
+create policy "Menu items are viewable by everyone."
+  on public.menu_items for select
+  using ( true );
 
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.clients;
-DROP POLICY IF EXISTS "Admins can do anything" ON public.clients;
-DROP POLICY IF EXISTS "Collaborators can insert" ON public.clients;
-DROP POLICY IF EXISTS "Collaborators can update" ON public.clients;
+drop policy if exists "Admins can do anything." on public.menu_items;
+create policy "Admins can do anything."
+  on public.menu_items for all
+  using ( (select role from profiles where id = auth.uid()) = 'admin' );
 
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.orders;
-DROP POLICY IF EXISTS "Admins can do anything" ON public.orders;
-DROP POLICY IF EXISTS "Collaborators can insert" ON public.orders;
-DROP POLICY IF EXISTS "Collaborators can update" ON public.orders;
-
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.order_items;
-DROP POLICY IF EXISTS "Admins can do anything" ON public.order_items;
-DROP POLICY IF EXISTS "Collaborators can insert" ON public.order_items;
-DROP POLICY IF EXISTS "Collaborators can update" ON public.order_items;
-
-DROP POLICY IF EXISTS "Enable read access for all users" ON public.payments;
-DROP POLICY IF EXISTS "Admins can do anything" ON public.payments;
-DROP POLICY IF EXISTS "Collaborators can insert" ON public.payments;
-DROP POLICY IF EXISTS "Collaborators can update" ON public.payments;
-
--- Create Policies for PROFILES
-CREATE POLICY "Allow authenticated users to read their own profile" ON public.profiles
-  FOR SELECT USING (auth.uid() = id);
+drop policy if exists "Collaborators can insert menu items." on public.menu_items;
+create policy "Collaborators can insert menu items."
+  on public.menu_items for insert
+  with check ( (select role from profiles where id = auth.uid()) = 'collaborator' );
   
-CREATE POLICY "Admins can do anything" ON public.profiles
-  FOR ALL USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
+drop policy if exists "Collaborators can update menu items." on public.menu_items;
+create policy "Collaborators can update menu items."
+  on public.menu_items for update
+  using ( (select role from profiles where id = auth.uid()) = 'collaborator' );
 
-CREATE POLICY "Allow collaborators to insert" ON public.profiles
-  FOR INSERT WITH CHECK (get_my_role() = 'collaborator');
+-- Policies for clients
+alter table public.clients enable row level security;
 
-CREATE POLICY "Allow collaborators to update" ON public.profiles
-  FOR UPDATE USING (get_my_role() = 'collaborator') WITH CHECK (get_my_role() = 'collaborator');
+drop policy if exists "Clients are viewable by everyone." on public.clients;
+create policy "Clients are viewable by everyone."
+  on public.clients for select
+  using ( true );
+
+drop policy if exists "Admins can do anything." on public.clients;
+create policy "Admins can do anything."
+  on public.clients for all
+  using ( (select role from profiles where id = auth.uid()) = 'admin' );
+
+drop policy if exists "Collaborators can insert clients." on public.clients;
+create policy "Collaborators can insert clients."
+  on public.clients for insert
+  with check ( (select role from profiles where id = auth.uid()) = 'collaborator' );
+
+drop policy if exists "Collaborators can update clients." on public.clients;
+create policy "Collaborators can update clients."
+  on public.clients for update
+  using ( (select role from profiles where id = auth.uid()) = 'collaborator' );
+
+-- Policies for orders
+alter table public.orders enable row level security;
+
+drop policy if exists "Orders are viewable by everyone." on public.orders;
+create policy "Orders are viewable by everyone."
+  on public.orders for select
+  using ( true );
+
+drop policy if exists "Admins can do anything." on public.orders;
+create policy "Admins can do anything."
+  on public.orders for all
+  using ( (select role from profiles where id = auth.uid()) = 'admin' );
+
+drop policy if exists "Collaborators can insert orders." on public.orders;
+create policy "Collaborators can insert orders."
+  on public.orders for insert
+  with check ( (select role from profiles where id = auth.uid()) = 'collaborator' );
+
+drop policy if exists "Collaborators can update orders." on public.orders;
+create policy "Collaborators can update orders."
+  on public.orders for update
+  using ( (select role from profiles where id = auth.uid()) = 'collaborator' );
 
 
--- Create Policies for MENU_ITEMS
-CREATE POLICY "Enable read access for all users" ON public.menu_items FOR SELECT USING (true);
-CREATE POLICY "Admins can do anything" ON public.menu_items FOR ALL USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
-CREATE POLICY "Collaborators can insert" ON public.menu_items FOR INSERT WITH CHECK (get_my_role() = 'collaborator');
-CREATE POLICY "Collaborators can update" ON public.menu_items FOR UPDATE USING (get_my_role() = 'collaborator') WITH CHECK (get_my_role() = 'collaborator');
+-- Policies for order_items
+alter table public.order_items enable row level security;
 
--- Create Policies for CLIENTS
-CREATE POLICY "Enable read access for all users" ON public.clients FOR SELECT USING (true);
-CREATE POLICY "Admins can do anything" ON public.clients FOR ALL USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
-CREATE POLICY "Collaborators can insert" ON public.clients FOR INSERT WITH CHECK (get_my_role() = 'collaborator');
-CREATE POLICY "Collaborators can update" ON public.clients FOR UPDATE USING (get_my_role() = 'collaborator') WITH CHECK (get_my_role() = 'collaborator');
+drop policy if exists "Order items are viewable by everyone." on public.order_items;
+create policy "Order items are viewable by everyone."
+  on public.order_items for select
+  using ( true );
 
--- Create Policies for ORDERS
-CREATE POLICY "Enable read access for all users" ON public.orders FOR SELECT USING (true);
-CREATE POLICY "Admins can do anything" ON public.orders FOR ALL USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
-CREATE POLICY "Collaborators can insert" ON public.orders FOR INSERT WITH CHECK (get_my_role() = 'collaborator');
-CREATE POLICY "Collaborators can update" ON public.orders FOR UPDATE USING (get_my_role() = 'collaborator') WITH CHECK (get_my_role() = 'collaborator');
+drop policy if exists "Admins can do anything." on public.order_items;
+create policy "Admins can do anything."
+  on public.order_items for all
+  using ( (select role from profiles where id = auth.uid()) = 'admin' );
 
--- Create Policies for ORDER_ITEMS
-CREATE POLICY "Enable read access for all users" ON public.order_items FOR SELECT USING (true);
-CREATE POLICY "Admins can do anything" ON public.order_items FOR ALL USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
-CREATE POLICY "Collaborators can insert" ON public.order_items FOR INSERT WITH CHECK (get_my_role() = 'collaborator');
-CREATE POLICY "Collaborators can update" ON public.order_items FOR UPDATE USING (get_my_role() = 'collaborator') WITH CHECK (get_my_role() = 'collaborator');
+drop policy if exists "Collaborators can insert order items." on public.order_items;
+create policy "Collaborators can insert order items."
+  on public.order_items for insert
+  with check ( (select role from profiles where id = auth.uid()) = 'collaborator' );
 
--- Create Policies for PAYMENTS
-CREATE POLICY "Enable read access for all users" ON public.payments FOR SELECT USING (true);
-CREATE POLICY "Admins can do anything" ON public.payments FOR ALL USING (get_my_role() = 'admin') WITH CHECK (get_my_role() = 'admin');
-CREATE POLICY "Collaborators can insert" ON public.payments FOR INSERT WITH CHECK (get_my_role() = 'collaborator');
-CREATE POLICY "Collaborators can update" ON public.payments FOR UPDATE USING (get_my_role() = 'collaborator') WITH CHECK (get_my_role() = 'collaborator');
+drop policy if exists "Collaborators can update order items." on public.order_items;
+create policy "Collaborators can update order items."
+  on public.order_items for update
+  using ( (select role from profiles where id = auth.uid()) = 'collaborator' );
+
+
+-- Policies for payments
+alter table public.payments enable row level security;
+
+drop policy if exists "Payments are viewable by everyone." on public.payments;
+create policy "Payments are viewable by everyone."
+  on public.payments for select
+  using ( true );
+
+drop policy if exists "Admins can do anything." on public.payments;
+create policy "Admins can do anything."
+  on public.payments for all
+  using ( (select role from profiles where id = auth.uid()) = 'admin' );
+
+drop policy if exists "Collaborators can insert payments." on public.payments;
+create policy "Collaborators can insert payments."
+  on public.payments for insert
+  with check ( (select role from profiles where id = auth.uid()) = 'collaborator' );
+
+drop policy if exists "Collaborators can update payments." on public.payments;
+create policy "Collaborators can update payments."
+  on public.payments for update
+  using ( (select role from profiles where id = auth.uid()) = 'collaborator' );

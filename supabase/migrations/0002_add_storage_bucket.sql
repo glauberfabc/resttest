@@ -1,34 +1,25 @@
 -- Create a bucket for product images
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('product_images', 'product_images', true)
-ON CONFLICT (id) DO NOTHING;
+insert into storage.buckets (id, name, public)
+values ('product_images', 'product_images', true)
+on conflict (id) do nothing;
 
--- Set up RLS policies for the product_images bucket
-DROP POLICY IF EXISTS "Allow public read access" ON storage.objects;
-CREATE POLICY "Allow public read access"
-  ON storage.objects FOR SELECT
-  USING ( bucket_id = 'product_images' );
+-- Set up security rules for the product_images bucket
+drop policy if exists "Allow public read access" on storage.objects;
+create policy "Allow public read access"
+on storage.objects for select
+using ( bucket_id = 'product_images' );
 
-DROP POLICY IF EXISTS "Allow insert for admins and collaborators" ON storage.objects;
-CREATE POLICY "Allow insert for admins and collaborators"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'product_images' AND
-    (get_my_role() = 'admin' OR get_my_role() = 'collaborator')
-  );
+drop policy if exists "Allow authenticated uploads" on storage.objects;
+create policy "Allow authenticated uploads"
+on storage.objects for insert
+with check ( bucket_id = 'product_images' and auth.role() = 'authenticated' and (select role from public.profiles where id = auth.uid()) in ('admin', 'collaborator') );
 
-DROP POLICY IF EXISTS "Allow update for admins and collaborators" ON storage.objects;
-CREATE POLICY "Allow update for admins and collaborators"
-  ON storage.objects FOR UPDATE
-  USING (
-    bucket_id = 'product_images' AND
-    (get_my_role() = 'admin' OR get_my_role() = 'collaborator')
-  );
+drop policy if exists "Allow authenticated updates" on storage.objects;
+create policy "Allow authenticated updates"
+on storage.objects for update
+using ( bucket_id = 'product_images' and auth.role() = 'authenticated' and (select role from public.profiles where id = auth.uid()) in ('admin', 'collaborator') );
 
-DROP POLICY IF EXISTS "Allow delete for admins and collaborators" ON storage.objects;
-CREATE POLICY "Allow delete for admins and collaborators"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'product_images' AND
-    (get_my_role() = 'admin' OR get_my_role() = 'collaborator')
-  );
+drop policy if exists "Allow authenticated deletes" on storage.objects;
+create policy "Allow authenticated deletes"
+on storage.objects for delete
+using ( bucket_id = 'product_images' and auth.role() = 'authenticated' and (select role from public.profiles where id = auth.uid()) in ('admin', 'collaborator') );
