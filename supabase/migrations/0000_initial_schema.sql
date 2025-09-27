@@ -1,29 +1,19 @@
+-- supabase/migrations/0000_initial_schema.sql
+
 -- Create a table for public profiles
 create table if not exists public.profiles (
-  id uuid references auth.users on delete cascade not null primary key,
+  id uuid not null primary key,
   email text,
   name text,
   role text default 'collaborator'
 );
 alter table public.profiles enable row level security;
 
--- Function to get claims from the JWT
-create or replace function public.get_my_claims()
-returns jsonb
-language sql stable
-as $$
-  select coalesce(
-    current_setting('request.jwt.claims', true),
-    '{}'
-  )::jsonb;
-$$;
-
-
 -- Policies for profiles
 drop policy if exists "Users can view their own profile." on public.profiles;
 create policy "Users can view their own profile."
   on public.profiles for select
-  using (((get_my_claims() ->> 'sub'::text))::uuid = id);
+  using ( auth.uid() = id );
 
 drop policy if exists "Users can insert their own profile." on public.profiles;
 create policy "Users can insert their own profile."
@@ -34,7 +24,6 @@ drop policy if exists "Users can update own profile." on public.profiles;
 create policy "Users can update own profile."
   on public.profiles for update
   using ( auth.uid() = id );
-
 
 -- Create menu_items table
 create table if not exists public.menu_items (
@@ -63,7 +52,6 @@ create policy "Menu items are viewable by everyone."
     on public.menu_items for select
     using ( true );
 
-
 -- Create clients table
 create table if not exists public.clients (
     id uuid not null primary key default gen_random_uuid(),
@@ -81,14 +69,13 @@ create policy "Users can manage their own clients."
     on public.clients for all
     using ( auth.uid() = user_id );
 
-
 -- Create product_images bucket
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('product_images', 'product_images', true, 2097152, '{"image/*"}' )
 on conflict (id) do nothing;
 
 -- Policies for product_images bucket
-drop policy if exists "Users can manage their own product images." on storage.objects;
-create policy "Users can manage their own product images."
+drop policy if exists "Allow all access to product_images" on storage.objects;
+create policy "Allow all access to product_images"
     on storage.objects for all
-    using ( bucket_id = 'product_images' and owner = auth.uid() );
+    using ( bucket_id = 'product_images' );
