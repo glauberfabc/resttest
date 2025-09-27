@@ -32,13 +32,15 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       async (event: AuthChangeEvent, session: Session | null) => {
         const currentUser = session?.user;
         if (currentUser) {
-            // Use the new RPC function to get the user profile
+            // Use a direct select query to get the user profile
             const { data: profile, error } = await supabase
-                .rpc('get_user_profile');
+                .from('profiles')
+                .select('name, role')
+                .eq('id', currentUser.id)
+                .single();
 
             if (error) {
                 console.error("Error fetching profile:", error);
-                // Handle error, maybe logout user
                 await supabase.auth.signOut();
                 setUser(null);
                 router.push('/');
@@ -77,9 +79,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     if (error) {
         console.error("Login failed:", error.message);
-        // Optionally, you can show a toast notification here
     }
-    // The onAuthStateChange listener will handle setting the user and redirecting
   };
 
   const logout = async () => {

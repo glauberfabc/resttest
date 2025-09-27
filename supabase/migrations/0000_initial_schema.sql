@@ -1,76 +1,167 @@
+-- Create a custom type for user roles
+CREATE TYPE public.app_role AS ENUM ('admin', 'collaborator');
 
--- Tabela para os itens do cardápio (menu)
-CREATE TABLE menu_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    description TEXT,
-    price NUMERIC(10, 2) NOT NULL,
-    category TEXT NOT NULL,
-    image_url TEXT,
-    stock INTEGER,
-    low_stock_threshold INTEGER,
-    unit TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+-- Create a table for public profiles
+CREATE TABLE public.profiles (
+  id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name text,
+  role public.app_role NOT NULL DEFAULT 'collaborator',
+  PRIMARY KEY (id)
 );
 
--- Tabela para os clientes
-CREATE TABLE clients (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name TEXT NOT NULL,
-    phone TEXT,
-    document TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Tabela para as comandas (pedidos)
-CREATE TABLE orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    type TEXT NOT NULL CHECK (type IN ('table', 'name')),
-    identifier TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'paying', 'paid')),
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    paid_at TIMESTamptz,
-    client_id UUID REFERENCES clients(id) ON DELETE SET NULL
-);
-
--- Tabela de junção para os itens dentro de uma comanda
-CREATE TABLE order_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    menu_item_id UUID NOT NULL REFERENCES menu_items(id) ON DELETE RESTRICT,
-    quantity INTEGER NOT NULL CHECK (quantity > 0),
-    price_at_time NUMERIC(10, 2) NOT NULL, -- Preço do item no momento da compra
-    UNIQUE (order_id, menu_item_id)
-);
-
--- Tabela para os pagamentos de uma comanda
-CREATE TABLE payments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    amount NUMERIC(10, 2) NOT NULL,
-    method TEXT NOT NULL,
-    paid_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Funções para atualizar o campo `updated_at` automaticamente
-CREATE OR REPLACE FUNCTION trigger_set_timestamp()
+-- Function to handle new user creation
+CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
+  INSERT INTO public.profiles (id, name, role)
+  VALUES (new.id, new.raw_user_meta_data ->> 'name', 'collaborator');
+  RETURN new;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Triggers para `menu_items`
-CREATE TRIGGER set_menu_items_timestamp
-BEFORE UPDATE ON menu_items
-FOR EACH ROW
-EXECUTE FUNCTION trigger_set_timestamp();
+-- Trigger to call the function when a new user is created in auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Triggers para `clients`
-CREATE TRIGGER set_clients_timestamp
-BEFORE UPDATE ON clients
-FOR EACH ROW
-EXECUTE FUNCTION trigger_set_timestamp();
+-- Enable RLS for the profiles table
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Policies for profiles
+DROP POLICY IF EXISTS "Public profiles are viewable by everyone." ON public.profiles;
+CREATE POLICY "Public profiles are viewable by everyone." ON public.profiles FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
+CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id);
+
+-- Create menu_items table
+CREATE TABLE public.menu_items (
+  id text NOT NULL PRIMARY KEY,
+  name text NOT NULL,
+  description text,
+  price numeric NOT NULL,
+  category text,
+  image_url text,
+  stock integer,
+  low_stock_threshold integer,
+  unit text
+);
+ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admins" ON public.menu_items;
+CREATE POLICY "Allow all access to admins" ON public.menu_items FOR ALL USING (public.is_claims_admin());
+DROP POLICY IF EXISTS "Allow read access to collaborators" ON public.menu_items;
+CREATE POLICY "Allow read access to collaborators" ON public.menu_items FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow insert access to collaborators" ON public.menu_items;
+CREATE POLICY "Allow insert access to collaborators" ON public.menu_items FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update access to collaborators" ON public.menu_items;
+CREATE POLICY "Allow update access to collaborators" ON public.menu_items FOR UPDATE USING (true);
+
+-- Create clients table
+CREATE TABLE public.clients (
+  id text NOT NULL PRIMARY KEY,
+  name text NOT NULL,
+  phone text,
+  document text
+);
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admins" ON public.clients;
+CREATE POLICY "Allow all access to admins" ON public.clients FOR ALL USING (public.is_claims_admin());
+DROP POLICY IF EXISTS "Allow read access to collaborators" ON public.clients;
+CREATE POLICY "Allow read access to collaborators" ON public.clients FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow insert access to collaborators" ON public.clients;
+CREATE POLICY "Allow insert access to collaborators" ON public.clients FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update access to collaborators" ON public.clients;
+CREATE POLICY "Allow update access to collaborators" ON public.clients FOR UPDATE USING (true);
+
+-- Create orders table
+CREATE TABLE public.orders (
+  id text NOT NULL PRIMARY KEY,
+  type text NOT NULL,
+  identifier text NOT NULL,
+  status text NOT NULL,
+  created_at timestamptz NOT NULL,
+  paid_at timestamptz
+);
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admins" ON public.orders;
+CREATE POLICY "Allow all access to admins" ON public.orders FOR ALL USING (public.is_claims_admin());
+DROP POLICY IF EXISTS "Allow read access to collaborators" ON public.orders;
+CREATE POLICY "Allow read access to collaborators" ON public.orders FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow insert access to collaborators" ON public.orders;
+CREATE POLICY "Allow insert access to collaborators" ON public.orders FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update access to collaborators" ON public.orders;
+CREATE POLICY "Allow update access to collaborators" ON public.orders FOR UPDATE USING (true);
+
+-- Create order_items table
+CREATE TABLE public.order_items (
+  order_id text NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  menu_item_id text NOT NULL REFERENCES public.menu_items(id),
+  quantity integer NOT NULL,
+  PRIMARY KEY (order_id, menu_item_id)
+);
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admins" ON public.order_items;
+CREATE POLICY "Allow all access to admins" ON public.order_items FOR ALL USING (public.is_claims_admin());
+DROP POLICY IF EXISTS "Allow read access to collaborators" ON public.order_items;
+CREATE POLICY "Allow read access to collaborators" ON public.order_items FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow insert access to collaborators" ON public.order_items;
+CREATE POLICY "Allow insert access to collaborators" ON public.order_items FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update access to collaborators" ON public.order_items;
+CREATE POLICY "Allow update access to collaborators" ON public.order_items FOR UPDATE USING (true);
+
+
+-- Create payments table
+CREATE TABLE public.payments (
+  id serial PRIMARY KEY,
+  order_id text NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  amount numeric NOT NULL,
+  method text NOT NULL,
+  paid_at timestamptz NOT NULL
+);
+ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to admins" ON public.payments;
+CREATE POLICY "Allow all access to admins" ON public.payments FOR ALL USING (public.is_claims_admin());
+DROP POLICY IF EXISTS "Allow read access to collaborators" ON public.payments;
+CREATE POLICY "Allow read access to collaborators" ON public.payments FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Allow insert access to collaborators" ON public.payments;
+CREATE POLICY "Allow insert access to collaborators" ON public.payments FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update access to collaborators" ON public.payments;
+CREATE POLICY "Allow update access to collaborators" ON public.payments FOR UPDATE USING (true);
+
+
+-- Create Storage Bucket for Product Images
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('product_images', 'product_images', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Policies for storage
+DROP POLICY IF EXISTS "Allow public read access" ON storage.objects;
+CREATE POLICY "Allow public read access" ON storage.objects FOR SELECT USING ( bucket_id = 'product_images' );
+
+DROP POLICY IF EXISTS "Allow insert for admins and collaborators" ON storage.objects;
+CREATE POLICY "Allow insert for admins and collaborators" ON storage.objects FOR INSERT WITH CHECK (
+  bucket_id = 'product_images' AND (
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'::public.app_role OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'collaborator'::public.app_role
+  )
+);
+
+DROP POLICY IF EXISTS "Allow update for admins and collaborators" ON storage.objects;
+CREATE POLICY "Allow update for admins and collaborators" ON storage.objects FOR UPDATE USING (
+  bucket_id = 'product_images' AND (
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'::public.app_role OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'collaborator'::public.app_role
+  )
+);
+
+DROP POLICY IF EXISTS "Allow delete for admins and collaborators" ON storage.objects;
+CREATE POLICY "Allow delete for admins and collaborators" ON storage.objects FOR DELETE USING (
+  bucket_id = 'product_images' AND (
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'::public.app_role OR
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'collaborator'::public.app_role
+  )
+);
