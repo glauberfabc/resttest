@@ -1,5 +1,5 @@
 
-import type { Order } from "@/lib/types";
+import type { Order, Payment } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatInTimeZone } from 'date-fns-tz';
 
@@ -16,7 +16,7 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
   const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
   const timeZone = 'America/Sao_Paulo'; // GMT-3
 
-  const receiptDate = order.paidAt ? new Date(order.paidAt) : new Date();
+  const receiptDate = order.paid_at ? new Date(order.paid_at) : new Date();
   const formattedDate = formatInTimeZone(receiptDate, timeZone, 'dd/MM/yyyy');
   const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
 
@@ -62,10 +62,12 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
 
             {paidAmount > 0.001 && (
               <>
-                <div className="flex justify-between">
-                    <span>Total Pago</span>
-                    <span>{formatCurrency(paidAmount)}</span>
-                </div>
+                {(order.payments as Payment[]).map((p) => (
+                    <div className="flex justify-between" key={p.id}>
+                        <span>Pago ({p.method})</span>
+                        <span>- {formatCurrency(p.amount)}</span>
+                    </div>
+                ))}
                 {remainingAmount > 0.001 && (
                     <div className="flex justify-between font-bold">
                         <span>Restante</span>

@@ -1,6 +1,7 @@
 import MenuPageClient from "@/components/menu/page-client";
-import { menuItems } from "@/lib/data";
+import { getMenuItems } from "@/lib/supabase";
 
-export default function MenuPage() {
+export default async function MenuPage() {
+  const menuItems = await getMenuItems();
   return <MenuPageClient initialMenuItems={menuItems} />;
 }

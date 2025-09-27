@@ -82,9 +82,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
   
   const getFormattedPaidAt = () => {
-    if (!order.paidAt) return '';
+    const paidAt = order.paidAt || order.paid_at;
+    if (!paidAt) return '';
     try {
-        const paidDate = new Date(order.paidAt);
+        const paidDate = new Date(paidAt);
         const date = formatInTimeZone(paidDate, timeZone, 'dd/MM/yyyy');
         const time = formatInTimeZone(paidDate, timeZone, 'HH:mm');
         return `Pago em ${date} às ${time}`;

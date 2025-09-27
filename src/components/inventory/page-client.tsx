@@ -15,6 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Pencil } from "lucide-react";
 import { StockEditDialog } from "./stock-edit-dialog";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface InventoryPageClientProps {
   initialMenuItems: MenuItem[];
@@ -24,6 +26,7 @@ export default function InventoryPageClient({ initialMenuItems }: InventoryPageC
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const { toast } = useToast();
 
   const getStockStatus = (item: MenuItem): { text: string; variant: "default" | "destructive" | "secondary" | "outline" } => {
     if (item.stock === undefined || (item.stock === 0 && (item.lowStockThreshold === undefined || item.lowStockThreshold === 0))) {
@@ -43,8 +46,25 @@ export default function InventoryPageClient({ initialMenuItems }: InventoryPageC
     setIsFormOpen(true);
   };
 
-  const handleSave = (updatedItem: MenuItem) => {
-    setMenuItems(menuItems.map(item => item.id === updatedItem.id ? updatedItem : item));
+  const handleSave = async (updatedItem: MenuItem) => {
+    const { data, error } = await supabase
+        .from('menu_items')
+        .update({
+            stock: updatedItem.stock,
+            low_stock_threshold: updatedItem.lowStockThreshold,
+        })
+        .eq('id', updatedItem.id)
+        .select()
+        .single();
+    
+    if (error || !data) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o estoque." });
+    } else {
+        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
+        setMenuItems(menuItems.map(item => item.id === remappedData.id ? remappedData : item));
+        toast({ title: "Sucesso", description: "Estoque atualizado."});
+    }
+
     setIsFormOpen(false);
     setSelectedItem(null);
   };

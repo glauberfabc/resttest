@@ -20,6 +20,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
+import { supabase } from "@/lib/supabase";
+import { useUser } from "@/context/user-context";
+import { useToast } from "@/hooks/use-toast";
 
 interface ClientsPageClientProps {
   initialClients: Client[];
@@ -27,6 +30,8 @@ interface ClientsPageClientProps {
 }
 
 export default function ClientsPageClient({ initialClients, initialOrders }: ClientsPageClientProps) {
+  const { user } = useUser();
+  const { toast } = useToast();
   const [clients, setClients] = useState<Client[]>(initialClients);
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -37,38 +42,59 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
     const debtorMap = new Map<string, { client: Client | null, totalDebt: number }>();
 
     openNameOrders.forEach(order => {
-        const clientName = order.identifier as string;
-        const client = clients.find(c => c.name === clientName) || null;
+        const clientIdentifier = order.identifier as string;
+        // Find client by name or potentially by ID if identifier stores it
+        const client = clients.find(c => c.name === clientIdentifier || c.id === clientIdentifier) || null;
         
         const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
         const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
         const remainingAmount = orderTotal - paidAmount;
 
         if (remainingAmount > 0) {
-            const existingDebtor = debtorMap.get(clientName) || { client, totalDebt: 0 };
+            const debtorKey = client ? client.id : clientIdentifier;
+            const existingDebtor = debtorMap.get(debtorKey) || { client, totalDebt: 0 };
             existingDebtor.totalDebt += remainingAmount;
-            debtorMap.set(clientName, existingDebtor);
+            debtorMap.set(debtorKey, existingDebtor);
         }
     });
 
     return Array.from(debtorMap.values());
   }, [orders, clients]);
 
-  const handleSaveClient = (client: Client) => {
-    if (selectedClient) {
-      const updatedClients = clients.map(c => c.id === client.id ? client : c);
-      setClients(updatedClients);
-      // Also update name in open orders if it was changed
-      setOrders(orders.map(o => {
-        if (o.type === 'name' && o.identifier === selectedClient.name) {
-          return { ...o, identifier: client.name };
-        }
-        return o;
-      }));
-
-    } else {
-      setClients([{ ...client, id: `client-${Date.now()}` }, ...clients]);
+  const handleSaveClient = async (client: Client) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado." });
+        return;
     }
+
+    if (selectedClient) { // Editing existing client
+      const { data, error } = await supabase
+        .from('clients')
+        .update({ name: client.name, phone: client.phone, document: client.document })
+        .eq('id', client.id)
+        .select()
+        .single();
+        
+      if (error || !data) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o cliente." });
+        return;
+      }
+      setClients(clients.map(c => c.id === data.id ? data : c));
+
+    } else { // Adding new client
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({ ...client, user_id: user.id })
+        .select()
+        .single();
+
+      if (error || !data) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o cliente." });
+        return;
+      }
+      setClients([data, ...clients]);
+    }
+    
     setSelectedClient(null);
     setIsFormOpen(false);
   };
@@ -83,9 +109,17 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
     setIsFormOpen(true);
   };
 
-  const handleDelete = (clientId: string) => {
-    // Ideally, check if client has pending debts before deleting
-    setClients(clients.filter(c => c.id !== clientId));
+  const handleDelete = async (clientId: string) => {
+    // TODO: Ideally, check if client has pending debts before deleting
+    
+    const { error } = await supabase.from('clients').delete().eq('id', clientId);
+
+    if (error) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível excluir o cliente." });
+    } else {
+        setClients(clients.filter(c => c.id !== clientId));
+        toast({ title: "Sucesso", description: "Cliente excluído." });
+    }
   };
 
 

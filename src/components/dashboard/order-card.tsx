@@ -23,9 +23,10 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
   const paymentMethods = order.payments?.map(p => p.method).filter((v, i, a) => a.indexOf(v) === i).join(', ');
 
   const getFormattedPaidAt = () => {
-    if (!order.paidAt) return '';
+    const paidAt = order.paidAt || order.paid_at;
+    if (!paidAt) return '';
     try {
-        const paidDate = new Date(order.paidAt);
+        const paidDate = new Date(paidAt);
         const timeZone = 'America/Sao_Paulo'; // GMT-3
         const date = formatInTimeZone(paidDate, timeZone, 'dd/MM/yy');
         const time = formatInTimeZone(paidDate, timeZone, 'HH:mm');
@@ -64,7 +65,7 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
                 Pago R$ {paidAmount.toFixed(2).replace('.', ',')} de R$ {total.toFixed(2).replace('.', ',')}
             </div>
         )}
-        {isPaid && order.paidAt && (
+        {isPaid && (order.paidAt || order.paid_at) && (
              <div className="text-xs text-muted-foreground mt-1">
                 {getFormattedPaidAt()}
             </div>

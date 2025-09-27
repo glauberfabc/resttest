@@ -64,8 +64,9 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
 
   const paidOrdersInDateRange = allPaidOrders.filter(
     (o) => {
-        if (!o.paidAt) return false;
-        const paidDate = new Date(o.paidAt);
+        const paidAt = o.paidAt || o.paid_at;
+        if (!paidAt) return false;
+        const paidDate = new Date(paidAt);
         const fromDate = date?.from ? new Date(new Date(date.from).setHours(0,0,0,0)) : null;
         const toDate = date?.to ? new Date(new Date(date.to).setHours(23,59,59,999)) : null;
         if (fromDate && paidDate < fromDate) return false;
@@ -98,8 +99,9 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
     }));
 
     paidOrdersInDateRange.forEach(order => {
-        if (order.paidAt) {
-            const orderDateStr = format(parseISO(order.paidAt), 'dd/MM');
+        const paidAt = order.paidAt || order.paid_at;
+        if (paidAt) {
+            const orderDateStr = format(parseISO(paidAt), 'dd/MM');
             const dayData = dailySales.find(d => d.date === orderDateStr);
             if (dayData) {
                 const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);

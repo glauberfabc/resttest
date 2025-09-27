@@ -19,9 +19,11 @@ export interface OrderItem {
 }
 
 export interface Payment {
+    id: string;
+    order_id: string;
     amount: number;
     method: string;
-    paidAt: string;
+    paid_at: string;
 }
 
 export interface Order {
@@ -30,9 +32,13 @@ export interface Order {
   identifier: string | number;
   items: OrderItem[];
   status: 'open' | 'paying' | 'paid';
-  createdAt: string;
-  paidAt?: string;
+  created_at: string;
+  paid_at?: string;
   payments?: Payment[];
+  user_id: string;
+  // Compatibility with frontend components that might use camelCase
+  createdAt?: string;
+  paidAt?: string;
 }
 
 export interface Client {
@@ -42,5 +48,3 @@ export interface Client {
   document?: string;
   user_id: string;
 }
-
-    

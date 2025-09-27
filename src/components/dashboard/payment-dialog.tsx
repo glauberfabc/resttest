@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -47,6 +48,7 @@ export function PaymentDialog({ order, total, isOpen, onOpenChange, onConfirmPay
             return;
         }
         onConfirmPayment(amount, method);
+        onOpenChange(false);
     };
 
 

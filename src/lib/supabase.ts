@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import type { Order, MenuItem, Client } from './types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -8,3 +9,68 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+
+// Service functions to fetch data
+
+export async function getMenuItems(): Promise<MenuItem[]> {
+    const { data, error } = await supabase
+        .from('menu_items')
+        .select('*');
+
+    if (error) {
+        console.error('Error fetching menu items:', error);
+        return [];
+    }
+    // TODO: This is a temporary hack to match frontend expectations. We should align data sources.
+    return data.map(item => ({ ...item, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+}
+
+export async function getClients(): Promise<Client[]> {
+    const { data, error } = await supabase
+        .from('clients')
+        .select('*');
+    
+    if (error) {
+        console.error('Error fetching clients:', error);
+        return [];
+    }
+    return data as Client[];
+}
+
+export async function getOrders(): Promise<Order[]> {
+    const { data, error } = await supabase
+        .from('orders')
+        .select(`
+            *,
+            items:order_items (
+                quantity,
+                menu_item:menu_items (
+                    *,
+                    imageUrl:image_url,
+                    lowStockThreshold:low_stock_threshold
+                )
+            ),
+            payments:order_payments (*)
+        `);
+
+    if (error) {
+        console.error('Error fetching orders:', error);
+        return [];
+    }
+
+    // Remap data to match frontend type expectations
+    return data.map(order => ({
+        ...order,
+        items: order.items.map((item: any) => ({
+            quantity: item.quantity,
+            menuItem: {
+                ...item.menu_item,
+                imageUrl: item.menu_item.image_url,
+                lowStockThreshold: item.menu_item.low_stock_threshold,
+            }
+        })),
+        createdAt: order.created_at,
+        paidAt: order.paid_at
+    })) as unknown as Order[];
+}

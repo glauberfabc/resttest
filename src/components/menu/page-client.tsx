@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -21,6 +22,8 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface MenuPageClientProps {
   initialMenuItems: MenuItem[];
@@ -30,13 +33,56 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
+  const { toast } = useToast();
 
-  const handleSaveItem = (item: MenuItem) => {
-    if (selectedItem) {
-      setMenuItems(menuItems.map(i => i.id === item.id ? item : i));
-    } else {
-      setMenuItems([{ ...item, id: `item-${Date.now()}` }, ...menuItems]);
+  const handleSaveItem = async (item: MenuItem) => {
+    
+    // Map frontend camelCase to backend snake_case
+    const itemForDb = {
+        name: item.name,
+        description: item.description,
+        price: item.price,
+        category: item.category,
+        image_url: item.imageUrl,
+        stock: item.stock,
+        low_stock_threshold: item.lowStockThreshold,
+        unit: item.unit,
+        user_id: item.user_id,
+    };
+
+
+    if (selectedItem) { // Editing existing item
+      const { data, error } = await supabase
+        .from('menu_items')
+        .update(itemForDb)
+        .eq('id', item.id)
+        .select()
+        .single();
+      
+      if (error || !data) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o item." });
+      } else {
+        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
+        setMenuItems(menuItems.map(i => i.id === remappedData.id ? remappedData : i));
+        toast({ title: "Sucesso!", description: "Item do cardápio atualizado." });
+      }
+
+    } else { // Adding new item
+      const { data, error } = await supabase
+        .from('menu_items')
+        .insert(itemForDb)
+        .select()
+        .single();
+
+      if (error || !data) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o item." });
+      } else {
+        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
+        setMenuItems([remappedData, ...menuItems]);
+        toast({ title: "Sucesso!", description: "Novo item adicionado ao cardápio." });
+      }
     }
+
     setSelectedItem(null);
     setIsFormOpen(false);
   };
@@ -51,8 +97,15 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
     setIsFormOpen(true);
   }
 
-  const handleDelete = (itemId: string) => {
-    setMenuItems(menuItems.filter(i => i.id !== itemId));
+  const handleDelete = async (itemId: string) => {
+    const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
+
+    if (error) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível excluir o item." });
+    } else {
+        setMenuItems(menuItems.filter(i => i.id !== itemId));
+        toast({ title: "Sucesso!", description: "Item excluído." });
+    }
   };
 
   return (
