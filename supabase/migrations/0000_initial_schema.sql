@@ -1,52 +1,37 @@
--- Create a function to securely get the user ID from the JWT
-drop function if exists public.get_current_user_id();
-create or replace function public.get_current_user_id()
-returns uuid
-language plpgsql
-stable
-security definer
-as $$
-begin
-  -- Use exception handling to return null if the setting is not available
-  begin
-    return (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
-  exception
-    when others then
-      return null;
-  end;
-end;
-$$;
+-- supabase/migrations/0000_initial_schema.sql
 
+-- Drop existing policies and functions to ensure a clean slate
+drop policy if exists "Users can update own profile." on public.profiles;
+drop policy if exists "Users can view their own profile." on public.profiles;
+drop policy if exists "Users can insert their own profile." on public.profiles;
+drop function if exists public.authorizing_user_id();
 
 -- Create a table for public profiles
 create table if not exists public.profiles (
-  id uuid not null primary key,
+  id uuid references auth.users on delete cascade not null primary key,
   email text,
   name text,
   role text default 'collaborator'
 );
 alter table public.profiles enable row level security;
 
+-- Function to get user ID from JWT claims, avoiding recursion
+create or replace function public.authorizing_user_id()
+returns uuid as $$
+begin
+  return (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
+end;
+$$ language plpgsql security definer stable;
 
--- Drop old policies if they exist
-drop policy if exists "Public profiles are viewable by everyone." on public.profiles;
-drop policy if exists "Users can insert their own profile." on public.profiles;
-drop policy if exists "Users can view their own profile." on public.profiles;
-drop policy if exists "Users can update own profile." on public.profiles;
+-- Policies for profiles using the new secure function
+create policy "Users can insert their own profile." on public.profiles
+  for insert with check ( authorizing_user_id() = id );
 
+create policy "Users can view their own profile." on public.profiles
+  for select using ( authorizing_user_id() = id );
 
--- Add new, correct policies using the helper function
-create policy "Users can insert their own profile."
-  on public.profiles for insert
-  with check ( get_current_user_id() = id );
-
-create policy "Users can view their own profile."
-  on public.profiles for select
-  using ( get_current_user_id() = id );
-  
-create policy "Users can update own profile."
-  on public.profiles for update
-  using ( get_current_user_id() = id );
+create policy "Users can update own profile." on public.profiles
+  for update using ( authorizing_user_id() = id );
 
 
 -- Create menu_items table
@@ -70,6 +55,11 @@ drop policy if exists "Users can manage their own menu items." on public.menu_it
 create policy "Users can manage their own menu items."
     on public.menu_items for all
     using ( auth.uid() = user_id );
+
+drop policy if exists "Menu items are viewable by everyone." on public.menu_items;
+create policy "Menu items are viewable by everyone."
+    on public.menu_items for select
+    using ( true );
 
 
 -- Create clients table
@@ -95,7 +85,12 @@ values ('product_images', 'product_images', true, 2097152, '{"image/*"}' )
 on conflict (id) do nothing;
 
 -- Policies for product_images bucket
-drop policy if exists "Users can manage their own product images." on storage.objects;
-create policy "Users can manage their own product images."
-    on storage.objects for all
-    using ( bucket_id = 'product_images' and owner = auth.uid() );
+drop policy if exists "Allow authenticated uploads to product_images" on storage.objects;
+create policy "Allow authenticated uploads to product_images"
+    on storage.objects for insert to authenticated
+    with check ( bucket_id = 'product_images' );
+
+drop policy if exists "Allow public read access to product_images" on storage.objects;
+create policy "Allow public read access to product_images"
+    on storage.objects for select
+    using ( bucket_id = 'product_images' );
