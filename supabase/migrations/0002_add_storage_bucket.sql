@@ -3,34 +3,32 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('product_images', 'product_images', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Allow public read access to the product_images bucket
-CREATE POLICY "Public read access for product images"
-ON storage.objects FOR SELECT
-USING ( bucket_id = 'product_images' );
+-- Set up RLS policies for the product_images bucket
+DROP POLICY IF EXISTS "Allow public read access" ON storage.objects;
+CREATE POLICY "Allow public read access"
+  ON storage.objects FOR SELECT
+  USING ( bucket_id = 'product_images' );
 
--- Allow authenticated users (admin or collaborator) to upload images
-CREATE POLICY "Allow authenticated uploads for product images"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'product_images' AND
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'collaborator')
-);
+DROP POLICY IF EXISTS "Allow insert for admins and collaborators" ON storage.objects;
+CREATE POLICY "Allow insert for admins and collaborators"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'product_images' AND
+    (get_my_role() = 'admin' OR get_my_role() = 'collaborator')
+  );
 
--- Allow authenticated users (admin or collaborator) to update images
-CREATE POLICY "Allow authenticated updates for product images"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (
-  bucket_id = 'product_images' AND
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'collaborator')
-);
+DROP POLICY IF EXISTS "Allow update for admins and collaborators" ON storage.objects;
+CREATE POLICY "Allow update for admins and collaborators"
+  ON storage.objects FOR UPDATE
+  USING (
+    bucket_id = 'product_images' AND
+    (get_my_role() = 'admin' OR get_my_role() = 'collaborator')
+  );
 
--- Allow authenticated users (admin or collaborator) to delete images
-CREATE POLICY "Allow authenticated deletes for product images"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (
-  bucket_id = 'product_images' AND
-  (SELECT role FROM public.profiles WHERE id = auth.uid()) IN ('admin', 'collaborator')
-);
+DROP POLICY IF EXISTS "Allow delete for admins and collaborators" ON storage.objects;
+CREATE POLICY "Allow delete for admins and collaborators"
+  ON storage.objects FOR DELETE
+  USING (
+    bucket_id = 'product_images' AND
+    (get_my_role() = 'admin' OR get_my_role() = 'collaborator')
+  );
