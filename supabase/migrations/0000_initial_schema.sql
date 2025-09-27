@@ -1,12 +1,3 @@
--- supabase/migrations/0000_initial_schema.sql
-
--- Function to get the user ID from the JWT claims
-create or replace function public.requesting_user_id()
-returns uuid as $$
-  select (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
-$$ language sql stable;
-
-
 -- Create a table for public profiles
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
@@ -16,23 +7,21 @@ create table if not exists public.profiles (
 );
 alter table public.profiles enable row level security;
 
-
 -- Policies for profiles
-drop policy if exists "Users can view their own profile." on public.profiles;
-create policy "Users can view their own profile."
-  on public.profiles for select
-  using ( requesting_user_id() = id );
-
 drop policy if exists "Users can insert their own profile." on public.profiles;
 create policy "Users can insert their own profile."
   on public.profiles for insert
-  with check ( requesting_user_id() = id );
+  with check ( auth.uid() = id );
+
+drop policy if exists "Users can view their own profile." on public.profiles;
+create policy "Users can view their own profile."
+  on public.profiles for select
+  using ( auth.uid() = id );
 
 drop policy if exists "Users can update own profile." on public.profiles;
 create policy "Users can update own profile."
   on public.profiles for update
-  using ( requesting_user_id() = id );
-
+  using ( auth.uid() = id );
 
 -- Create menu_items table
 create table if not exists public.menu_items (
@@ -55,11 +44,6 @@ drop policy if exists "Users can manage their own menu items." on public.menu_it
 create policy "Users can manage their own menu items."
     on public.menu_items for all
     using ( auth.uid() = user_id );
-
-drop policy if exists "Menu items are viewable by authenticated users." on public.menu_items;
-create policy "Menu items are viewable by authenticated users."
-    on public.menu_items for select
-    using ( auth.role() = 'authenticated' );
 
 
 -- Create clients table
