@@ -32,11 +32,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       async (event: AuthChangeEvent, session: Session | null) => {
         const currentUser = session?.user;
         if (currentUser) {
+            // Use the new RPC function to get the user profile
             const { data: profile, error } = await supabase
-                .from('profiles')
-                .select('name, role')
-                .eq('id', currentUser.id)
-                .single();
+                .rpc('get_user_profile');
 
             if (error) {
                 console.error("Error fetching profile:", error);
@@ -80,7 +78,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (error) {
         console.error("Login failed:", error.message);
         // Optionally, you can show a toast notification here
-    } 
+    }
     // The onAuthStateChange listener will handle setting the user and redirecting
   };
 
