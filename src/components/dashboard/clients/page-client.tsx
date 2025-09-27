@@ -56,7 +56,16 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
 
   const handleSaveClient = (client: Client) => {
     if (selectedClient) {
-      setClients(clients.map(c => c.id === client.id ? client : c));
+      const updatedClients = clients.map(c => c.id === client.id ? client : c);
+      setClients(updatedClients);
+      // Also update name in open orders if it was changed
+      setOrders(orders.map(o => {
+        if (o.type === 'name' && o.identifier === selectedClient.name) {
+          return { ...o, identifier: client.name };
+        }
+        return o;
+      }));
+
     } else {
       setClients([{ ...client, id: `client-${Date.now()}` }, ...clients]);
     }

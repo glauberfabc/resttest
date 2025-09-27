@@ -2,13 +2,14 @@
 "use client";
 
 import { useState } from "react";
-import type { Order, MenuItem, OrderItem } from "@/lib/types";
+import type { Order, MenuItem, OrderItem, Client } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
 import { PlusCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { initialClients } from "@/lib/data";
 
 interface DashboardPageClientProps {
   initialOrders: Order[];
@@ -17,6 +18,7 @@ interface DashboardPageClientProps {
 
 export default function DashboardPageClient({ initialOrders, menuItems }: DashboardPageClientProps) {
   const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [clients, setClients] = useState<Client[]>(initialClients);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
 
@@ -144,6 +146,7 @@ export default function DashboardPageClient({ initialOrders, menuItems }: Dashbo
         isOpen={isNewOrderDialogOpen}
         onOpenChange={setIsNewOrderDialogOpen}
         onCreateOrder={handleCreateOrder}
+        clients={clients}
       />
     </div>
   );
