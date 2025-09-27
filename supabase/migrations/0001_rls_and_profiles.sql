@@ -1,105 +1,146 @@
-
--- 1. Create an ENUM for app roles
-create type app_role as enum ('admin', 'collaborator');
-
--- 2. Create a table for public profiles
-create table profiles (
-  id uuid references auth.users on delete cascade not null primary key,
+-- Create a table for public profiles
+create table if not exists public.profiles (
+  id uuid not null references auth.users on delete cascade,
   name text,
-  role app_role default 'collaborator'
+  role text,
+  primary key (id)
 );
 
--- 3. Set up Row Level Security (RLS)
+-- Set up Row Level Security (RLS)
 -- See https://supabase.com/docs/guides/auth/row-level-security
-alter table profiles
-  enable row level security;
+alter table public.profiles enable row level security;
 
-create policy "Public profiles are viewable by everyone." on profiles
-  for select using (true);
+-- Add a new type for user roles
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
+        CREATE TYPE public.app_role AS ENUM ('admin', 'collaborator');
+    END IF;
+END$$;
 
-create policy "Users can insert their own profile." on profiles
-  for insert with check (auth.uid() = id);
 
-create policy "Users can update own profile." on profiles
-  for update using (auth.uid() = id);
-
--- 4. Create a trigger to create a profile for new users
+-- This trigger automatically creates a profile for new users.
 create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
+returns trigger as $$
 begin
   insert into public.profiles (id, name, role)
   values (new.id, new.raw_user_meta_data->>'name', 'collaborator');
   return new;
 end;
-$$;
+$$ language plpgsql security definer;
 
+-- Drop trigger if it exists, then create it
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 5. RLS for menu_items
-alter table menu_items enable row level security;
-grant select on menu_items to authenticated;
-create policy "Admins can manage menu items" on public.menu_items for all using (get_my_claim('role') = 'admin'::text) with check (get_my_claim('role') = 'admin'::text);
-create policy "Collaborators can view and create/update menu items" on public.menu_items for select using (true);
-create policy "Collaborators can create menu items" on public.menu_items for insert with check (get_my_claim('role') = 'collaborator'::text);
-create policy "Collaborators can update menu items" on public.menu_items for update with check (get_my_claim('role') = 'collaborator'::text);
+-- Enable RLS for all tables
+alter table public.menu_items enable row level security;
+alter table public.clients enable row level security;
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
+alter table public.payments enable row level security;
 
+-- Policies for profiles
+drop policy if exists "Public profiles are viewable by everyone." on public.profiles;
+create policy "Public profiles are viewable by everyone." on public.profiles for select using (true);
 
--- 6. RLS for clients
-alter table clients enable row level security;
-grant select on clients to authenticated;
-create policy "Admins can manage clients" on public.clients for all using (get_my_claim('role') = 'admin'::text) with check (get_my_claim('role') = 'admin'::text);
-create policy "Collaborators can view and create/update clients" on public.clients for select using (true);
-create policy "Collaborators can create clients" on public.clients for insert with check (get_my_claim('role') = 'collaborator'::text);
-create policy "Collaborators can update clients" on public.clients for update with check (get_my_claim('role') = 'collaborator'::text);
+drop policy if exists "Users can insert their own profile." on public.profiles;
+create policy "Users can insert their own profile." on public.profiles for insert with check (auth.uid() = id);
 
--- 7. RLS for orders
-alter table orders enable row level security;
-grant select on orders to authenticated;
-create policy "Admins can manage orders" on public.orders for all using (get_my_claim('role') = 'admin'::text) with check (get_my_claim('role') = 'admin'::text);
-create policy "Collaborators can view and create/update orders" on public.orders for select using (true);
-create policy "Collaborators can create orders" on public.orders for insert with check (get_my_claim('role') = 'collaborator'::text);
-create policy "Collaborators can update orders" on public.orders for update with check (get_my_claim('role') = 'collaborator'::text);
+drop policy if exists "Users can update their own profile." on public.profiles;
+create policy "Users can update their own profile." on public.profiles for update using (auth.uid() = id);
 
--- 8. RLS for order_items
-alter table order_items enable row level security;
-grant select on order_items to authenticated;
-create policy "Admins can manage order_items" on public.order_items for all using (get_my_claim('role') = 'admin'::text) with check (get_my_claim('role') = 'admin'::text);
-create policy "Collaborators can view and create/update order_items" on public.order_items for select using (true);
-create policy "Collaborators can create order_items" on public.order_items for insert with check (get_my_claim('role') = 'collaborator'::text);
-create policy "Collaborators can update order_items" on public.order_items for update with check (get_my_claim('role') = 'collaborator'::text);
+drop policy if exists "Users can read their own profile" on public.profiles;
+create policy "Users can read their own profile" on public.profiles for select using (auth.uid() = id);
 
--- 9. RLS for payments
-alter table payments enable row level security;
-grant select on payments to authenticated;
-create policy "Admins can manage payments" on public.payments for all using (get_my_claim('role') = 'admin'::text) with check (get_my_claim('role') = 'admin'::text);
-create policy "Collaborators can view and create/update payments" on public.payments for select using (true);
-create policy "Collaborators can create payments" on public.payments for insert with check (get_my_claim('role') = 'collaborator'::text);
-create policy "Collaborators can update payments" on public.payments for update with check (get_my_claim('role') = 'collaborator'::text);
+-- Policies for menu_items
+drop policy if exists "Allow all access for admin" on public.menu_items;
+create policy "Allow all access for admin" on public.menu_items for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+drop policy if exists "Allow read access for collaborators" on public.menu_items;
+create policy "Allow read access for collaborators" on public.menu_items for select using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow insert for collaborators" on public.menu_items;
+create policy "Allow insert for collaborators" on public.menu_items for insert with check (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow update for collaborators" on public.menu_items;
+create policy "Allow update for collaborators" on public.menu_items for update using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
 
--- 10. Enable access for authenticated users
-grant select, insert, update, delete on public.menu_items to authenticated;
-grant select, insert, update, delete on public.clients to authenticated;
-grant select, insert, update, delete on public.orders to authenticated;
-grant select, insert, update, delete on public.order_items to authenticated;
-grant select, insert, update, delete on public.payments to authenticated;
+-- Policies for clients
+drop policy if exists "Allow all access for admin" on public.clients;
+create policy "Allow all access for admin" on public.clients for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+drop policy if exists "Allow read access for collaborators" on public.clients;
+create policy "Allow read access for collaborators" on public.clients for select using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow insert for collaborators" on public.clients;
+create policy "Allow insert for collaborators" on public.clients for insert with check (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow update for collaborators" on public.clients;
+create policy "Allow update for collaborators" on public.clients for update using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
 
--- Function to get user role from custom claims
-create or replace function get_my_claim(claim text)
-returns text
-language sql
-stable
-as $$
-  select coalesce(
-    current_setting('request.jwt.claims', true)::jsonb ->> claim,
-    (select nullif(current_setting('request.jwt.claims', true), '')::jsonb -> 'user_metadata' ->> claim)
-  )::text
-$$;
+-- Policies for orders
+drop policy if exists "Allow all access for admin" on public.orders;
+create policy "Allow all access for admin" on public.orders for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+drop policy if exists "Allow read access for collaborators" on public.orders;
+create policy "Allow read access for collaborators" on public.orders for select using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow insert for collaborators" on public.orders;
+create policy "Allow insert for collaborators" on public.orders for insert with check (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow update for collaborators" on public.orders;
+create policy "Allow update for collaborators" on public.orders for update using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
 
-create policy "Authenticated users can view their own profile" on public.profiles
-  for select
-  using ( auth.uid() = id );
+-- Policies for order_items
+drop policy if exists "Allow all access for admin" on public.order_items;
+create policy "Allow all access for admin" on public.order_items for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+drop policy if exists "Allow read access for collaborators" on public.order_items;
+create policy "Allow read access for collaborators" on public.order_items for select using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow insert for collaborators" on public.order_items;
+create policy "Allow insert for collaborators" on public.order_items for insert with check (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow update for collaborators" on public.order_items;
+create policy "Allow update for collaborators" on public.order_items for update using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+
+-- Policies for payments
+drop policy if exists "Allow all access for admin" on public.payments;
+create policy "Allow all access for admin" on public.payments for all using (
+  (select role from public.profiles where id = auth.uid()) = 'admin'
+);
+drop policy if exists "Allow read access for collaborators" on public.payments;
+create policy "Allow read access for collaborators" on public.payments for select using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow insert for collaborators" on public.payments;
+create policy "Allow insert for collaborators" on public.payments for insert with check (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
+drop policy if exists "Allow update for collaborators" on public.payments;
+create policy "Allow update for collaborators" on public.payments for update using (
+  (select role from public.profiles where id = auth.uid()) = 'collaborator'
+);
