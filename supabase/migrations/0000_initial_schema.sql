@@ -1,96 +1,64 @@
--- supabase/migrations/0000_initial_schema.sql
-
--- Drop existing policies and functions to ensure a clean slate
-drop policy if exists "Users can update own profile." on public.profiles;
-drop policy if exists "Users can view their own profile." on public.profiles;
-drop policy if exists "Users can insert their own profile." on public.profiles;
-drop function if exists public.authorizing_user_id();
-
--- Create a table for public profiles
-create table if not exists public.profiles (
-  id uuid references auth.users on delete cascade not null primary key,
-  email text,
+-- Create profiles table
+create table public.profiles (
+  id uuid not null references auth.users on delete cascade,
+  email varchar(255),
   name text,
-  role text default 'collaborator'
+  role text,
+  primary key (id)
 );
 alter table public.profiles enable row level security;
 
--- Function to get user ID from JWT claims, avoiding recursion
-create or replace function public.authorizing_user_id()
-returns uuid as $$
-begin
-  return (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid;
-end;
-$$ language plpgsql security definer stable;
-
--- Policies for profiles using the new secure function
-create policy "Users can insert their own profile." on public.profiles
-  for insert with check ( authorizing_user_id() = id );
-
-create policy "Users can view their own profile." on public.profiles
-  for select using ( authorizing_user_id() = id );
-
-create policy "Users can update own profile." on public.profiles
-  for update using ( authorizing_user_id() = id );
-
-
 -- Create menu_items table
-create table if not exists public.menu_items (
-    id uuid not null primary key default gen_random_uuid(),
-    user_id uuid references auth.users(id) on delete cascade not null,
-    name text not null,
-    description text,
-    price real not null,
-    category text,
-    image_url text,
-    stock integer,
-    low_stock_threshold integer,
-    unit text,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+create table public.menu_items (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid references auth.users on delete cascade,
+  name text not null,
+  description text,
+  price numeric(10, 2) not null,
+  category text not null,
+  image_url text,
+  stock integer,
+  low_stock_threshold integer,
+  unit text,
+  primary key (id)
 );
 alter table public.menu_items enable row level security;
 
--- Policies for menu_items
-drop policy if exists "Users can manage their own menu items." on public.menu_items;
-create policy "Users can manage their own menu items."
-    on public.menu_items for all
-    using ( auth.uid() = user_id );
-
-drop policy if exists "Menu items are viewable by everyone." on public.menu_items;
-create policy "Menu items are viewable by everyone."
-    on public.menu_items for select
-    using ( true );
-
-
 -- Create clients table
-create table if not exists public.clients (
-    id uuid not null primary key default gen_random_uuid(),
-    user_id uuid references auth.users(id) on delete cascade not null,
-    name text not null,
-    phone text,
-    document text,
-    created_at timestamp with time zone default timezone('utc'::text, now()) not null
+create table public.clients (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid references auth.users on delete cascade,
+  name text not null,
+  phone text,
+  document text,
+  primary key (id)
 );
 alter table public.clients enable row level security;
 
+-- Secure authorizing_user_id function
+create or replace function public.authorizing_user_id()
+returns uuid
+language sql stable
+security definer
+set search_path = public
+as $$
+  select (current_setting('request.jwt.claims', true)::jsonb ->> 'sub')::uuid
+$$;
+
+-- Policies for profiles
+drop policy if exists "Users can insert their own profile." on public.profiles;
+create policy "Users can insert their own profile." on public.profiles for insert with check ( authorizing_user_id() = id );
+
+drop policy if exists "Users can view their own profile." on public.profiles;
+create policy "Users can view their own profile." on public.profiles for select using ( authorizing_user_id() = id );
+
+drop policy if exists "Users can update own profile." on public.profiles;
+create policy "Users can update own profile." on public.profiles for update using ( authorizing_user_id() = id );
+
+-- Policies for menu_items
+drop policy if exists "Users can do anything on their own menu items" on public.menu_items;
+create policy "Users can do anything on their own menu items" on public.menu_items for all using ( authorizing_user_id() = user_id );
+
 -- Policies for clients
-drop policy if exists "Users can manage their own clients." on public.clients;
-create policy "Users can manage their own clients."
-    on public.clients for all
-    using ( auth.uid() = user_id );
-
--- Create product_images bucket
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('product_images', 'product_images', true, 2097152, '{"image/*"}' )
-on conflict (id) do nothing;
-
--- Policies for product_images bucket
-drop policy if exists "Allow authenticated uploads to product_images" on storage.objects;
-create policy "Allow authenticated uploads to product_images"
-    on storage.objects for insert to authenticated
-    with check ( bucket_id = 'product_images' );
-
-drop policy if exists "Allow public read access to product_images" on storage.objects;
-create policy "Allow public read access to product_images"
-    on storage.objects for select
-    using ( bucket_id = 'product_images' );
+drop policy if exists "Users can do anything on their own clients" on public.clients;
+create policy "Users can do anything on their own clients" on public.clients for all using ( authorizing_user_id() = user_id );
