@@ -1,5 +1,3 @@
--- supabase/migrations/0000_initial_schema.sql
-
 -- Create a table for public profiles
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
@@ -10,7 +8,6 @@ create table if not exists public.profiles (
 alter table public.profiles enable row level security;
 
 -- Policies for profiles
-drop policy if exists "Public profiles are viewable by everyone." on public.profiles;
 drop policy if exists "Users can view their own profile." on public.profiles;
 create policy "Users can view their own profile."
   on public.profiles for select
@@ -31,7 +28,7 @@ create or replace function public.handle_new_user()
 returns trigger as $$
 begin
   insert into public.profiles (id, email, name, role)
-  values (new.id, new.email, new.raw_user_meta_data->>'name', new.raw_user_meta_data->>'role');
+  values (new.id, new.email, new.raw_user_meta_data->>'name', 'collaborator');
   return new;
 end;
 $$ language plpgsql security definer;
@@ -89,12 +86,22 @@ create policy "Users can manage their own clients."
     using ( auth.uid() = user_id );
 
 -- Create product_images bucket
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('product_images', 'product_images', true, 2097152, '{"image/*"}' )
-on conflict (id) do nothing;
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE id = 'product_images') THEN
+        insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+        values ('product_images', 'product_images', true, 2097152, '{"image/*"}' );
+    END IF;
+END $$;
+
 
 -- Policies for product_images bucket
 drop policy if exists "Users can manage their own product images." on storage.objects;
 create policy "Users can manage their own product images."
     on storage.objects for all
-    using ( bucket_id = 'product_images' and owner = auth.uid() );
+    with check ( bucket_id = 'product_images' and auth.uid() = owner );
+
+drop policy if exists "Anyone can view product images." on storage.objects;
+create policy "Anyone can view product images."
+    on storage.objects for select
+    using ( bucket_id = 'product_images' );
