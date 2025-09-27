@@ -1,108 +1,136 @@
--- Drop tables with cascade to remove dependent objects
-DROP TABLE IF EXISTS public.profiles CASCADE;
-DROP TABLE IF EXISTS public.menu_items CASCADE;
+-- Drop existing objects in reverse order of creation, using CASCADE for dependencies.
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP FUNCTION IF EXISTS public.handle_new_user();
+DROP FUNCTION IF EXISTS public.current_user_id();
+
 DROP TABLE IF EXISTS public.clients CASCADE;
+DROP TABLE IF EXISTS public.menu_items CASCADE;
+DROP TABLE IF EXISTS public.profiles CASCADE;
 
--- Drop the function if it exists
-DROP FUNCTION IF EXISTS public.current_user_id() CASCADE;
-
--- Create a helper function to get the current user's ID from the JWT claims
-create or replace function public.current_user_id()
-returns uuid
-language sql
-stable
-as $$
-  select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
-$$;
 
 -- Create profiles table
 CREATE TABLE IF NOT EXISTS public.profiles (
-  id uuid not null primary key,
-  "name" text null,
-  "role" text null default 'collaborator'::text,
-  constraint profiles_id_fkey foreign key (id) references auth.users(id) on delete cascade
+  id uuid NOT NULL,
+  updated_at timestamp with time zone NULL,
+  name character varying NULL,
+  role text NOT NULL DEFAULT 'collaborator'::text,
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
 );
-alter table public.profiles enable row level security;
+-- comments
+COMMENT ON TABLE public.profiles IS 'Stores user-profiles and their associated roles.';
 
 -- Create menu_items table
 CREATE TABLE IF NOT EXISTS public.menu_items (
-    id uuid not null default gen_random_uuid() primary key,
-    user_id uuid null,
-    name text null,
-    description text null,
-    price numeric null,
-    category text null,
-    "imageUrl" text null,
-    stock integer null,
-    "lowStockThreshold" integer null,
-    unit text null,
-    constraint menu_items_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  description text,
+  price numeric(10,2) NOT NULL,
+  category text,
+  image_url text,
+  stock integer,
+  low_stock_threshold integer,
+  unit text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT menu_items_pkey PRIMARY KEY (id),
+  CONSTRAINT menu_items_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );
-alter table public.menu_items enable row level security;
+-- comments
+COMMENT ON TABLE public.menu_items IS 'Stores the menu items for the restaurant.';
 
 -- Create clients table
 CREATE TABLE IF NOT EXISTS public.clients (
-    id uuid not null default gen_random_uuid() primary key,
-    user_id uuid null,
-    name text null,
-    phone text null,
-    document text null,
-    constraint clients_user_id_fkey foreign key (user_id) references auth.users (id) on delete cascade
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  phone text,
+  document text,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT clients_pkey PRIMARY KEY (id),
+  CONSTRAINT clients_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id) ON DELETE CASCADE
 );
-alter table public.clients enable row level security;
-
--- Policies for profiles
-create policy "Users can insert their own profile." on public.profiles for insert with check (current_user_id() = id);
-create policy "Users can view their own profile." on public.profiles for select using (current_user_id() = id);
-create policy "Users can update own profile." on public.profiles for update using (current_user_id() = id);
-
--- Policies for menu_items
-create policy "Users can manage their own menu items." on public.menu_items for all using (current_user_id() = user_id);
-
--- Policies for clients
-create policy "Users can manage their own clients." on public.clients for all using (current_user_id() = user_id);
+-- comments
+COMMENT ON TABLE public.clients IS 'Stores client information for orders.';
 
 
--- Function to create a profile for a new user
-create or replace function public.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (id, name)
-  values (new.id, new.raw_user_meta_data->>'name');
-  return new;
-end;
+-- Secure the tables with Row-Level Security (RLS)
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
+
+-- Function to get the current user's ID from JWT claims
+CREATE OR REPLACE FUNCTION public.current_user_id()
+RETURNS uuid
+LANGUAGE sql STABLE
+AS $$
+  SELECT NULLIF(current_setting('request.jwt.claims', true)::jsonb ->> 'sub', '')::uuid;
 $$;
+COMMENT ON FUNCTION public.current_user_id() IS 'Returns the user ID from the JWT claims.';
 
--- Trigger to create a profile when a new user signs up
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+--
+-- Policies for 'profiles' table
+--
+DROP POLICY IF EXISTS "Users can view their own profile." ON public.profiles;
+CREATE POLICY "Users can view their own profile." ON public.profiles FOR SELECT
+  USING (current_user_id() = id);
 
--- Enable image uploads for authenticated users
-drop policy if exists "Authenticated users can upload images." on storage.objects;
-create policy "Authenticated users can upload images." on storage.objects for insert to authenticated with check (true);
+DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
+CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT
+  WITH CHECK (current_user_id() = id);
 
-drop policy if exists "Anyone can view public images." on storage.objects;
-CREATE POLICY "Anyone can view public images." ON storage.objects FOR SELECT USING ( bucket_id = 'images' );
+DROP POLICY IF EXISTS "Users can update own profile." ON public.profiles;
+CREATE POLICY "Users can update own profile." ON public.profiles FOR UPDATE
+  USING (current_user_id() = id)
+  WITH CHECK (current_user_id() = id);
 
-drop policy if exists "Admins can update product images." on storage.objects;
-create policy "Admins can update product images."
-on storage.objects
-for update to authenticated
-using (
-  bucket_id = 'images'
-  and (select role from public.profiles where id = current_user_id()) = 'admin'
-);
+--
+-- Policies for 'menu_items' table
+--
+DROP POLICY IF EXISTS "Users can manage their own menu items." ON public.menu_items;
+CREATE POLICY "Users can manage their own menu items." ON public.menu_items FOR ALL
+  USING (current_user_id() = user_id)
+  WITH CHECK (current_user_id() = user_id);
 
-drop policy if exists "Admins can delete product images." on storage.objects;
-create policy "Admins can delete product images."
-on storage.objects
-for delete to authenticated
-using (
-  bucket_id = 'images'
-  and (select role from public.profiles where id = current_user_id()) = 'admin'
-);
+--
+-- Policies for 'clients' table
+--
+DROP POLICY IF EXISTS "Users can manage their own clients." ON public.clients;
+CREATE POLICY "Users can manage their own clients." ON public.clients FOR ALL
+  USING (current_user_id() = user_id)
+  WITH CHECK (current_user_id() = user_id);
+
+--
+-- Function to handle new user creation
+--
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO public.profiles (id, name, role)
+  VALUES (
+    NEW.id,
+    NEW.raw_user_meta_data ->> 'name',
+    'collaborator'
+  );
+  RETURN NEW;
+END;
+$$;
+COMMENT ON FUNCTION public.handle_new_user() IS 'Trigger function to create a profile for a new user.';
+
+
+--
+-- Trigger to execute the function on new user sign-up
+--
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+
+
+-- Seed initial data for storage policies (optional, but good practice)
+-- This ensures that even if you have storage policies, they don't block profile creation.
+-- In this specific case, we are not adding storage policies yet, but this is where they would go.
