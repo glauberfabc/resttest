@@ -1,12 +1,13 @@
 -- supabase/migrations/0000_initial_schema.sql
 
--- Helper function to get user_id from JWT
-create or replace function public.get_user_id()
-returns uuid
-language sql stable
-as $$
-  select nullif(current_setting('request.jwt.claims', true)::json->>'sub', '')::uuid;
-$$;
+-- Reset existing policies and functions to ensure a clean slate
+drop policy if exists "Users can view their own profile." on public.profiles;
+drop policy if exists "Public profiles are viewable by everyone." on public.profiles;
+drop policy if exists "Users can insert their own profile." on public.profiles;
+drop policy if exists "Users can update own profile." on public.profiles;
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user();
+drop function if exists public.get_user_id();
 
 -- Create a table for public profiles
 create table if not exists public.profiles (
@@ -17,37 +18,21 @@ create table if not exists public.profiles (
 );
 alter table public.profiles enable row level security;
 
--- Policies for profiles
-drop policy if exists "Users can view their own profile." on public.profiles;
+-- POLICIES for profiles
+-- Users can view their own profile.
 create policy "Users can view their own profile."
   on public.profiles for select
-  using ( get_user_id() = id );
+  using ( auth.uid() = id );
 
-drop policy if exists "Users can insert their own profile." on public.profiles;
+-- Users can insert their own profile.
 create policy "Users can insert their own profile."
   on public.profiles for insert
-  with check ( get_user_id() = id );
+  with check ( auth.uid() = id );
 
-drop policy if exists "Users can update own profile." on public.profiles;
+-- Users can update their own profile.
 create policy "Users can update own profile."
   on public.profiles for update
-  using ( get_user_id() = id );
-
--- This trigger automatically creates a profile entry for new users.
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.profiles (id, email)
-  values (new.id, new.email);
-  return new;
-end;
-$$ language plpgsql security definer;
-
--- Trigger the function after a new user is created
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+  using ( auth.uid() = id );
 
 
 -- Create menu_items table
@@ -71,11 +56,6 @@ drop policy if exists "Users can manage their own menu items." on public.menu_it
 create policy "Users can manage their own menu items."
     on public.menu_items for all
     using ( auth.uid() = user_id );
-
-drop policy if exists "Menu items are viewable by authenticated users." on public.menu_items;
-create policy "Menu items are viewable by authenticated users."
-    on public.menu_items for select
-    using ( auth.role() = 'authenticated' );
 
 
 -- Create clients table
