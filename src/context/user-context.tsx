@@ -53,10 +53,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 role: profile.role as UserRole,
             };
             setUser(userData);
-            if (pathname === '/' || pathname === '/signup') {
-              if (!pathname.startsWith('/dashboard')) {
+            if ((pathname === '/' || pathname === '/signup') && !pathname.startsWith('/dashboard')) {
                 router.push('/dashboard');
-              }
             }
         } else {
              console.error("Profile not found for user:", currentUser.id);
