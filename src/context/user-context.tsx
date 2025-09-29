@@ -36,7 +36,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     const fetchUser = async (currentUser: SupabaseUser) => {
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
-            .select('name, role')
+            .select('id, name, role')
             .eq('id', currentUser.id)
             .limit(1)
             .maybeSingle();
@@ -53,8 +53,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 role: profile.role as UserRole,
             };
             setUser(userData);
-            if(pathname === '/' || pathname === '/signup') {
-              router.push('/dashboard');
+            if (pathname === '/' || pathname === '/signup') {
+              if (!pathname.startsWith('/dashboard')) {
+                router.push('/dashboard');
+              }
             }
         } else {
              console.error("Profile not found for user:", currentUser.id);
