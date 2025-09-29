@@ -95,7 +95,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener.subscription.unsubscribe();
     };
-  }, [router, toast, pathname, user]);
+  }, [router, toast, pathname]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
