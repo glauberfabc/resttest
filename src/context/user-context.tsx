@@ -85,14 +85,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 router.push('/');
             }
         } else if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-            fetchUser(currentUser);
+            // Avoid refetching if user is already set and token is just refreshed
+            if (!user || user.id !== currentUser.id) {
+                fetchUser(currentUser);
+            }
         }
     });
 
     return () => {
         authListener.subscription.unsubscribe();
     };
-  }, [router, toast, pathname]);
+  }, [router, toast, pathname, user]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;

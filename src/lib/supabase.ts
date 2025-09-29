@@ -5,10 +5,16 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase URL and anonymous key must be provided.');
+  // This error is expected if the .env.local file is not set up
+  // It should not be thrown during the build process
+  if (typeof window !== 'undefined') {
+    throw new Error('Supabase URL and anonymous key must be provided.');
+  }
+  console.warn('Supabase URL and anonymous key are not set. This is expected during build.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+export const supabase = createClient(supabaseUrl!, supabaseAnonKey!)
 
 
 // Service functions to fetch data

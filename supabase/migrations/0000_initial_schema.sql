@@ -1,47 +1,52 @@
-
--- Remove todos os objetos existentes para garantir um estado limpo.
+-- Remove tabelas existentes para garantir um estado limpo
+drop table if exists public.profiles cascade;
+drop table if exists public.clients cascade;
+drop table if exists public.menu_items cascade;
+drop table if exists public.orders cascade;
 drop table if exists public.order_items cascade;
 drop table if exists public.order_payments cascade;
-drop table if exists public.orders cascade;
-drop table if exists public.menu_items cascade;
-drop table if exists public.clients cascade;
-drop table if exists public.profiles cascade;
-drop type if exists public.order_status cascade;
-drop type if exists public.order_type cascade;
-drop type if exists public.user_role cascade;
-drop type if exists public.menu_item_category cascade;
-drop function if exists public.handle_new_user cascade;
 
--- EXTENSIONS
-create extension if not exists "uuid-ossp" with schema extensions;
+-- Remove tipos ENUM existentes para garantir um estado limpo
+drop type if exists public.user_role;
+drop type if exists public.order_type;
+drop type  if exists public.order_status;
+drop type if exists public.menu_item_category;
 
--- TIPOS
-create type public.order_status as enum ('open', 'paying', 'paid');
-create type public.order_type as enum ('table', 'name');
+-- Cria o tipo ENUM para papeis de usuário
 create type public.user_role as enum ('admin', 'collaborator');
+-- Cria o tipo ENUM para tipos de comanda
+create type public.order_type as enum ('table', 'name');
+-- Cria o tipo ENUM para status de comanda
+create type public.order_status as enum ('open', 'paying', 'paid');
+-- Cria o tipo ENUM para categorias de item do cardápio
 create type public.menu_item_category as enum ('Lanches', 'Porções', 'Bebidas', 'Salgados', 'Pratos Quentes', 'Saladas', 'Destilados', 'Caipirinhas', 'Bebidas Quentes', 'Adicional');
 
--- TABELAS
-create table public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  name text not null,
-  email text not null unique,
-  role user_role not null default 'collaborator'
-);
 
+-- Tabela de Perfis de Usuário
+create table public.profiles (
+  id uuid not null references auth.users on delete cascade,
+  name text not null,
+  role user_role not null default 'collaborator',
+  primary key (id)
+);
+comment on table public.profiles is 'Armazena informações de perfil para cada usuário.';
+
+-- Tabela de Clientes
 create table public.clients (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
   name text not null,
   phone text,
   document text,
   created_at timestamptz not null default now(),
-  unique(user_id, name)
+  primary key (id)
 );
+comment on table public.clients is 'Armazena informações sobre os clientes do estabelecimento.';
 
+-- Tabela de Itens do Cardápio
 create table public.menu_items (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
   name text not null,
   description text,
   price numeric(10, 2) not null,
@@ -50,91 +55,69 @@ create table public.menu_items (
   stock integer,
   low_stock_threshold integer,
   unit text,
-  created_at timestamptz not null default now()
-);
-
-create table public.orders (
-  id uuid primary key default uuid_generate_v4(),
-  user_id uuid not null references public.profiles(id) on delete cascade,
-  identifier text not null,
-  type order_type not null,
-  status order_status not null default 'open',
   created_at timestamptz not null default now(),
-  paid_at timestamptz
+  primary key (id)
 );
+comment on table public.menu_items is 'Contém todos os itens disponíveis no cardápio.';
 
+-- Tabela de Comandas
+create table public.orders (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null references auth.users on delete cascade,
+  type order_type not null,
+  identifier text not null,
+  status order_status not null,
+  created_at timestamptz not null default now(),
+  paid_at timestamptz,
+  primary key (id)
+);
+comment on table public.orders is 'Armazena as comandas, que podem ser por mesa ou por nome.';
+
+-- Tabela de Itens da Comanda (tabela de junção)
 create table public.order_items (
-  order_id uuid not null references public.orders(id) on delete cascade,
-  menu_item_id uuid not null references public.menu_items(id) on delete cascade,
-  quantity integer not null check (quantity > 0),
+  order_id uuid not null references public.orders on delete cascade,
+  menu_item_id uuid not null references public.menu_items on delete restrict,
+  quantity integer not null,
   primary key (order_id, menu_item_id)
 );
+comment on table public.order_items is 'Associa itens do cardápio a uma comanda com uma quantidade específica.';
 
+-- Tabela de Pagamentos da Comanda
 create table public.order_payments (
-  id uuid primary key default uuid_generate_v4(),
-  order_id uuid not null references public.orders(id) on delete cascade,
-  amount numeric(10, 2) not null,
-  method text not null,
-  paid_at timestamptz not null default now()
+    id uuid not null default gen_random_uuid(),
+    order_id uuid not null references public.orders on delete cascade,
+    amount numeric(10, 2) not null,
+    method text not null,
+    paid_at timestamptz not null default now(),
+    primary key (id)
 );
+comment on table public.order_payments is 'Registra os pagamentos (parciais ou totais) de uma comanda.';
 
 
--- FUNÇÃO E TRIGGER para sincronizar auth.users com public.profiles
-create or replace function public.handle_new_user()
+-- FUNÇÃO PARA CRIAR PERFIL DE USUÁRIO AUTOMATICAMENTE
+-- Remove a função e o trigger existentes se houver
+drop function if exists public.handle_new_user cascade;
+
+create function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer set search_path = public
 as $$
 begin
-  insert into public.profiles (id, name, email, role)
-  values (
-    new.id,
-    coalesce(new.raw_user_meta_data->>'name', 'Novo Usuário'),
-    new.email,
-    'collaborator'
-  );
+  insert into public.profiles (id, name, role)
+  values (new.id, new.raw_user_meta_data->>'name', 'collaborator');
   return new;
 end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
+-- Trigger que chama a função após um novo usuário ser criado em auth.users
 create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
+-- POLÍTICAS DE SEGURANÇA (ROW LEVEL SECURITY - RLS)
 
--- SEED: INSERE O USUÁRIO ADMIN (se não existir)
--- Isso é executado como superusuário, então não aciona o RLS.
-do $$
-declare
-    admin_email text := 'admin@comandazap.com';
-    admin_pass text := '123456'; -- Senha fraca para desenvolvimento
-    admin_user_id uuid;
-begin
-    -- Verifica se o usuário já existe em auth.users
-    select id into admin_user_id from auth.users where email = admin_email;
-
-    -- Se não existir, cria o usuário em auth.users
-    if admin_user_id is null then
-        admin_user_id := extensions.uuid_generate_v4();
-        insert into auth.users (id, email, encrypted_password, aud, role, created_at, updated_at)
-        values (admin_user_id, admin_email, crypt(admin_pass, gen_salt('bf')), 'authenticated', 'authenticated', now(), now());
-    end if;
-
-    -- Garante que o perfil correspondente exista e tenha o role 'admin'
-    insert into public.profiles (id, name, email, role)
-    values (admin_user_id, 'Admin', admin_email, 'admin')
-    on conflict (id) do update set
-        name = excluded.name,
-        email = excluded.email,
-        role = excluded.role;
-
-end $$;
-
-
--- POLÍTICAS DE SEGURANÇA (ROW LEVEL SECURITY)
-
--- Habilita RLS em todas as tabelas
+-- Habilita RLS para todas as tabelas
 alter table public.profiles enable row level security;
 alter table public.clients enable row level security;
 alter table public.menu_items enable row level security;
@@ -142,60 +125,69 @@ alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.order_payments enable row level security;
 
--- PROFILES
+-- Remove políticas existentes para garantir idempotência
 drop policy if exists "Users can view their own profile." on public.profiles;
+drop policy if exists "Users can update their own profile." on public.profiles;
+drop policy if exists "Users can manage their own clients." on public.clients;
+drop policy if exists "Admins can manage all clients." on public.clients;
+drop policy if exists "Users can manage their own menu items." on public.menu_items;
+drop policy if exists "Admins can manage all menu items." on public.menu_items;
+drop policy if exists "Authenticated users can view all menu items." on public.menu_items;
+drop policy if exists "Users can manage their own orders." on public.orders;
+drop policy if exists "Admins can manage all orders." on public.orders;
+drop policy if exists "Users can manage items on their own orders." on public.order_items;
+drop policy if exists "Admins can manage all order items." on public.order_items;
+drop policy if exists "Users can manage payments on their own orders." on public.order_payments;
+drop policy if exists "Admins can manage all order payments." on public.order_payments;
+
+
+-- Políticas para a tabela PROFILES
 create policy "Users can view their own profile." on public.profiles for select
   using ( auth.uid() = id );
-
-drop policy if exists "Users can update their own profile." on public.profiles;
 create policy "Users can update their own profile." on public.profiles for update
   using ( auth.uid() = id );
 
--- CLIENTS
-drop policy if exists "Users can manage their own clients." on public.clients;
+-- Políticas para a tabela CLIENTS
 create policy "Users can manage their own clients." on public.clients for all
   using ( auth.uid() = user_id );
+create policy "Admins can manage all clients." on public.clients for all
+  using ( (select role from public.profiles where id = auth.uid()) = 'admin' );
 
--- MENU ITEMS
-drop policy if exists "Users can manage their own menu items." on public.menu_items;
+-- Políticas para a tabela MENU_ITEMS
 create policy "Users can manage their own menu items." on public.menu_items for all
   using ( auth.uid() = user_id );
-
-drop policy if exists "Authenticated users can view all menu items." on public.menu_items;
+create policy "Admins can manage all menu items." on public.menu_items for all
+  using ( (select role from public.profiles where id = auth.uid()) = 'admin' );
 create policy "Authenticated users can view all menu items." on public.menu_items for select
-  to authenticated
-  using ( true );
+  using ( auth.role() = 'authenticated' );
 
--- ORDERS
-drop policy if exists "Users can manage their own orders." on public.orders;
+-- Políticas para a tabela ORDERS
 create policy "Users can manage their own orders." on public.orders for all
   using ( auth.uid() = user_id );
+create policy "Admins can manage all orders." on public.orders for all
+  using ( (select role from public.profiles where id = auth.uid()) = 'admin' );
 
--- ORDER ITEMS
-drop policy if exists "Users can manage items on their own orders." on public.order_items;
+-- Políticas para a tabela ORDER_ITEMS
 create policy "Users can manage items on their own orders." on public.order_items for all
-  using ( exists (select 1 from public.orders where orders.id = order_id and orders.user_id = auth.uid()) );
-
--- ORDER PAYMENTS
-drop policy if exists "Users can manage payments on their own orders." on public.order_payments;
+  using ( auth.uid() = (select user_id from public.orders where id = order_id) );
+create policy "Admins can manage all order items." on public.order_items for all
+  using ( (select role from public.profiles where id = auth.uid()) = 'admin' );
+  
+-- Políticas para a tabela ORDER_PAYMENTS
 create policy "Users can manage payments on their own orders." on public.order_payments for all
-  using ( exists (select 1 from public.orders where orders.id = order_id and orders.user_id = auth.uid()) );
+  using ( auth.uid() = (select user_id from public.orders where id = order_id) );
+create policy "Admins can manage all order payments." on public.order_payments for all
+  using ( (select role from public.profiles where id = auth.uid()) = 'admin' );
 
-
--- PERMISSÕES DE STORAGE
-
--- Cria bucket para imagens do cardápio
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('menu-images', 'menu-images', true, 2097152, '{"image/jpeg","image/png","image/webp"}')
+-- Storage: Cria um bucket para imagens do menu
+insert into storage.buckets (id, name, public)
+values ('menu-images', 'menu-images', true)
 on conflict (id) do nothing;
 
--- Política para permitir que usuários autenticados vejam todas as imagens
-drop policy if exists "Allow public read access to all images" on storage.objects;
-create policy "Allow public read access to all images" on storage.objects for select
-  using ( bucket_id = 'menu-images' );
+-- Política para permitir que usuários autenticados façam upload de imagens
+drop policy if exists "Authenticated users can upload menu images." on storage.objects;
+create policy "Authenticated users can upload menu images." on storage.objects for insert to authenticated with check ( bucket_id = 'menu-images' );
 
--- Política para permitir que usuários autenticados gerenciem suas próprias imagens
-drop policy if exists "Allow authenticated users to manage their own images" on storage.objects;
-create policy "Allow authenticated users to manage their own images" on storage.objects for all
-  using ( auth.uid() = owner )
-  with check ( auth.uid() = owner );
+-- Política para permitir que todos vejam as imagens do menu
+drop policy if exists "Anyone can view menu images." on storage.objects;
+create policy "Anyone can view menu images." on storage.objects for select using ( bucket_id = 'menu-images' );
