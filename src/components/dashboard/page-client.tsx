@@ -139,43 +139,37 @@ export default function DashboardPageClient({ initialOrders, menuItems, initialC
         return;
     }
 
-    // 2. Update local state
+    // 2. Update local state with new payment
     const newPayment = { ...paymentData, paidAt: paymentData.paid_at };
-    const updatedPayments = [...(orderToPay.payments || []), newPayment];
+    let updatedOrder = {
+      ...orderToPay,
+      payments: [...(orderToPay.payments || []), newPayment] as any, //TODO: fix types
+    };
 
-    const orderTotal = orderToPay.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-    const totalPaid = updatedPayments.reduce((acc, p) => acc.amount + p.amount, {amount: 0}).amount;
+    const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+    const totalPaid = updatedOrder.payments.reduce((acc, p) => acc + p.amount, 0);
     
     const isFullyPaid = totalPaid >= orderTotal - 0.001;
 
-    // 3. If fully paid for a table, delete it. Otherwise, update status.
-    if (isFullyPaid && orderToPay.type === 'table') {
-        const originalOrders = orders;
-        setOrders(orders.filter(o => o.id !== orderId));
-        setSelectedOrder(null);
-
-        const { error } = await supabase.from('orders').delete().eq('id', orderId);
-        if (error) {
-            console.error("Error deleting paid table order:", error);
-            toast({ variant: 'destructive', title: "Erro ao remover comanda", description: "A comanda foi paga, mas não pode ser removida da lista." });
-            setOrders(originalOrders);
-        }
-        return;
+    // 3. Update order status if fully paid
+    if (isFullyPaid) {
+      updatedOrder = {
+        ...updatedOrder,
+        status: 'paid',
+        paidAt: new Date().toISOString(),
+      };
     }
-
-    const updatedOrder: Order = {
-      ...orderToPay,
-      payments: updatedPayments as any, //TODO: fix types
-      status: isFullyPaid ? 'paid' : 'open',
-      paidAt: isFullyPaid ? new Date().toISOString() : undefined,
-    };
     
-    // This will update local state and persist the final order status to DB
+    // 4. This will update local state and persist the final order status to DB
     await handleUpdateOrder(updatedOrder); 
     
+    // 5. Update UI
     if (isFullyPaid) {
-      // For 'name' orders, keep it selected to show the receipt.
+      // For 'name' or 'table' orders, keep it selected to show the receipt, then close the sheet.
       setSelectedOrder(updatedOrder); 
+    } else {
+      // If partially paid, just update the selected order with new payment info
+      setSelectedOrder(updatedOrder);
     }
   };
 
