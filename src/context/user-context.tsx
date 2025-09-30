@@ -130,20 +130,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
+    // The profile is now created by the database trigger, so we don't need to do it here.
+    
     if (signUpData.user) {
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({ id: signUpData.user.id, name: name, role: 'collaborator' });
-        
-        if(profileError) {
-            console.error('Error creating profile:', profileError.message);
-            toast({ variant: 'destructive', title: 'Erro de Banco de Dados', description: 'Não foi possível criar o perfil do usuário.' });
-            // Optionally delete the user if profile creation fails
-            // This requires admin privileges, so we'll just log the error for now.
-            // await supabase.auth.admin.deleteUser(signUpData.user.id);
-            return;
-        }
-
         toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo! Faça o login para continuar.' });
         router.push('/');
     }
