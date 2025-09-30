@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 interface ClientFormDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onSave: (client: Client) => void;
+  onSave: (clientData: Omit<Client, 'id' | 'user_id'>) => void;
   client: Client | null;
 }
 
@@ -43,13 +43,11 @@ export function ClientFormDialog({ isOpen, onOpenChange, onSave, client }: Clien
     e.preventDefault();
     if (!name) return;
     
-    const savedClient: Client = {
-      id: client?.id || '', // ID will be generated in parent if new
+    onSave({
       name,
       phone,
       document: documentValue,
-    };
-    onSave(savedClient);
+    });
   };
 
   return (

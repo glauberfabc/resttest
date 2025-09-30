@@ -61,7 +61,7 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
     return Array.from(debtorMap.values());
   }, [orders, clients]);
 
-  const handleSaveClient = async (client: Client) => {
+  const handleSaveClient = async (clientData: Omit<Client, 'id' | 'user_id'>) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado." });
         return;
@@ -70,8 +70,8 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
     if (selectedClient) { // Editing existing client
       const { data, error } = await supabase
         .from('clients')
-        .update({ name: client.name, phone: client.phone, document: client.document })
-        .eq('id', client.id)
+        .update({ name: clientData.name, phone: clientData.phone, document: clientData.document })
+        .eq('id', selectedClient.id)
         .select()
         .single();
         
@@ -84,11 +84,12 @@ export default function ClientsPageClient({ initialClients, initialOrders }: Cli
     } else { // Adding new client
       const { data, error } = await supabase
         .from('clients')
-        .insert({ ...client, user_id: user.id })
+        .insert({ ...clientData, user_id: user.id })
         .select()
         .single();
 
       if (error || !data) {
+        console.error("Error adding client:", error);
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o cliente." });
         return;
       }
