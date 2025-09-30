@@ -66,9 +66,11 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
     (o) => {
         const paidAt = o.paidAt || o.paid_at;
         if (!paidAt) return false;
-        const paidDate = new Date(paidAt);
-        const fromDate = date?.from ? new Date(new Date(date.from).setHours(0,0,0,0)) : null;
-        const toDate = date?.to ? new Date(new Date(date.to).setHours(23,59,59,999)) : null;
+
+        const paidDate = parseISO(paidAt);
+        const fromDate = date?.from ? startOfDay(date.from) : null;
+        const toDate = date?.to ? endOfDay(date.to) : null;
+
         if (fromDate && paidDate < fromDate) return false;
         if (toDate && paidDate > toDate) return false;
         return true;
