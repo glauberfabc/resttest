@@ -1,123 +1,115 @@
--- Drop dependent objects first
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
+-- Apaga todos os objetos do banco em ordem de dependência para garantir uma recriação limpa.
+drop table if exists public.order_payments cascade;
+drop table if exists public.order_items cascade;
+drop table if exists public.orders cascade;
+drop table if exists public.clients cascade;
+drop table if exists public.menu_items cascade;
+drop table if exists public.profiles cascade;
 
--- Drop tables
-DROP TABLE IF EXISTS public.order_payments;
-DROP TABLE IF EXISTS public.order_items;
-DROP TABLE IF EXISTS public.orders;
-DROP TABLE IF EXISTS public.menu_items;
-DROP TABLE IF EXISTS public.clients;
-DROP TABLE IF EXISTS public.profiles;
-
--- Create profiles table
-CREATE TABLE public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'collaborator'
+-- Recria as tabelas.
+create table public.profiles (
+    id uuid not null primary key,
+    name text,
+    role text default 'collaborator'::text,
+    constraint profiles_id_fkey foreign key (id) references auth.users (id) on delete cascade
 );
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Create clients table
-CREATE TABLE public.clients (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(50),
-    document VARCHAR(50)
+create table public.clients (
+    id uuid not null default gen_random_uuid() primary key,
+    user_id uuid references auth.users(id) on delete cascade,
+    name text not null,
+    phone text,
+    document text
 );
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 
--- Create menu_items table
-CREATE TABLE public.menu_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    price NUMERIC(10, 2) NOT NULL,
-    category VARCHAR(100),
-    image_url TEXT,
-    stock INTEGER,
-    low_stock_threshold INTEGER,
-    unit VARCHAR(50)
+create table public.menu_items (
+    id uuid not null default gen_random_uuid() primary key,
+    user_id uuid references auth.users(id) on delete cascade,
+    name text not null,
+    description text,
+    price numeric(10, 2) not null,
+    category text not null,
+    image_url text,
+    stock integer,
+    low_stock_threshold integer,
+    unit text
 );
-ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
 
--- Create orders table
-CREATE TABLE public.orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL,
-    identifier VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    paid_at TIMESTAMPTZ
+create table public.orders (
+    id uuid not null default gen_random_uuid() primary key,
+    user_id uuid references auth.users(id) on delete cascade,
+    type text not null,
+    identifier text not null,
+    status text not null default 'open',
+    created_at timestamptz not null default now(),
+    paid_at timestamptz
 );
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
--- Create order_items table
-CREATE TABLE public.order_items (
-    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-    menu_item_id UUID REFERENCES public.menu_items(id) ON DELETE RESTRICT,
-    quantity INTEGER NOT NULL,
-    PRIMARY KEY (order_id, menu_item_id)
+create table public.order_items (
+    order_id uuid not null references public.orders(id) on delete cascade,
+    menu_item_id uuid not null references public.menu_items(id) on delete cascade,
+    quantity integer not null,
+    primary key (order_id, menu_item_id)
 );
-ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 
--- Create order_payments table
-CREATE TABLE public.order_payments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-    amount NUMERIC(10, 2) NOT NULL,
-    method VARCHAR(50),
-    paid_at TIMESTAMPTZ DEFAULT NOW()
+create table public.order_payments (
+    id uuid not null default gen_random_uuid() primary key,
+    order_id uuid not null references public.orders(id) on delete cascade,
+    amount numeric(10, 2) not null,
+    method text not null,
+    paid_at timestamptz not null default now()
 );
-ALTER TABLE public.order_payments ENABLE ROW LEVEL SECURITY;
 
+-- Ativa a segurança em nível de linha (RLS) para todas as tabelas.
+alter table public.profiles enable row level security;
+alter table public.clients enable row level security;
+alter table public.menu_items enable row level security;
+alter table public.orders enable row level security;
+alter table public.order_items enable row level security;
+alter table public.order_payments enable row level security;
 
--- Function to create a profile for a new user
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, role)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'name', 'collaborator');
-  RETURN NEW;
-END;
-$$;
+-- Cria as políticas de segurança.
+-- Perfis (Profiles)
+create policy "Users can view their own profile." on public.profiles for select using (auth.uid() = id);
+create policy "Users can insert their own profile." on public.profiles for insert with check (auth.uid() = id);
+create policy "Users can update their own profile." on public.profiles for update using (auth.uid() = id);
 
--- Trigger to call the function when a new user is created
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+-- Clientes (Clients)
+create policy "Users can view their own clients." on public.clients for select using (auth.uid() = user_id);
+create policy "Users can insert their own clients." on public.clients for insert with check (auth.uid() = user_id);
+create policy "Users can update their own clients." on public.clients for update using (auth.uid() = user_id);
+create policy "Users can delete their own clients." on public.clients for delete using (auth.uid() = user_id);
 
--- Policies for profiles
-CREATE POLICY "Users can view their own profile." ON public.profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id);
+-- Itens do Cardápio (Menu Items)
+create policy "All users can view menu items." on public.menu_items for select using (true);
+create policy "Authenticated users can insert menu items." on public.menu_items for insert with check (auth.role() = 'authenticated');
+create policy "Users can update their own menu items." on public.menu_items for update using (auth.uid() = user_id);
+create policy "Users can delete their own menu items." on public.menu_items for delete using (auth.uid() = user_id);
 
--- Policies for clients
-CREATE POLICY "Users can manage their own clients." ON public.clients FOR ALL USING (auth.uid() = user_id);
+-- Comandas (Orders)
+create policy "Users can view their own orders." on public.orders for select using (auth.uid() = user_id);
+create policy "Users can insert their own orders." on public.orders for insert with check (auth.uid() = user_id);
+create policy "Users can update their own orders." on public.orders for update using (auth.uid() = user_id);
+create policy "Users can delete their own orders." on public.orders for delete using (auth.uid() = user_id);
 
--- Policies for menu_items
-CREATE POLICY "Users can manage their own menu items." ON public.menu_items FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Allow public read access to menu items" ON public.menu_items FOR SELECT USING (true);
+-- Itens da Comanda (Order Items)
+create policy "Users can manage items on their own orders." on public.order_items for all
+    using (auth.uid() = (select user_id from public.orders where id = order_id));
 
+-- Pagamentos da Comanda (Order Payments)
+create policy "Users can manage payments on their own orders." on public.order_payments for all
+    using (auth.uid() = (select user_id from public.orders where id = order_id));
 
--- Policies for orders
-CREATE POLICY "Users can manage their own orders." ON public.orders FOR ALL USING (auth.uid() = user_id);
+-- Configuração do Storage para imagens do cardápio.
+-- Cria o bucket se ele não existir.
+insert into storage.buckets (id, name, public)
+values ('menu-images', 'menu-images', true)
+on conflict (id) do nothing;
 
--- Policies for order_items
-CREATE POLICY "Users can manage items in their own orders." ON public.order_items FOR ALL
-    USING (EXISTS (
-        SELECT 1 FROM public.orders WHERE orders.id = order_items.order_id AND orders.user_id = auth.uid()
-    ));
+-- Política de leitura: Permite que qualquer pessoa veja as imagens.
+create policy "Public read access for menu images" on storage.objects for select
+using ( bucket_id = 'menu-images' );
 
--- Policies for order_payments
-CREATE POLICY "Users can manage payments for their own orders." ON public.order_payments FOR ALL
-    USING (EXISTS (
-        SELECT 1 FROM public.orders WHERE orders.id = order_payments.order_id AND orders.user_id = auth.uid()
-    ));
+-- Política de escrita: Permite que apenas usuários autenticados enviem imagens.
+create policy "Authenticated users can upload menu images" on storage.objects for insert
+with check ( bucket_id = 'menu-images' and auth.role() = 'authenticated' );
