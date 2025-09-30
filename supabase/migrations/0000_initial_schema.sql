@@ -1,17 +1,8 @@
-
--- Drop existing objects in reverse order of dependency
+-- Drop trigger and function if they exist from previous failed attempts
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP POLICY IF EXISTS "Users can view their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.clients;
-DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.menu_items;
-DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.orders;
-DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.order_items;
-DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.order_payments;
+DROP FUNCTION IF EXISTS public.handle_new_user;
 
-DROP FUNCTION IF EXISTS auth.handle_new_user();
-
+-- Drop tables in reverse order of creation to handle dependencies
 DROP TABLE IF EXISTS public.order_payments;
 DROP TABLE IF EXISTS public.order_items;
 DROP TABLE IF EXISTS public.orders;
@@ -19,128 +10,91 @@ DROP TABLE IF EXISTS public.menu_items;
 DROP TABLE IF EXISTS public.clients;
 DROP TABLE IF EXISTS public.profiles;
 
-
 -- Create profiles table
 CREATE TABLE public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'collaborator'
+    id uuid NOT NULL PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    name character varying,
+    role character varying DEFAULT 'collaborator'::character varying
 );
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Create clients table
 CREATE TABLE public.clients (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    phone VARCHAR(20),
-    document VARCHAR(20)
+    id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name character varying NOT NULL,
+    phone character varying,
+    document character varying
 );
 ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 
 -- Create menu_items table
 CREATE TABLE public.menu_items (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    price NUMERIC(10, 2) NOT NULL,
-    category VARCHAR(50),
-    image_url TEXT,
-    stock INTEGER,
-    low_stock_threshold INTEGER,
-    unit VARCHAR(20)
+    id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    name character varying NOT NULL,
+    description text,
+    price numeric(10,2) NOT NULL,
+    category character varying,
+    image_url text,
+    stock integer,
+    low_stock_threshold integer,
+    unit character varying
 );
 ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
 
 -- Create orders table
 CREATE TABLE public.orders (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL,
-    identifier VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    paid_at TIMESTAMPTZ
+    id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    type character varying NOT NULL,
+    identifier character varying NOT NULL,
+    status character varying NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    paid_at timestamp with time zone
 );
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- Create order_items table
 CREATE TABLE public.order_items (
-    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-    menu_item_id UUID REFERENCES public.menu_items(id) ON DELETE RESTRICT,
-    quantity INTEGER NOT NULL,
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    menu_item_id uuid NOT NULL REFERENCES public.menu_items(id) ON DELETE RESTRICT,
+    quantity integer NOT NULL,
     PRIMARY KEY (order_id, menu_item_id)
 );
 ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 
 -- Create order_payments table
 CREATE TABLE public.order_payments (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
-    amount NUMERIC(10, 2) NOT NULL,
-    method VARCHAR(50) NOT NULL,
-    paid_at TIMESTAMPTZ DEFAULT now()
+    id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+    amount numeric(10,2) NOT NULL,
+    method character varying NOT NULL,
+    paid_at timestamp with time zone DEFAULT now() NOT NULL
 );
 ALTER TABLE public.order_payments ENABLE ROW LEVEL SECURITY;
 
+-- RLS POLICIES --
 
--- Function to create a profile for a new user, in the correct schema
-create or replace function auth.handle_new_user()
-returns trigger
-language plpgsql
-security definer set search_path = public
-as $$
-begin
-  insert into public.profiles (id, name, role)
-  values (new.id, new.raw_user_meta_data->>'name', 'collaborator');
-  return new;
-end;
-$$;
-
--- Trigger to execute the function after a new user is created
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure auth.handle_new_user();
-
-
--- RLS Policies
+-- Profiles Policies
 CREATE POLICY "Users can view their own profile." ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can delete their own profile." ON public.profiles FOR DELETE USING (auth.uid() = id);
 
-CREATE POLICY "Enable all operations for authenticated users" ON public.clients FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Enable all operations for authenticated users" ON public.menu_items FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Enable all operations for authenticated users" ON public.orders FOR ALL USING (auth.uid() = user_id);
-CREATE POLICY "Enable all operations for authenticated users" ON public.order_items FOR ALL USING (
-    (EXISTS ( SELECT 1 FROM orders WHERE (orders.id = order_items.order_id)))
-);
-CREATE POLICY "Enable all operations for authenticated users" ON public.order_payments FOR ALL USING (
-    (EXISTS ( SELECT 1 FROM orders WHERE (orders.id = order_payments.order_id)))
-);
+-- Clients Policies
+CREATE POLICY "Users can manage their own clients." ON public.clients FOR ALL USING (auth.uid() = user_id);
 
+-- Menu Items Policies
+CREATE POLICY "Users can manage their own menu items." ON public.menu_items FOR ALL USING (auth.uid() = user_id);
 
--- Set up storage
-insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-values ('menu-images', 'menu-images', true, 2097152, '{"image/*"}')
-on conflict (id) do nothing;
+-- Orders Policies
+CREATE POLICY "Users can manage their own orders." ON public.orders FOR ALL USING (auth.uid() = user_id);
 
-create policy "Enable public access to all menu images"
-on storage.objects for select
-to public
-using ( bucket_id = 'menu-images' );
+-- Order Items Policies
+CREATE POLICY "Users can manage items in their own orders." ON public.order_items FOR ALL
+    USING ( (SELECT user_id FROM public.orders WHERE id = order_id) = auth.uid() );
 
-create policy "Enable insert for authenticated users"
-on storage.objects for insert
-to authenticated
-with check ( bucket_id = 'menu-images' AND auth.uid() = owner_id );
-
-create policy "Enable update for authenticated users"
-on storage.objects for update
-to authenticated
-using ( auth.uid() = owner_id );
-
-create policy "Enable delete for authenticated users"
-on storage.objects for delete
-to authenticated
-using ( auth.uid() = owner_id );
+-- Order Payments Policies
+CREATE POLICY "Users can manage payments for their own orders." ON public.order_payments FOR ALL
+    USING ( (SELECT user_id FROM public.orders WHERE id = order_id) = auth.uid() );

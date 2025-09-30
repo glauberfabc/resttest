@@ -85,7 +85,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 router.push('/');
             }
         } else if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-            // Avoid refetching if user is already set and token is just refreshed
             if (!user || user.id !== currentUser.id) {
                 fetchUser(currentUser);
             }
@@ -95,7 +94,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener.subscription.unsubscribe();
     };
-  }, [router, toast, pathname, user]);
+  }, [router, toast, pathname]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
@@ -109,7 +108,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.error("Login failed:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
     }
-    // onAuthStateChange listener will handle the rest
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
@@ -127,12 +125,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     if (signUpError) {
       console.error('Signup failed:', signUpError.message);
-      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: signUpError.message });
+      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: "Não foi possível criar o usuário." });
       return;
     }
     
     if (signUpData.user) {
-        toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo!' });
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({ id: signUpData.user.id, name: name, role: 'collaborator' });
+        
+        if(profileError) {
+            console.error('Error creating profile:', profileError.message);
+            toast({ variant: 'destructive', title: 'Erro de Banco de Dados', description: 'Não foi possível criar o perfil do usuário.' });
+            // Optionally delete the user if profile creation fails
+            await supabase.auth.admin.deleteUser(signUpData.user.id);
+            return;
+        }
+
+        toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo! Faça o login para continuar.' });
+        router.push('/');
     }
   };
 
