@@ -165,7 +165,6 @@ export default function DashboardPageClient({ initialOrders, menuItems, initialC
     
     // 5. Update UI
     if (isFullyPaid) {
-      // For 'name' or 'table' orders, keep it selected to show the receipt, then close the sheet.
       setSelectedOrder(updatedOrder); 
     } else {
       // If partially paid, just update the selected order with new payment info
@@ -175,7 +174,7 @@ export default function DashboardPageClient({ initialOrders, menuItems, initialC
 
 
   const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
-  const paidOrders = orders.filter(o => o.status === 'paid' && o.type === 'name');
+  const paidOrders = orders.filter(o => o.status === 'paid');
 
   return (
     <div className="flex flex-col gap-6">
@@ -216,7 +215,7 @@ export default function DashboardPageClient({ initialOrders, menuItems, initialC
             ) : (
               <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
                   <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda fechada</h3>
-                  <p className="text-sm text-muted-foreground">As comandas pagas por nome aparecerão aqui.</p>
+                  <p className="text-sm text-muted-foreground">As comandas pagas aparecerão aqui.</p>
               </div>
             )}
         </TabsContent>
