@@ -1,23 +1,17 @@
+
 -- Drop existing objects in reverse order of dependency
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-DROP FUNCTION IF EXISTS public.handle_new_user();
-
--- Drop policies
 DROP POLICY IF EXISTS "Users can view their own profile." ON public.profiles;
 DROP POLICY IF EXISTS "Users can insert their own profile." ON public.profiles;
 DROP POLICY IF EXISTS "Users can update their own profile." ON public.profiles;
-DROP POLICY IF EXISTS "Admin users can manage all clients" ON public.clients;
-DROP POLICY IF EXISTS "Users can view their own clients" ON public.clients;
-DROP POLICY IF EXISTS "Admin users can manage all menu items" ON public.menu_items;
-DROP POLICY IF EXISTS "Authenticated users can view menu items" ON public.menu_items;
-DROP POLICY IF EXISTS "Admin users can manage all orders" ON public.orders;
-DROP POLICY IF EXISTS "Users can view their own orders" ON public.orders;
-DROP POLICY IF EXISTS "Admin users can manage all order items" ON public.order_items;
-DROP POLICY IF EXISTS "Users can manage their own order items" ON public.order_items;
-DROP POLICY IF EXISTS "Admin users can manage all order payments" ON public.order_payments;
-DROP POLICY IF EXISTS "Users can manage their own order payments" ON public.order_payments;
+DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.clients;
+DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.menu_items;
+DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.orders;
+DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.order_items;
+DROP POLICY IF EXISTS "Enable all operations for authenticated users" ON public.order_payments;
 
--- Drop tables
+DROP FUNCTION IF EXISTS auth.handle_new_user();
+
 DROP TABLE IF EXISTS public.order_payments;
 DROP TABLE IF EXISTS public.order_items;
 DROP TABLE IF EXISTS public.orders;
@@ -25,14 +19,14 @@ DROP TABLE IF EXISTS public.menu_items;
 DROP TABLE IF EXISTS public.clients;
 DROP TABLE IF EXISTS public.profiles;
 
+
 -- Create profiles table
 CREATE TABLE public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     name VARCHAR(255),
-    role VARCHAR(50) DEFAULT 'collaborator',
-    email VARCHAR(255)
+    role VARCHAR(50) DEFAULT 'collaborator'
 );
-COMMENT ON TABLE public.profiles IS 'Stores user profile information.';
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
 -- Create clients table
 CREATE TABLE public.clients (
@@ -42,7 +36,7 @@ CREATE TABLE public.clients (
     phone VARCHAR(20),
     document VARCHAR(20)
 );
-COMMENT ON TABLE public.clients IS 'Stores client information for orders.';
+ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
 
 -- Create menu_items table
 CREATE TABLE public.menu_items (
@@ -55,21 +49,21 @@ CREATE TABLE public.menu_items (
     image_url TEXT,
     stock INTEGER,
     low_stock_threshold INTEGER,
-    unit VARCHAR(10)
+    unit VARCHAR(20)
 );
-COMMENT ON TABLE public.menu_items IS 'Stores all menu items available.';
+ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
 
 -- Create orders table
 CREATE TABLE public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL, -- 'table' or 'name'
+    type VARCHAR(50) NOT NULL,
     identifier VARCHAR(255) NOT NULL,
-    status VARCHAR(50) DEFAULT 'open',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT now(),
     paid_at TIMESTAMPTZ
 );
-COMMENT ON TABLE public.orders IS 'Represents a single order/check.';
+ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
 
 -- Create order_items table
 CREATE TABLE public.order_items (
@@ -78,7 +72,7 @@ CREATE TABLE public.order_items (
     quantity INTEGER NOT NULL,
     PRIMARY KEY (order_id, menu_item_id)
 );
-COMMENT ON TABLE public.order_items IS 'Junction table for items within an order.';
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 
 -- Create order_payments table
 CREATE TABLE public.order_payments (
@@ -86,78 +80,67 @@ CREATE TABLE public.order_payments (
     order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
     amount NUMERIC(10, 2) NOT NULL,
     method VARCHAR(50) NOT NULL,
-    paid_at TIMESTAMPTZ DEFAULT NOW()
+    paid_at TIMESTAMPTZ DEFAULT now()
 );
-COMMENT ON TABLE public.order_payments IS 'Stores payment transactions for an order.';
-
-/******************
-* HELPER FUNCTIONS
-******************/
-
--- Function to handle new user signup
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
-BEGIN
-  INSERT INTO public.profiles (id, name, role, email)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'name', 'collaborator', NEW.email);
-  RETURN NEW;
-END;
-$$;
-COMMENT ON FUNCTION public.handle_new_user() IS 'Automatically creates a profile for a new user.';
-
-/******************
-* TRIGGERS
-******************/
-
--- Trigger to execute handle_new_user on new user signup
-CREATE OR REPLACE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
-/******************
-* RLS POLICIES
-******************/
-
--- Enable RLS for all tables
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.order_payments ENABLE ROW LEVEL SECURITY;
 
--- Profiles policies
+
+-- Function to create a profile for a new user, in the correct schema
+create or replace function auth.handle_new_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  insert into public.profiles (id, name, role)
+  values (new.id, new.raw_user_meta_data->>'name', 'collaborator');
+  return new;
+end;
+$$;
+
+-- Trigger to execute the function after a new user is created
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute procedure auth.handle_new_user();
+
+
+-- RLS Policies
 CREATE POLICY "Users can view their own profile." ON public.profiles FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "Users can insert their own profile." ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update their own profile." ON public.profiles FOR UPDATE USING (auth.uid() = id);
 
--- Clients policies
-CREATE POLICY "Admin users can manage all clients" ON public.clients FOR ALL USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-CREATE POLICY "Users can view their own clients" ON public.clients FOR SELECT USING (user_id = auth.uid());
-
--- Menu items policies
-CREATE POLICY "Admin users can manage all menu items" ON public.menu_items FOR ALL USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-CREATE POLICY "Authenticated users can view menu items" ON public.menu_items FOR SELECT USING (auth.role() = 'authenticated');
-
--- Orders policies
-CREATE POLICY "Admin users can manage all orders" ON public.orders FOR ALL USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-CREATE POLICY "Users can view their own orders" ON public.orders FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "Users can create their own orders" ON public.orders FOR INSERT WITH CHECK (user_id = auth.uid());
-CREATE POLICY "Users can update their own orders" ON public.orders FOR UPDATE USING (user_id = auth.uid());
-CREATE POLICY "Users can delete their own orders" ON public.orders FOR DELETE USING (user_id = auth.uid());
-
--- Order items policies
-CREATE POLICY "Admin users can manage all order items" ON public.order_items FOR ALL USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-CREATE POLICY "Users can manage their own order items" ON public.order_items FOR ALL USING (
-    (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin' OR
-    order_id IN (SELECT id FROM orders WHERE user_id = auth.uid())
+CREATE POLICY "Enable all operations for authenticated users" ON public.clients FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Enable all operations for authenticated users" ON public.menu_items FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Enable all operations for authenticated users" ON public.orders FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Enable all operations for authenticated users" ON public.order_items FOR ALL USING (
+    (EXISTS ( SELECT 1 FROM orders WHERE (orders.id = order_items.order_id)))
+);
+CREATE POLICY "Enable all operations for authenticated users" ON public.order_payments FOR ALL USING (
+    (EXISTS ( SELECT 1 FROM orders WHERE (orders.id = order_payments.order_id)))
 );
 
--- Order payments policies
-CREATE POLICY "Admin users can manage all order payments" ON public.order_payments FOR ALL USING ((SELECT role FROM profiles WHERE id = auth.uid()) = 'admin');
-CREATE POLICY "Users can manage their own order payments" ON public.order_payments FOR ALL USING (
-    (SELECT role FROM profiles WHERE id = auth.uid()) = 'admin' OR
-    order_id IN (SELECT id FROM orders WHERE user_id = auth.uid())
-);
+
+-- Set up storage
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('menu-images', 'menu-images', true, 2097152, '{"image/*"}')
+on conflict (id) do nothing;
+
+create policy "Enable public access to all menu images"
+on storage.objects for select
+to public
+using ( bucket_id = 'menu-images' );
+
+create policy "Enable insert for authenticated users"
+on storage.objects for insert
+to authenticated
+with check ( bucket_id = 'menu-images' AND auth.uid() = owner_id );
+
+create policy "Enable update for authenticated users"
+on storage.objects for update
+to authenticated
+using ( auth.uid() = owner_id );
+
+create policy "Enable delete for authenticated users"
+on storage.objects for delete
+to authenticated
+using ( auth.uid() = owner_id );
