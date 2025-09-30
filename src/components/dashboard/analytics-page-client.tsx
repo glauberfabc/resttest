@@ -45,7 +45,7 @@ export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPage
   );
 
   const outOfStockItems = menuItems.filter(
-    (item) => item.stock !== undefined && item.stock === 0
+    (item) => item.stock !== undefined && item.stock === 0 && item.lowStockThreshold !== undefined && item.lowStockThreshold > 0
   );
 
   const openOrders = orders.filter(
