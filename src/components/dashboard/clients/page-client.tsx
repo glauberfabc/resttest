@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { Client, Order } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
-import { supabase } from "@/lib/supabase";
+import { supabase, getClients, getOrders } from "@/lib/supabase";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,13 +29,26 @@ interface ClientsPageClientProps {
   initialOrders: Order[];
 }
 
-export default function ClientsPageClient({ initialClients, initialOrders }: ClientsPageClientProps) {
+export default function ClientsPageClient({ initialClients: initialClientsProp, initialOrders: initialOrdersProp }: ClientsPageClientProps) {
   const { user } = useUser();
   const { toast } = useToast();
-  const [clients, setClients] = useState<Client[]>(initialClients);
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [clients, setClients] = useState<Client[]>(initialClientsProp);
+  const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        const [clientsData, ordersData] = await Promise.all([
+            getClients(),
+            getOrders()
+        ]);
+        setClients(clientsData);
+        setOrders(ordersData);
+    };
+
+    fetchData();
+  }, []);
 
   const debtors = useMemo(() => {
     const openNameOrders = orders.filter(o => o.type === 'name' && o.status !== 'paid');

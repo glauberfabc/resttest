@@ -1,15 +1,15 @@
 
 "use client";
 
-import { useState } from "react";
-import type { Order, MenuItem, OrderItem, Client } from "@/lib/types";
+import { useState, useEffect } from "react";
+import type { Order, MenuItem, Client } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
 import { PlusCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/lib/supabase";
+import { supabase, getOrders, getMenuItems, getClients } from "@/lib/supabase";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 
@@ -19,13 +19,29 @@ interface DashboardPageClientProps {
   initialClients: Client[];
 }
 
-export default function DashboardPageClient({ initialOrders, menuItems, initialClients }: DashboardPageClientProps) {
+export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp }: DashboardPageClientProps) {
   const { user } = useUser();
   const { toast } = useToast();
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
-  const [clients, setClients] = useState<Client[]>(initialClients);
+  const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
+  const [clients, setClients] = useState<Client[]>(initialClientsProp);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        const [ordersData, menuItemsData, clientsData] = await Promise.all([
+            getOrders(),
+            getMenuItems(),
+            getClients()
+        ]);
+        setOrders(ordersData);
+        setMenuItems(menuItemsData);
+        setClients(clientsData);
+    };
+
+    fetchData();
+  }, []);
 
   const handleSelectOrder = (order: Order) => {
     setSelectedOrder(order);

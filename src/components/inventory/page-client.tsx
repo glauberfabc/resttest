@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MenuItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,18 +15,27 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Pencil } from "lucide-react";
 import { StockEditDialog } from "./stock-edit-dialog";
-import { supabase } from "@/lib/supabase";
+import { supabase, getMenuItems } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface InventoryPageClientProps {
   initialMenuItems: MenuItem[];
 }
 
-export default function InventoryPageClient({ initialMenuItems }: InventoryPageClientProps) {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
+export default function InventoryPageClient({ initialMenuItems: initialMenuItemsProp }: InventoryPageClientProps) {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItemsProp);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchData = async () => {
+        const menuItemsData = await getMenuItems();
+        setMenuItems(menuItemsData);
+    };
+
+    fetchData();
+  }, []);
 
   const getStockStatus = (item: MenuItem): { text: string; variant: "default" | "destructive" | "secondary" | "outline" } => {
     if (item.stock === undefined || (item.stock === 0 && (item.lowStockThreshold === undefined || item.lowStockThreshold === 0))) {

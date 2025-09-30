@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Order, MenuItem } from "@/lib/types";
 import { addDays, format, startOfDay, endOfDay, eachDayOfInterval, parseISO } from "date-fns";
@@ -23,6 +23,7 @@ import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTria
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
 import { SalesChart } from "./sales-chart";
+import { getOrders, getMenuItems } from "@/lib/supabase";
 
 
 interface AnalyticsPageClientProps {
@@ -30,9 +31,25 @@ interface AnalyticsPageClientProps {
   menuItems: MenuItem[];
 }
 
-export default function AnalyticsPageClient({ orders, menuItems }: AnalyticsPageClientProps) {
+export default function AnalyticsPageClient({ orders: initialOrders, menuItems: initialMenuItems }: AnalyticsPageClientProps) {
   const { user } = useUser();
   const isAdmin = user?.role === 'admin';
+
+  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
+
+  useEffect(() => {
+    const fetchData = async () => {
+        const [ordersData, menuItemsData] = await Promise.all([
+            getOrders(),
+            getMenuItems()
+        ]);
+        setOrders(ordersData);
+        setMenuItems(menuItemsData);
+    };
+
+    fetchData();
+  }, []);
 
   const [date, setDate] = useState<DateRange | undefined>(
     isAdmin

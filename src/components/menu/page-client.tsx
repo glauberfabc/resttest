@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import type { MenuItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -22,18 +22,27 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase";
+import { supabase, getMenuItems } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface MenuPageClientProps {
   initialMenuItems: MenuItem[];
 }
 
-export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps) {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
+export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp }: MenuPageClientProps) {
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItemsProp);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchData = async () => {
+        const menuItemsData = await getMenuItems();
+        setMenuItems(menuItemsData);
+    };
+
+    fetchData();
+  }, []);
 
   const handleSaveItem = async (item: MenuItem) => {
     
