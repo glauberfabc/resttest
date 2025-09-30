@@ -50,7 +50,8 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
 
   const filteredItems = menuItems.filter(item => {
     const matchesCategory = activeCategory === "Todos" || item.category === activeCategory;
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const search = searchTerm.toLowerCase();
+    const matchesSearch = item.name.toLowerCase().includes(search) || item.code?.toLowerCase().includes(search);
     return matchesCategory && matchesSearch;
   });
 
@@ -62,7 +63,7 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
-              placeholder="Buscar no cardápio..."
+              placeholder="Buscar por nome ou código..."
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

@@ -40,6 +40,7 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
     // Map frontend camelCase to backend snake_case
     const itemForDb = {
         name: item.name,
+        code: item.code,
         description: item.description,
         price: item.price,
         category: item.category,
@@ -59,8 +60,8 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
         .select()
         .single();
       
-      if (error || !data) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o item." });
+      if (error) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o item." + error.message });
       } else {
         const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
         setMenuItems(menuItems.map(i => i.id === remappedData.id ? remappedData : i));
@@ -74,8 +75,8 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
         .select()
         .single();
 
-      if (error || !data) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o item." });
+      if (error) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o item." + error.message });
       } else {
         const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
         setMenuItems([remappedData, ...menuItems]);
@@ -124,6 +125,7 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
             <TableRow>
               <TableHead className="w-[80px]">Imagem</TableHead>
               <TableHead>Nome</TableHead>
+              <TableHead>Código</TableHead>
               <TableHead>Categoria</TableHead>
               <TableHead>Preço</TableHead>
               <TableHead className="w-[50px]">Ações</TableHead>
@@ -143,6 +145,7 @@ export default function MenuPageClient({ initialMenuItems }: MenuPageClientProps
                   />
                 </TableCell>
                 <TableCell className="font-medium">{item.name}</TableCell>
+                <TableCell>{item.code || "-"}</TableCell>
                 <TableCell>
                     <Badge variant="secondary">{item.category}</Badge>
                 </TableCell>

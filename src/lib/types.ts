@@ -4,6 +4,7 @@ export type MenuItemCategory = "Lanches" | "Porções" | "Bebidas" | "Salgados" 
 export interface MenuItem {
   id: string;
   name: string;
+  code?: string;
   description: string;
   price: number;
   category: MenuItemCategory;

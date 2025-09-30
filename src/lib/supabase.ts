@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js'
 import type { Order, MenuItem, Client } from './types';
 
@@ -37,7 +38,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
         return [];
     }
     // TODO: This is a temporary hack to match frontend expectations. We should align data sources.
-    return data.map(item => ({ ...item, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+    return data.map(item => ({ ...item, code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
 }
 
 export async function getClients(): Promise<Client[]> {
