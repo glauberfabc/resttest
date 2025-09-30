@@ -85,6 +85,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 router.push('/');
             }
         } else if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
+            // Check if the user state is already set to avoid redundant fetches
             if (!user || user.id !== currentUser.id) {
                 fetchUser(currentUser);
             }
@@ -138,7 +139,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro de Banco de Dados', description: 'Não foi possível criar o perfil do usuário.' });
             // Optionally delete the user if profile creation fails
-            await supabase.auth.admin.deleteUser(signUpData.user.id);
+            // This requires admin privileges, so we'll just log the error for now.
+            // await supabase.auth.admin.deleteUser(signUpData.user.id);
             return;
         }
 
