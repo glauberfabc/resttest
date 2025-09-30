@@ -67,7 +67,8 @@ export async function getOrders(): Promise<Order[]> {
                 )
             ),
             payments:order_payments (*)
-        `);
+        `)
+        .order('created_at', { ascending: false });
 
     if (error) {
         console.error('Error fetching orders:', error);
