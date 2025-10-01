@@ -94,19 +94,22 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
                 {filteredItems.map(item => (
                 <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleAddItem(item)}>
-                    <Image
-                    src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
-                    alt={item.name}
-                    width={200}
-                    height={200}
-                    className="w-full h-32 object-cover rounded-md"
-                    data-ai-hint="food drink"
-                    />
-                    <div className="flex-1">
+                    <div className="w-full h-32 flex items-center justify-center bg-muted/30 rounded-md">
+                        <Image
+                        src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
+                        alt={item.name}
+                        width={200}
+                        height={200}
+                        className="w-auto h-full object-contain"
+                        data-ai-hint="food drink"
+                        />
+                    </div>
+                    <div className="flex-1 mt-2">
+                        {item.code && <p className="text-xs font-mono text-muted-foreground">#{item.code}</p>}
                         <h3 className="font-semibold">{item.name}</h3>
                         <p className="text-sm text-muted-foreground">{item.description}</p>
                     </div>
-                    <div className="flex justify-between items-center w-full mt-2">
+                    <div className="flex justify-between items-center w-full mt-auto pt-2">
                         <p className="font-bold text-primary">R$ {item.price.toFixed(2).replace('.', ',')}</p>
                         <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleAddItem(item); }}>Adicionar</Button>
                     </div>
