@@ -72,22 +72,26 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
         </DialogHeader>
 
         <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
-            <div className="px-12 py-4">
-                <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
-                    <CarouselContent className="-ml-1">
-                        <CarouselItem className="pl-1">
-                            <TabsList>
-                                <TabsTrigger value="Todos">Todos</TabsTrigger>
-                                {categories.map((cat) => (
-                                    <TabsTrigger key={cat} value={cat}>{cat}</TabsTrigger>
-                                ))}
-                            </TabsList>
-                        </CarouselItem>
-                    </CarouselContent>
-                    <CarouselPrevious className="-left-8" />
-                    <CarouselNext className="-right-8" />
-                </Carousel>
-            </div>
+          <div className="px-12 py-4">
+            <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
+              <CarouselContent>
+                <CarouselItem className="basis-auto">
+                    <TabsList>
+                      <TabsTrigger value="Todos">Todos</TabsTrigger>
+                    </TabsList>
+                </CarouselItem>
+                {categories.map((cat) => (
+                    <CarouselItem key={cat} className="basis-auto">
+                        <TabsList>
+                            <TabsTrigger value={cat}>{cat}</TabsTrigger>
+                        </TabsList>
+                    </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="-left-8" />
+              <CarouselNext className="-right-8" />
+            </Carousel>
+          </div>
         </Tabs>
 
         <ScrollArea className="flex-1 px-6">
