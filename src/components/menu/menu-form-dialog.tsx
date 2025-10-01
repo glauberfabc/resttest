@@ -35,7 +35,7 @@ interface MenuFormDialogProps {
 }
 
 const categories: MenuItemCategory[] = [
-  "Lanches", "Porções", "Bebidas", "Água - Refrigerante", "Salgados", "Pratos Quentes", "Saladas", "Destilados", "Caipirinhas", "Bebidas Quentes", "Adicional"
+  "Lanches", "Porções", "Bebidas", "Sucos", "Água - Refrigerante", "Salgados", "Pratos Quentes", "Saladas", "Destilados", "Caipirinhas", "Bebidas Quentes", "Adicional"
 ];
 
 export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormDialogProps) {
