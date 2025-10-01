@@ -22,9 +22,9 @@ interface DashboardPageClientProps {
 export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp }: DashboardPageClientProps) {
   const { user } = useUser();
   const { toast } = useToast();
-  const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
-  const [clients, setClients] = useState<Client[]>(initialClientsProp);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
 
@@ -190,7 +190,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
 
   const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
-  const paidOrders = orders.filter(o => o.status === 'paid');
+  const paidOrders = orders.filter(o => o.status === 'paid' && o.type === 'name');
 
   return (
     <div className="flex flex-col gap-6">
