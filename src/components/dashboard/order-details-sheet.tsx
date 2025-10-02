@@ -19,8 +19,9 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer } from "lucide-react";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching, XCircle } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
+import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 
 interface OrderDetailsSheetProps {
   order: Order;
@@ -33,6 +34,15 @@ interface OrderDetailsSheetProps {
 export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const {
+    isConnecting,
+    isConnected,
+    isSupported,
+    connect,
+    disconnect,
+    print,
+  } = useBluetoothPrinter();
+
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
@@ -82,6 +92,22 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     window.print();
   };
   
+  const handleBluetoothPrint = () => {
+    const receiptDate = new Date();
+    const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
+    const line = "--------------------------------\n";
+
+    let text = `Comanda: ${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}\n`;
+    text += `Pedido as: ${formattedTime}\n`;
+    text += line;
+    order.items.forEach(item => {
+        text += `${item.quantity}x ${item.menuItem.name}\n`;
+    });
+    text += line;
+
+    print(text);
+  };
+
   const getFormattedPaidAt = () => {
     const paidAt = order.paidAt || order.paid_at;
     if (!paidAt) return '';
@@ -94,6 +120,12 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         console.error("Error formatting date:", error);
         return 'Pago em data inválida';
     }
+  };
+
+  const PrinterStatusIcon = () => {
+    if (isConnecting) return <BluetoothSearching className="h-4 w-4" />;
+    if (isConnected) return <BluetoothConnected className="h-4 w-4" />;
+    return <Bluetooth className="h-4 w-4" />;
   };
 
   return (
@@ -134,7 +166,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                           alt={menuItem.name}
                           width={64}
                           height={64}
-                          className="rounded-md object-cover"
+                          className="rounded-md object-contain"
                           data-ai-hint="food drink"
                         />
                         <div className="flex-1">
@@ -186,6 +218,23 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         <span>{paidAmount > 0 ? 'Restante' : 'Total'}</span>
                         <span>R$ {remainingAmount.toFixed(2).replace('.', ',')}</span>
                     </div>
+
+                    {isSupported && (
+                      <div className="flex justify-between items-center bg-muted/50 p-2 rounded-md">
+                        <div className="flex items-center gap-2 text-sm">
+                            <PrinterStatusIcon />
+                            <span>Impressora Bluetooth</span>
+                        </div>
+                        {isConnected ? (
+                          <Button size="sm" variant="destructive" onClick={disconnect}>Desconectar</Button>
+                        ) : (
+                          <Button size="sm" onClick={connect} disabled={isConnecting}>
+                            {isConnecting ? 'Conectando...' : 'Conectar'}
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className="flex gap-2">
                         <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
                             <Share className="h-4 w-4" />
@@ -198,6 +247,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                             Pagar
                         </Button>
                     </div>
+                     {isConnected && (
+                        <Button variant="secondary" className="w-full" onClick={handleBluetoothPrint}>
+                            <Bluetooth className="mr-2 h-4 w-4" /> Imprimir via Bluetooth
+                        </Button>
+                    )}
                 </div>
               </SheetFooter>
             </>
@@ -236,5 +290,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
