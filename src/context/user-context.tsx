@@ -95,7 +95,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener.subscription.unsubscribe();
     };
-  }, [router, toast, pathname]);
+  }, [router, toast, pathname, user]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
@@ -141,7 +141,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
-    if (error) {
+    if (error && error.message !== 'Auth session missing!') {
        console.error("Logout failed:", error.message);
        toast({ variant: 'destructive', title: "Erro ao sair", description: error.message });
     }
