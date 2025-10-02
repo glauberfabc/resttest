@@ -35,8 +35,8 @@ export function useBluetoothPrinter() {
     try {
       if (!deviceCache) {
           const device = await navigator.bluetooth.requestDevice({
-              acceptAllDevices: true,
-              optionalServices: [PRINTER_SERVICE_UUID] // Still good to request it
+              filters: [{ services: [PRINTER_SERVICE_UUID] }],
+              optionalServices: [PRINTER_SERVICE_UUID]
           });
           deviceCache = device;
           deviceCache.addEventListener('gattserverdisconnected', () => {
@@ -50,7 +50,7 @@ export function useBluetoothPrinter() {
       if (!server) throw new Error("Não foi possível conectar ao servidor GATT.");
 
       const services = await server.getPrimaryServices();
-      if (!services.length) {
+       if (!services.length) {
         throw new Error("Nenhum serviço encontrado na impressora.");
       }
 
