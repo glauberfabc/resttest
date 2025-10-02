@@ -35,13 +35,14 @@ export function useBluetoothPrinter() {
     try {
       if (!deviceCache) {
           const device = await navigator.bluetooth.requestDevice({
-              filters: [{ services: [PRINTER_SERVICE_UUID] }],
-              optionalServices: [PRINTER_SERVICE_UUID]
+              acceptAllDevices: true,
+              optionalServices: [PRINTER_SERVICE_UUID] // Request permission to access the service
           });
           deviceCache = device;
           deviceCache.addEventListener('gattserverdisconnected', () => {
               setIsConnected(false);
               characteristicCache = null;
+              deviceCache = null;
               toast({ title: 'Impressora Desconectada', description: 'A conexão com a impressora foi perdida.' });
           });
       }
@@ -51,18 +52,22 @@ export function useBluetoothPrinter() {
 
       const services = await server.getPrimaryServices();
        if (!services.length) {
-        throw new Error("Nenhum serviço encontrado na impressora.");
+        throw new Error("Nenhum serviço encontrado no dispositivo. Tente reconectar.");
       }
 
       let foundWritableCharacteristic = false;
       for (const service of services) {
-        const characteristics = await service.getCharacteristics();
-        const writableCharacteristic = characteristics.find(c => c.properties.writeWithoutResponse || c.properties.write);
+        try {
+            const characteristics = await service.getCharacteristics();
+            const writableCharacteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
 
-        if (writableCharacteristic) {
-          characteristicCache = writableCharacteristic;
-          foundWritableCharacteristic = true;
-          break; // Exit loop once we find a writable characteristic
+            if (writableCharacteristic) {
+              characteristicCache = writableCharacteristic;
+              foundWritableCharacteristic = true;
+              break; 
+            }
+        } catch (error) {
+            console.warn(`Could not get characteristics for service ${service.uuid}`, error);
         }
       }
 
