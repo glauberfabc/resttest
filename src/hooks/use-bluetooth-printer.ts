@@ -49,17 +49,29 @@ export function useBluetoothPrinter() {
       const server = await deviceCache.gatt?.connect();
       if (!server) throw new Error("Não foi possível conectar ao servidor GATT.");
 
-      const service = await server.getPrimaryService(PRINTER_SERVICE_UUID).catch(() => null);
-       if (!service) {
-          const allServices = await server.getPrimaryServices();
-          if (allServices.length > 0) {
-              characteristicCache = await allServices[0].getCharacteristics().then(c => c[0]);
-          }
-           if (!characteristicCache) throw new Error("Serviço de impressão não encontrado. Tente um UUID de serviço diferente.");
-      } else {
-          const characteristics = await service.getCharacteristics();
-          characteristicCache = characteristics[0];
+      // Attempt to find a writable characteristic more robustly
+      let writableCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
+
+      try {
+        const services = await server.getPrimaryServices();
+        for (const service of services) {
+            const characteristics = await service.getCharacteristics();
+            const characteristic = characteristics.find(c => c.properties.writeWithoutResponse || c.properties.write);
+            if (characteristic) {
+                writableCharacteristic = characteristic;
+                break;
+            }
+        }
+      } catch (e) {
+          // Fallback for some devices that might not list services correctly
       }
+
+
+      if (!writableCharacteristic) {
+        throw new Error("Nenhuma característica de escrita encontrada na impressora.");
+      }
+      
+      characteristicCache = writableCharacteristic;
 
       setIsConnected(true);
       toast({ title: 'Impressora Conectada!', description: `Conectado a ${deviceCache.name || 'dispositivo'}.` });
@@ -95,10 +107,15 @@ export function useBluetoothPrinter() {
       const data = encoder.encode(text + '\n\n\n'); // Add some newlines to eject the paper
       
       // Some printers require data to be sent in chunks
-      const CHUNK_SIZE = 20;
+      const CHUNK_SIZE = 50; // Increased chunk size for potentially faster printing
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
-        await characteristicCache.writeValueWithoutResponse(chunk);
+        // Use writeWithoutResponse if available, otherwise fall back to write
+        if (characteristicCache.properties.writeWithoutResponse) {
+            await characteristicCache.writeValueWithoutResponse(chunk);
+        } else {
+            await characteristicCache.writeValue(chunk);
+        }
       }
       
       toast({ title: 'Imprimindo...', description: 'Dados enviados para a impressora.' });
