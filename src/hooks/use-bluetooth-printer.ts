@@ -49,23 +49,13 @@ export function useBluetoothPrinter() {
       const server = await deviceCache.gatt?.connect();
       if (!server) throw new Error("Não foi possível conectar ao servidor GATT.");
 
-      // Attempt to find a writable characteristic more robustly
-      let writableCharacteristic: BluetoothRemoteGATTCharacteristic | null = null;
-
-      try {
-        const services = await server.getPrimaryServices();
-        for (const service of services) {
-            const characteristics = await service.getCharacteristics();
-            const characteristic = characteristics.find(c => c.properties.writeWithoutResponse || c.properties.write);
-            if (characteristic) {
-                writableCharacteristic = characteristic;
-                break;
-            }
+      const service = await server.getPrimaryService(PRINTER_SERVICE_UUID).catch(() => null);
+        if (!service) {
+            throw new Error("Serviço de impressão padrão não encontrado. Tente conectar novamente.");
         }
-      } catch (e) {
-          // Fallback for some devices that might not list services correctly
-      }
 
+      const characteristics = await service.getCharacteristics();
+      const writableCharacteristic = characteristics.find(c => c.properties.writeWithoutResponse || c.properties.write);
 
       if (!writableCharacteristic) {
         throw new Error("Nenhuma característica de escrita encontrada na impressora.");
@@ -106,8 +96,7 @@ export function useBluetoothPrinter() {
       const encoder = new TextEncoder();
       const data = encoder.encode(text + '\n\n\n'); // Add some newlines to eject the paper
       
-      // Some printers require data to be sent in chunks
-      const CHUNK_SIZE = 50; // Increased chunk size for potentially faster printing
+      const CHUNK_SIZE = 100; // Chunk size for splitting data
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
         // Use writeWithoutResponse if available, otherwise fall back to write
@@ -119,7 +108,7 @@ export function useBluetoothPrinter() {
       }
       
       toast({ title: 'Imprimindo...', description: 'Dados enviados para a impressora.' });
-    } catch (error: any) {
+    } catch (error: any) => {
       console.error('Erro ao imprimir:', error);
       toast({ variant: 'destructive', title: 'Erro de Impressão', description: error.message });
     }
