@@ -36,7 +36,7 @@ export function useBluetoothPrinter() {
       if (!deviceCache) {
           const device = await navigator.bluetooth.requestDevice({
               acceptAllDevices: true,
-              optionalServices: [PRINTER_SERVICE_UUID]
+              optionalServices: [PRINTER_SERVICE_UUID] // Still good to request it
           });
           deviceCache = device;
           deviceCache.addEventListener('gattserverdisconnected', () => {
@@ -49,20 +49,27 @@ export function useBluetoothPrinter() {
       const server = await deviceCache.gatt?.connect();
       if (!server) throw new Error("Não foi possível conectar ao servidor GATT.");
 
-      const service = await server.getPrimaryService(PRINTER_SERVICE_UUID).catch(() => null);
-        if (!service) {
-            throw new Error("Serviço de impressão padrão não encontrado. Tente conectar novamente.");
+      const services = await server.getPrimaryServices();
+      if (!services.length) {
+        throw new Error("Nenhum serviço encontrado na impressora.");
+      }
+
+      let foundWritableCharacteristic = false;
+      for (const service of services) {
+        const characteristics = await service.getCharacteristics();
+        const writableCharacteristic = characteristics.find(c => c.properties.writeWithoutResponse || c.properties.write);
+
+        if (writableCharacteristic) {
+          characteristicCache = writableCharacteristic;
+          foundWritableCharacteristic = true;
+          break; // Exit loop once we find a writable characteristic
         }
+      }
 
-      const characteristics = await service.getCharacteristics();
-      const writableCharacteristic = characteristics.find(c => c.properties.writeWithoutResponse || c.properties.write);
-
-      if (!writableCharacteristic) {
+      if (!foundWritableCharacteristic) {
         throw new Error("Nenhuma característica de escrita encontrada na impressora.");
       }
       
-      characteristicCache = writableCharacteristic;
-
       setIsConnected(true);
       toast({ title: 'Impressora Conectada!', description: `Conectado a ${deviceCache.name || 'dispositivo'}.` });
     } catch (error: any) {
