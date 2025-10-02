@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -88,23 +89,52 @@ body {
 }
 
 @media print {
+  body, .print-area {
+    background: white;
+    color: black;
+  }
   body * {
     visibility: hidden;
   }
-  .printable-receipt, .printable-receipt * {
+  .print-area, .print-area * {
     visibility: visible;
   }
-  .printable-receipt {
+  .printable-receipt, .kitchen-receipt {
+    visibility: visible;
+    display: block;
     position: absolute;
     left: 0;
     top: 0;
-    width: 280px; /* Typical thermal printer width */
+    width: 280px;
     font-family: 'Courier New', Courier, monospace;
     font-size: 12px;
     color: black;
     background: white;
+    padding: 0;
   }
-   .printable-receipt .print-hide {
+  .print-hide {
     display: none;
   }
+  .printable-receipt {
+    /* Only show if explicitly told to */
+    display: none;
+  }
+  .kitchen-receipt {
+    display: none;
+  }
+  
+  .print-area .kitchen-receipt,
+  .print-area .printable-receipt {
+    display: block;
+  }
+  /* Show only kitchen receipt if order is not paid */
+  .print-area:has(.kitchen-receipt:not(:has(~ .printable-receipt))) .printable-receipt {
+     display: none;
+  }
+  /* Show only printable receipt if order is paid */
+   .print-area:has(.printable-receipt) .kitchen-receipt {
+     display: none;
+  }
 }
+
+    

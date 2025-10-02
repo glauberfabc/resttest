@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
+import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 
@@ -204,9 +205,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         </SheetContent>
       </Sheet>
 
-      <div className="hidden">
-         <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />
+      <div className="print-area">
+        <KitchenReceipt order={order} />
+        {isPaid && <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />}
       </div>
+
 
       {!isPaid && (
           <>
@@ -233,3 +236,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
