@@ -108,7 +108,7 @@ export function useBluetoothPrinter() {
       }
       
       toast({ title: 'Imprimindo...', description: 'Dados enviados para a impressora.' });
-    } catch (error: any) => {
+    } catch (error: any) {
       console.error('Erro ao imprimir:', error);
       toast({ variant: 'destructive', title: 'Erro de Impressão', description: error.message });
     }
