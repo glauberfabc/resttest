@@ -2,20 +2,15 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Order, MenuItem, Client } from './types';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  // This error is expected if the .env.local file is not set up
-  // It should not be thrown during the build process
-  if (typeof window !== 'undefined') {
-    throw new Error('Supabase URL and anonymous key must be provided.');
-  }
-  console.warn('Supabase URL and anonymous key are not set. This is expected during build.');
+  console.warn('Supabase URL and/or anonymous key are not set. This is expected during build, but will cause errors in production if not set.');
 }
 
 
-export const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
         detectSessionInUrl: true,
         autoRefreshToken: true,
