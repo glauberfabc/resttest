@@ -4,8 +4,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useToast } from './use-toast';
 
-// Standard Bluetooth Service UUIDs for serial port profile (common in printers)
-const PRINTER_SERVICE_UUID = '00001101-0000-1000-8000-00805f9b34fb';
+// Lista de UUIDs de serviço conhecidos para impressoras Bluetooth térmicas.
+// Inclui o padrão SPP e outros comuns encontrados em vários modelos.
+const PRINTER_SERVICE_UUIDS = [
+  '00001101-0000-1000-8000-00805f9b34fb', // Padrão Serial Port Profile (SPP)
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Comum em impressoras genéricas
+  'bef8d6c9-9c21-4c9e-b632-bd58c1009f9f', // Outro UUID genérico
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455'  // Usado por alguns modelos MTP
+];
 
 let deviceCache: BluetoothDevice | null = null;
 let characteristicCache: BluetoothRemoteGATTCharacteristic | null = null;
@@ -36,7 +42,7 @@ export function useBluetoothPrinter() {
       if (!deviceCache) {
           const device = await navigator.bluetooth.requestDevice({
               acceptAllDevices: true,
-              optionalServices: [PRINTER_SERVICE_UUID] // Request permission to access the service
+              optionalServices: PRINTER_SERVICE_UUIDS
           });
           deviceCache = device;
           deviceCache.addEventListener('gattserverdisconnected', () => {
@@ -50,31 +56,28 @@ export function useBluetoothPrinter() {
       const server = await deviceCache.gatt?.connect();
       if (!server) throw new Error("Não foi possível conectar ao servidor GATT.");
 
-      const services = await server.getPrimaryServices();
-       if (!services.length) {
-        throw new Error("Nenhum serviço encontrado no dispositivo. Tente reconectar.");
-      }
-
-      let foundWritableCharacteristic = false;
-      for (const service of services) {
+      let primaryService = null;
+      for (const uuid of PRINTER_SERVICE_UUIDS) {
         try {
-            const characteristics = await service.getCharacteristics();
-            const writableCharacteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
-
-            if (writableCharacteristic) {
-              characteristicCache = writableCharacteristic;
-              foundWritableCharacteristic = true;
-              break; 
-            }
+          primaryService = await server.getPrimaryService(uuid);
+          if (primaryService) break; // Encontrou um serviço válido
         } catch (error) {
-            console.warn(`Could not get characteristics for service ${service.uuid}`, error);
+           // Ignora o erro se o serviço não for encontrado, e tenta o próximo
         }
       }
 
-      if (!foundWritableCharacteristic) {
+      if (!primaryService) {
+        throw new Error("Nenhum serviço de impressão compatível encontrado no dispositivo.");
+      }
+
+      const characteristics = await primaryService.getCharacteristics();
+      const writableCharacteristic = characteristics.find(c => c.properties.write || c.properties.writeWithoutResponse);
+
+      if (!writableCharacteristic) {
         throw new Error("Nenhuma característica de escrita encontrada na impressora.");
       }
       
+      characteristicCache = writableCharacteristic;
       setIsConnected(true);
       toast({ title: 'Impressora Conectada!', description: `Conectado a ${deviceCache.name || 'dispositivo'}.` });
     } catch (error: any) {
@@ -111,7 +114,6 @@ export function useBluetoothPrinter() {
       const CHUNK_SIZE = 100; // Chunk size for splitting data
       for (let i = 0; i < data.length; i += CHUNK_SIZE) {
         const chunk = data.slice(i, i + CHUNK_SIZE);
-        // Use writeWithoutResponse if available, otherwise fall back to write
         if (characteristicCache.properties.writeWithoutResponse) {
             await characteristicCache.writeValueWithoutResponse(chunk);
         } else {
