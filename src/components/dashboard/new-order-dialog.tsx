@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
-import { Check, ChevronsUpDown } from "lucide-react"
+import { useState, useMemo, useEffect } from "react";
+import { Check } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 import {
   Dialog,
   DialogContent,
@@ -45,9 +40,6 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
 
-  const [openPopover, setOpenPopover] = useState(false);
-  const phoneInputRef = useRef<HTMLInputElement>(null);
-
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
     return !clients.some(client => client.name.toUpperCase() === customerName.toUpperCase());
@@ -55,6 +47,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   
   useEffect(() => {
     if (!isOpen) {
+        // Reset state when dialog closes
         setTimeout(() => {
             setTableNumber('');
             setCustomerName('');
@@ -64,31 +57,31 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     }
   }, [isOpen]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (activeTab === 'table' && tableNumber) {
-      onCreateOrder('table', parseInt(tableNumber, 10));
-    } else if (activeTab === 'name' && customerName) {
-      onCreateOrder('name', customerName.toUpperCase(), phone);
-    }
-  };
-
   const handleSelectClient = (clientName: string) => {
+    // This function is now the single source of truth for creating an order from the list.
     onCreateOrder('name', clientName);
-    setCustomerName(''); // Clear input after selection
-    setOpenPopover(false); // Close popover
-    onOpenChange(false); // Close dialog
   };
   
   const filteredClients = useMemo(() => {
     const lowercasedFilter = customerName.toLowerCase();
     if (!lowercasedFilter) {
-      return clients.slice(0, 5); // Show first 5 clients if search is empty
+      // Don't show any clients if search is empty to keep UI clean
+      return [];
     }
     return clients
       .filter(client => client.name.toLowerCase().includes(lowercasedFilter))
       .slice(0, 5);
   }, [clients, customerName]);
+
+  const handleManualSubmit = (e: React.FormEvent) => {
+     e.preventDefault();
+     if (activeTab === 'table' && tableNumber) {
+      onCreateOrder('table', parseInt(tableNumber, 10));
+    } else if (activeTab === 'name' && customerName) {
+      // This handles creating a new customer or one that was typed manually
+      onCreateOrder('name', customerName.toUpperCase(), phone);
+    }
+  }
 
 
   return (
@@ -100,96 +93,92 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             Escolha abrir por mesa ou por nome do cliente.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'table' | 'name')} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="table">Por Mesa</TabsTrigger>
-                <TabsTrigger value="name">Por Nome</TabsTrigger>
-            </TabsList>
-            <TabsContent value="table" className="pt-4">
+        
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'table' | 'name')} className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="table">Por Mesa</TabsTrigger>
+            <TabsTrigger value="name">Por Nome</TabsTrigger>
+        </TabsList>
+        <TabsContent value="table" className="pt-4">
+            <form onSubmit={handleManualSubmit}>
                 <div className="space-y-2">
-                <Label htmlFor="table-number">Número da Mesa</Label>
-                <Input
-                    id="table-number"
-                    type="number"
-                    placeholder="Ex: 5"
-                    value={tableNumber}
-                    onChange={(e) => setTableNumber(e.target.value)}
-                    autoFocus
-                />
+                    <Label htmlFor="table-number">Número da Mesa</Label>
+                    <Input
+                        id="table-number"
+                        type="number"
+                        placeholder="Ex: 5"
+                        value={tableNumber}
+                        onChange={(e) => setTableNumber(e.target.value)}
+                        autoFocus
+                    />
                 </div>
-            </TabsContent>
-            <TabsContent value="name" className="pt-4">
-                <div className="space-y-4">
+                <DialogFooter className="mt-4">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={!tableNumber}>Criar Comanda</Button>
+                </DialogFooter>
+            </form>
+        </TabsContent>
+        <TabsContent value="name" className="pt-4">
+            <Command shouldFilter={false} className="overflow-visible">
                 <div className="space-y-2">
                     <Label htmlFor="customer-name">Nome do Cliente</Label>
-                    <Popover open={openPopover} onOpenChange={setOpenPopover}>
-                    <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          role="combobox"
-                          aria-expanded={openPopover}
-                          className="w-full justify-between font-normal"
-                        >
-                        <span className="truncate">{customerName || "Selecione ou digite um nome..."}</span>
-                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                        </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command shouldFilter={false}>
-                          <CommandInput 
-                              placeholder="Buscar cliente..."
-                              onValueChange={setCustomerName}
-                              value={customerName}
-                          />
-                          <CommandList>
-                              <CommandEmpty>Nenhum cliente encontrado. Continue digitando para criar um novo.</CommandEmpty>
-                              <CommandGroup>
-                              {filteredClients.map((client) => (
-                                  <CommandItem
-                                    key={client.id}
-                                    value={client.name}
-                                    onSelect={() => handleSelectClient(client.name)}
-                                  >
-                                    <Check
-                                        className={cn(
-                                        "mr-2 h-4 w-4",
-                                        customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
-                                        )}
-                                    />
-                                    <div>
-                                        <p>{client.name}</p>
-                                        <p className="text-xs text-muted-foreground">{client.phone}</p>
-                                    </div>
-                                  </CommandItem>
-                              ))}
-                              </CommandGroup>
-                          </CommandList>
-                        </Command>
-                    </PopoverContent>
-                    </Popover>
-                </div>
-
-                {isNewCustomer && customerName && (
-                    <div className="space-y-2 animate-in fade-in-0 duration-300">
-                    <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
-                    <Input
-                        ref={phoneInputRef}
-                        id="phone"
-                        placeholder="Telefone para contato (opcional)"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
+                    <CommandInput
+                        id="customer-name" 
+                        placeholder="Buscar ou criar cliente..."
+                        onValueChange={setCustomerName}
+                        value={customerName}
+                        autoFocus
                     />
+                </div>
+                <CommandList className="mt-2 max-h-[180px] overflow-y-auto border rounded-md">
+                    <CommandEmpty>
+                      {customerName && isNewCustomer ? 'Nenhum cliente encontrado. Continue para criar um novo.' : 'Nenhum cliente encontrado.'}
+                    </CommandEmpty>
+                    <CommandGroup>
+                    {filteredClients.map((client) => (
+                        <CommandItem
+                          key={client.id}
+                          value={client.name}
+                          onSelect={() => handleSelectClient(client.name)}
+                          className="cursor-pointer"
+                        >
+                          <Check
+                              className={cn(
+                              "mr-2 h-4 w-4",
+                              customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
+                              )}
+                          />
+                          <div>
+                              <p>{client.name}</p>
+                              <p className="text-xs text-muted-foreground">{client.phone}</p>
+                          </div>
+                        </CommandItem>
+                    ))}
+                    </CommandGroup>
+                </CommandList>
+            </Command>
+
+            <form onSubmit={handleManualSubmit}>
+                {isNewCustomer && customerName && (
+                    <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
+                        <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
+                        <Input
+                            id="phone"
+                            placeholder="Telefone para contato (opcional)"
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value)}
+                        />
                     </div>
                 )}
-                </div>
-            </TabsContent>
-            </Tabs>
-            <DialogFooter className="mt-4">
-                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                <Button type="submit" disabled={(activeTab === 'table' && !tableNumber) || (activeTab === 'name' && !customerName)}>Criar Comanda</Button>
-            </DialogFooter>
-        </form>
+                <DialogFooter className="mt-4">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={!customerName}>
+                      {isNewCustomer ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
+                    </Button>
+                </DialogFooter>
+            </form>
+        </TabsContent>
+        </Tabs>
       </DialogContent>
     </Dialog>
   );
