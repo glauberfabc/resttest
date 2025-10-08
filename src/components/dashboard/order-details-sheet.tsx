@@ -59,36 +59,40 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   useEffect(() => {
     // This effect calculates which items are new or have increased quantity
-    const currentItemsMap = new Map<string, number>();
+    const newItemsToPrint: OrderItem[] = [];
+
+    // Group current items by a unique key (menuItem ID + comment) and sum quantities
+    const currentItemsMap = new Map<string, { item: OrderItem, quantity: number }>();
     order.items.forEach(item => {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      currentItemsMap.set(key, (currentItemsMap.get(key) || 0) + item.quantity);
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        const existing = currentItemsMap.get(key);
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            currentItemsMap.set(key, { item: { ...item }, quantity: item.quantity });
+        }
     });
 
+    // Group printed items similarly
     const printedItemsMap = new Map<string, number>();
     printedKitchenItems.forEach(item => {
         const key = `${item.menuItem.id}-${item.comment || ''}`;
         printedItemsMap.set(key, (printedItemsMap.get(key) || 0) + item.quantity);
     });
-    
-    const newItems: OrderItem[] = [];
-    currentItemsMap.forEach((quantity, key) => {
+
+    // Compare maps to find new items or increased quantities
+    currentItemsMap.forEach(({ item, quantity }, key) => {
         const printedQuantity = printedItemsMap.get(key) || 0;
         if (quantity > printedQuantity) {
-            const [menuItemId, comment] = key.split(/-(.*)/s)
-            const menuItem = menuItems.find(mi => mi.id === menuItemId);
-            if (menuItem) {
-                 newItems.push({
-                    id: `print-${key}-${Math.random()}`,
-                    menuItem,
-                    quantity: quantity - printedQuantity,
-                    comment: comment || '',
-                });
-            }
+            newItemsToPrint.push({
+                ...item,
+                quantity: quantity - printedQuantity,
+            });
         }
     });
-    setItemsToPrint(newItems);
-  }, [order.items, printedKitchenItems, menuItems]);
+
+    setItemsToPrint(newItemsToPrint);
+  }, [order.items, printedKitchenItems]);
 
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
@@ -97,8 +101,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
   
-  // Consolidate items for display
-  const groupedItems = Array.from(order.items.reduce((map, item) => {
+  // Consolidate items for display only
+  const groupedItemsForDisplay = Array.from(order.items.reduce((map, item) => {
     const key = `${item.menuItem.id}-${item.comment || ''}`;
     const existing = map.get(key);
     if (existing) {
@@ -110,53 +114,42 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   }, new Map<string, OrderItem>()).values());
 
 
-  const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
+  const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findLastIndex(
-        i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment
-    );
 
-    if (itemIndex !== -1) {
-        if (delta > 0) {
-            updatedItems[itemIndex].quantity += 1;
-        } else {
+    if (delta > 0) {
+        // Add a new item entry, which will be grouped for display and consolidated on save
+        updatedItems.push({
+            id: `new-${Date.now()}-${Math.random()}`,
+            menuItem: itemToUpdate.menuItem,
+            quantity: 1,
+            comment: itemToUpdate.comment,
+        });
+    } else {
+        // Find the last matching item to remove it
+        const itemIndex = updatedItems.findLastIndex(
+            i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment
+        );
+        if (itemIndex !== -1) {
             if (updatedItems[itemIndex].quantity > 1) {
                 updatedItems[itemIndex].quantity -= 1;
             } else {
                 updatedItems.splice(itemIndex, 1);
             }
         }
-    } else if (delta > 0) {
-        // This case should ideally not happen if the button is on a grouped item
-        const newItem: OrderItem = {
-            id: `new-${Date.now()}-${Math.random()}`,
-            menuItem: itemGroup.menuItem,
-            quantity: 1,
-            comment: itemGroup.comment,
-        };
-        updatedItems.push(newItem);
     }
-
     onUpdateOrder({ ...order, items: updatedItems });
   };
   
  const addItemToOrder = (menuItem: MenuItem) => {
     const updatedItems = [...order.items];
-    const existingItemIndex = updatedItems.findIndex(i => i.menuItem.id === menuItem.id && i.comment === '');
-
-    if (existingItemIndex !== -1) {
-        // If item without comment exists, increment its quantity
-        updatedItems[existingItemIndex].quantity += 1;
-    } else {
-        // Otherwise, add a new item
-        const newItem: OrderItem = {
-            id: `new-${Date.now()}-${Math.random()}`,
-            menuItem,
-            quantity: 1,
-            comment: '',
-        };
-        updatedItems.push(newItem);
-    }
+    const newItem: OrderItem = {
+        id: `new-${Date.now()}-${Math.random()}`,
+        menuItem,
+        quantity: 1,
+        comment: '',
+    };
+    updatedItems.push(newItem);
     onUpdateOrder({ ...order, items: updatedItems });
 };
   
@@ -168,20 +161,20 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
   
-    const updatedItems = [...order.items];
-    const itemToUpdateIndex = updatedItems.findIndex(i => i.id === editingItem.id);
+    const updatedItems = order.items.map(i => {
+        if (i.id === editingItem.id) {
+            return { ...i, comment: newComment };
+        }
+        return i;
+    });
   
-    if (itemToUpdateIndex !== -1) {
-      updatedItems[itemToUpdateIndex] = { ...updatedItems[itemToUpdateIndex], comment: newComment };
-      onUpdateOrder({ ...order, items: updatedItems });
-    }
-    
+    onUpdateOrder({ ...order, items: updatedItems });
     setEditingItem(null);
   };
 
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
-    const itemsText = groupedItems.map(item => 
+    const itemsText = groupedItemsForDisplay.map(item => 
       `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
     ).join('\n');
     const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
@@ -279,9 +272,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {groupedItems.length > 0 ? (
+                {groupedItemsForDisplay.length > 0 ? (
                   <div className="pr-4">
-                    {groupedItems.map((item) => (
+                    {groupedItemsForDisplay.map((item) => (
                       <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
@@ -430,3 +423,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    

@@ -93,29 +93,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .delete()
       .eq('order_id', updatedOrder.id);
 
-    // 3. Consolidate and insert the updated items
-    const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
-
-    for (const item of updatedOrder.items) {
-        const key = `${item.menuItem.id}-${item.comment || ''}`; // Key by item ID and comment
-        const existing = consolidatedItems.get(key);
-
-        if (existing) {
-            existing.quantity += item.quantity;
-        } else {
-            consolidatedItems.set(key, {
-                menuItemId: item.menuItem.id,
-                quantity: item.quantity,
-                comment: item.comment || null,
-            });
-        }
-    }
-    
-    const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
+    // 3. Insert the updated items from the frontend state
+    const itemsToInsert = updatedOrder.items.map(item => ({
       order_id: updatedOrder.id,
-      menu_item_id: item.menuItemId,
+      menu_item_id: item.menuItem.id,
       quantity: item.quantity,
-      comment: item.comment,
+      comment: item.comment || null,
     }));
 
     let itemsError = null;
@@ -359,3 +342,5 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
+
+    
