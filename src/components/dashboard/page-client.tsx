@@ -43,17 +43,9 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     fetchData();
 
     const channel = supabase
-      .channel('orders-channel')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
-        console.log('Change received for orders!', payload);
-        fetchData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, payload => {
-        console.log('Change received for order_items!', payload);
-        fetchData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_payments' }, payload => {
-        console.log('Change received for order_payments!', payload);
+      .channel('realtime-all')
+      .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
+        console.log('Change received!', payload);
         fetchData();
       })
       .subscribe();
@@ -85,33 +77,44 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order to ensure consistency
-    const { error: deleteError } = await supabase
+    // 2. Get existing items from DB to compare
+    const { data: existingItems, error: fetchError } = await supabase
       .from('order_items')
-      .delete()
+      .select('id')
       .eq('order_id', updatedOrder.id);
-  
-    // 3. Prepare the new, cleaned items to be inserted.
-    // This is the crucial part: we explicitly ONLY include fields that exist in the DB.
-    const newOrderItems = updatedOrder.items.map(({ menuItem, quantity }) => ({
+
+    if (fetchError) {
+       console.error("Error fetching existing items:", fetchError);
+       // Handle error, maybe revert
+       return;
+    }
+
+    const existingItemIds = existingItems.map(i => i.id);
+    const updatedItemIds = updatedOrder.items.map(i => i.id).filter(id => id);
+
+    // 3. Items to delete
+    const itemsToDelete = existingItemIds.filter(id => !updatedItemIds.includes(id));
+    if (itemsToDelete.length > 0) {
+      await supabase.from('order_items').delete().in('id', itemsToDelete);
+    }
+    
+    // 4. Items to upsert (insert or update)
+    const itemsToUpsert = updatedOrder.items.map(({ id, menuItem, quantity, comment }) => ({
+      id: id.startsWith('new-') ? undefined : id, // Let DB generate ID for new items
       order_id: updatedOrder.id,
       menu_item_id: menuItem.id,
-      quantity: quantity,
-      // 'comment' field is intentionally omitted as it doesn't exist in the database table.
+      quantity,
+      comment: comment || null,
     }));
   
-    // 4. Insert the new state of items, but only if there are any
     let itemsError = null;
-    if (newOrderItems.length > 0) {
-      const { error } = await supabase
-        .from('order_items')
-        .insert(newOrderItems);
+    if (itemsToUpsert.length > 0) {
+      const { error } = await supabase.from('order_items').upsert(itemsToUpsert);
       itemsError = error;
     }
   
-    // 5. Check for any errors and revert if necessary
-    if (orderError || deleteError || itemsError) {
-      console.error("Error updating order:", orderError || deleteError || itemsError);
+    if (orderError || itemsError) {
+      console.error("Error updating order:", orderError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
       // Revert local state on error
       setOrders(originalOrders);

@@ -16,6 +16,7 @@ export interface MenuItem {
 }
 
 export interface OrderItem {
+  id: string; // Unique identifier for the item within the order
   menuItem: MenuItem;
   quantity: number;
   comment?: string;

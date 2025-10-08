@@ -54,7 +54,9 @@ export async function getOrders(): Promise<Order[]> {
         .select(`
             *,
             items:order_items (
+                id,
                 quantity,
+                comment,
                 menu_item:menu_items (
                     *
                 )
@@ -72,8 +74,9 @@ export async function getOrders(): Promise<Order[]> {
     return data.map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
+            id: item.id,
             quantity: item.quantity,
-            comment: '', // Always set comment to empty string as it doesn't exist in DB
+            comment: item.comment || '',
             menuItem: {
                 ...item.menu_item,
                 imageUrl: item.menu_item.image_url,

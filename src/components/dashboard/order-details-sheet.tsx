@@ -19,7 +19,8 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
+import { CommentDialog } from "@/components/dashboard/comment-dialog";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,8 @@ interface OrderDetailsSheetProps {
 export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
 
   const [printedKitchenItems, setPrintedKitchenItems] = useState<OrderItem[]>([]);
   const [itemsToPrint, setItemsToPrint] = useState<OrderItem[]>([]);
@@ -51,35 +54,40 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   useEffect(() => {
     // Initialize with items that are already in the order
-    const initialItems = order.items.map((item, index) => ({...item, id: index}));
-    setPrintedKitchenItems(initialItems);
-  }, [order.id]);
+    setPrintedKitchenItems(order.items);
+  }, [order.id, order.items]);
 
   useEffect(() => {
     const newItemsToPrint: OrderItem[] = [];
-    const currentItemsWithId = order.items.map((item, index) => ({...item, id: index}));
-
-    // Group current items to compare quantities
-    const currentGrouped = new Map<string, number>();
-    currentItemsWithId.forEach(item => {
-        const key = item.menuItem.id;
-        currentGrouped.set(key, (currentGrouped.get(key) || 0) + item.quantity);
+    const currentItemsMap = new Map<string, OrderItem>();
+    order.items.forEach(item => {
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        const existing = currentItemsMap.get(key);
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            currentItemsMap.set(key, { ...item });
+        }
     });
 
-    // Group printed items to compare quantities
-    const printedGrouped = new Map<string, number>();
+    const printedItemsMap = new Map<string, OrderItem>();
     printedKitchenItems.forEach(item => {
-        const key = item.menuItem.id;
-        printedGrouped.set(key, (printedGrouped.get(key) || 0) + item.quantity);
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        const existing = printedItemsMap.get(key);
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            printedItemsMap.set(key, { ...item });
+        }
     });
     
-    currentGrouped.forEach((quantity, key) => {
-        const printedQuantity = printedGrouped.get(key) || 0;
-        if (quantity > printedQuantity) {
-            const itemSample = currentItemsWithId.find(i => i.menuItem.id === key)!;
+    currentItemsMap.forEach((currentItem, key) => {
+        const printedItem = printedItemsMap.get(key);
+        const printedQuantity = printedItem ? printedItem.quantity : 0;
+        if (currentItem.quantity > printedQuantity) {
             newItemsToPrint.push({
-                ...itemSample,
-                quantity: quantity - printedQuantity,
+                ...currentItem,
+                quantity: currentItem.quantity - printedQuantity,
             });
         }
     });
@@ -97,7 +105,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const groupedItems = useMemo(() => {
     const itemMap = new Map<string, OrderItem>();
     order.items.forEach((item) => {
-        const key = item.menuItem.id;
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
         if (itemMap.has(key)) {
             const existing = itemMap.get(key)!;
             existing.quantity += item.quantity;
@@ -108,42 +116,47 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     return Array.from(itemMap.values());
   }, [order.items]);
 
- const updateItemQuantity = (menuItemId: string, delta: number) => {
+  const updateItemQuantity = (itemId: string, delta: number) => {
     const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.menuItem.id === menuItemId);
+    const itemIndex = updatedItems.findIndex(i => i.id === itemId);
 
     if (itemIndex > -1) {
       updatedItems[itemIndex].quantity += delta;
       if (updatedItems[itemIndex].quantity <= 0) {
         updatedItems.splice(itemIndex, 1);
       }
-    } else if (delta > 0) {
-      const menuItem = menuItems.find(m => m.id === menuItemId);
-      if (menuItem) {
-          updatedItems.push({ menuItem, quantity: delta });
-      }
+       onUpdateOrder({ ...order, items: updatedItems });
     }
-    
-    onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const addItemToOrder = (menuItem: MenuItem) => {
-    const updatedItems = [...order.items];
-    const existingItemIndex = updatedItems.findIndex(i => i.menuItem.id === menuItem.id);
-    
-    if(existingItemIndex > -1) {
-        updatedItems[existingItemIndex].quantity += 1;
-    } else {
-        const newItem: OrderItem = { menuItem, quantity: 1 };
-        updatedItems.push(newItem);
-    }
+    const newItem: OrderItem = {
+      id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID
+      menuItem,
+      quantity: 1,
+      comment: '',
+    };
+    onUpdateOrder({ ...order, items: [...order.items, newItem] });
+  };
+  
+  const handleEditComment = (item: OrderItem) => {
+    setEditingItem(item);
+    setIsCommentDialogOpen(true);
+  };
+  
+  const handleSaveComment = (comment: string) => {
+    if (!editingItem) return;
+    const updatedItems = order.items.map(item =>
+      item.id === editingItem.id ? { ...item, comment } : item
+    );
     onUpdateOrder({ ...order, items: updatedItems });
+    setEditingItem(null);
   };
 
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
     const itemsText = groupedItems.map(item => 
-      `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
+      `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
     ).join('\n');
     const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
     const paidText = paidAmount > 0 ? `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*` : '';
@@ -163,8 +176,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       return;
     }
     window.print();
-    const currentItemsWithId = order.items.map((item, index) => ({...item, id: index}));
-    setPrintedKitchenItems(currentItemsWithId);
+    setPrintedKitchenItems([...order.items]);
   };
   
   const handleBluetoothPrint = () => {
@@ -189,8 +201,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     text += line;
 
     print(text);
-    const currentItemsWithId = order.items.map((item, index) => ({...item, id: index}));
-    setPrintedKitchenItems(currentItemsWithId);
+    setPrintedKitchenItems([...order.items]);
   };
 
   const getFormattedPaidAt = () => {
@@ -242,10 +253,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {groupedItems.length > 0 ? (
+                {order.items.length > 0 ? (
                   <div className="pr-4">
-                    {groupedItems.map((item) => (
-                      <div key={item.menuItem.id} className="flex items-center gap-4 py-3">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -257,13 +268,24 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         <div className="flex-1">
                           <p className="font-semibold">{item.menuItem.name}</p>
                            <p className="text-sm text-muted-foreground">R$ {item.menuItem.price.toFixed(2).replace('.', ',')}</p>
+                           {item.comment ? (
+                              <p className="text-sm text-primary font-medium flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
+                                <MessageSquareText className="w-3 h-3" />
+                                {item.comment}
+                              </p>
+                            ) : (
+                               <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
+                                <MessageSquarePlus className="w-3 h-3" />
+                                Adicionar Obs.
+                              </p>
+                            )}
                         </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.menuItem.id, -1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.id, -1)}>
                               {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.menuItem.id, 1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -368,6 +390,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 onOpenChange={setIsPaymentDialogOpen}
                 onConfirmPayment={handlePayment}
                 />
+            )}
+            {isCommentDialogOpen && editingItem && (
+              <CommentDialog
+                isOpen={isCommentDialogOpen}
+                onOpenChange={setIsCommentDialogOpen}
+                initialComment={editingItem.comment || ''}
+                onSave={handleSaveComment}
+              />
             )}
         </>
       )}
