@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { Client, Order } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ interface ClientsPageClientProps {
 export default function ClientsPageClient({ initialClients: initialClientsProp, initialOrders: initialOrdersProp }: ClientsPageClientProps) {
   const { user } = useUser();
   const { toast } = useToast();
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -112,6 +114,33 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     setSelectedClient(null);
     setIsFormOpen(false);
   };
+  
+  const handleCreateOrderForClient = async (clientName: string) => {
+    if (!user) {
+        toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
+        return;
+    }
+
+    const { data, error } = await supabase
+      .from('orders')
+      .insert({ 
+        type: 'name', 
+        identifier: clientName, 
+        status: 'open',
+        user_id: user.id,
+       })
+      .select()
+      .single();
+
+    if (error || !data) {
+        console.error("Error creating order:", error);
+        toast({ variant: 'destructive', title: "Erro ao criar comanda", description: "Tente novamente." });
+        return;
+    }
+
+    toast({ title: "Comanda aberta!", description: `Nova comanda aberta para ${clientName}.` });
+    router.push('/dashboard');
+  };
 
   const handleEdit = (client: Client) => {
     setSelectedClient(client);
@@ -163,7 +192,12 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
                 const debt = debtorInfo ? debtorInfo.totalDebt : 0;
                 return (
                     <TableRow key={client.id} className={debt > 0 ? "bg-destructive/10" : ""}>
-                        <TableCell className="font-medium">{client.name}</TableCell>
+                        <TableCell 
+                            className="font-medium cursor-pointer hover:underline"
+                            onClick={() => handleCreateOrderForClient(client.name)}
+                        >
+                            {client.name}
+                        </TableCell>
                         <TableCell>{client.phone || client.document || "-"}</TableCell>
                         <TableCell className="text-right font-mono">
                             {debt > 0 ? `R$ ${debt.toFixed(2).replace('.', ',')}` : "-"}
