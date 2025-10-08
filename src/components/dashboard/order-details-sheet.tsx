@@ -100,7 +100,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const addItemToOrder = (menuItem: MenuItem) => {
     const existingItem = order.items.find(item => item.menuItem.id === menuItem.id && !item.comment);
     if (existingItem) {
-      updateQuantity(menuItem.id, 1, undefined);
+      updateQuantity(menuItem.id, 1, existingItem.comment);
     } else {
       const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
       onUpdateOrder({ ...order, items: updatedItems });
