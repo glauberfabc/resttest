@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Check, ChevronsUpDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
@@ -45,30 +45,48 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
 
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
+  const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
     // Normalize to uppercase for comparison, as input is also uppercase
     return !clients.some(client => client.name.toUpperCase() === customerName);
   }, [customerName, clients]);
+  
+  useEffect(() => {
+    if (isNewCustomer && customerName && phoneInputRef.current) {
+        // We need a small delay for the input to be visible and focusable
+        setTimeout(() => phoneInputRef.current?.focus(), 100);
+    }
+  }, [isNewCustomer, customerName]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeTab === 'table' && tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10));
     } else if (activeTab === 'name' && customerName) {
-      if (isNewCustomer) {
-        onCreateOrder('name', customerName, phone);
-      } else {
-        onCreateOrder('name', customerName);
-      }
+      // Logic to create new client is handled in parent component
+      onCreateOrder('name', customerName, phone);
     }
   };
 
   const handleNameChange = (search: string) => {
     setCustomerName(search.toUpperCase());
   };
+  
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      // If it's a new customer, prevent form submission and focus on phone input
+      if (isNewCustomer && customerName) {
+        e.preventDefault();
+        setOpen(false); // Close the popover
+        phoneInputRef.current?.focus();
+      }
+      // Otherwise, the default form submission will handle it
+    }
+  };
+
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -119,6 +137,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                             placeholder="Buscar cliente..."
                             onValueChange={handleNameChange}
                             value={customerName}
+                            onKeyDown={handleKeyDown}
                         />
                         <CommandEmpty>Nenhum cliente encontrado. Crie um novo.</CommandEmpty>
                         <CommandList>
@@ -156,6 +175,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                     <div className="space-y-2 animate-in fade-in-0 duration-300">
                     <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
                     <Input
+                        ref={phoneInputRef}
                         id="phone"
                         placeholder="Telefone para contato (opcional)"
                         value={phone}
