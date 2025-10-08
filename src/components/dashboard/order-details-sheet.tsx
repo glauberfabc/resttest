@@ -19,8 +19,7 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
-import { CommentDialog } from "@/components/dashboard/comment-dialog";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching, MessageSquarePlus } from "lucide-react";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -36,8 +35,6 @@ interface OrderDetailsSheetProps {
 export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
-  const [selectedItemForComment, setSelectedItemForComment] = useState<OrderItem | null>(null);
   
   // State to track items already sent to the kitchen printer
   const [printedKitchenItems, setPrintedKitchenItems] = useState<OrderItem[]>([]);
@@ -63,10 +60,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   useEffect(() => {
     const newItemsToPrint: OrderItem[] = [];
     order.items.forEach(currentItem => {
-      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id && pItem.comment === currentItem.comment);
+      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id);
       
       if (!printedItem) {
-        // This is a completely new item or an item with a new comment
+        // This is a completely new item
         newItemsToPrint.push(currentItem);
       } else if (currentItem.quantity > printedItem.quantity) {
         // The quantity has increased
@@ -89,15 +86,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const groupedItems = useMemo(() => {
     const itemMap = new Map<string, OrderItem>();
     order.items.forEach(item => {
-      // Items with comments are always unique
-      if (item.comment) {
-        // Create a unique key for items with comments to prevent grouping
-        const uniqueKey = `${item.menuItem.id}-${item.comment}-${Math.random()}`;
-        itemMap.set(uniqueKey, item);
-        return;
-      }
-      
-      // Group items without comments by their menuItem ID
       const key = item.menuItem.id;
       if (itemMap.has(key)) {
         const existing = itemMap.get(key)!;
@@ -109,78 +97,49 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     return Array.from(itemMap.values());
   }, [order.items]);
 
-  const updateQuantity = (itemId: string, delta: number, comment?: string) => {
+  const updateQuantity = (itemId: string, delta: number) => {
     const updatedItems = order.items.map(item => {
-      // Find the first matching item to decrement. For items without comments, any will do.
-      if (item.menuItem.id === itemId && (comment !== undefined ? item.comment === comment : true)) {
+      if (item.menuItem.id === itemId) {
         const newQuantity = item.quantity + delta;
-        // Decrement only this one instance
-        if (delta < 0) {
-           const itemToRemove = order.items.find(i => i.menuItem.id === itemId && i.comment === comment);
-           if (!itemToRemove) return null; // Should not happen
-
-           if (itemToRemove.quantity > 1) {
-              const newItems = [...order.items];
-              const index = newItems.findIndex(i => i.menuItem.id === itemId && i.comment === comment);
-              newItems[index] = { ...itemToRemove, quantity: itemToRemove.quantity - 1};
-              onUpdateOrder({ ...order, items: newItems });
-           } else {
-              const newItems = order.items.filter((_, index) => index !== order.items.findIndex(i => i.menuItem.id === itemId && i.comment === comment));
-              onUpdateOrder({ ...order, items: newItems });
-           }
-           return null; // Stop mapping
-        }
-
         return newQuantity > 0 ? { ...item, quantity: newQuantity } : null;
       }
       return item;
     }).filter(Boolean) as OrderItem[];
 
-    if (delta < 0) return; // Already handled inside the map for decrements
+    // This part handles the case where multiple entries for the same item exist and we need to consolidate
+    const consolidatedItems = new Map<string, OrderItem>();
+    updatedItems.forEach(item => {
+        const key = item.menuItem.id;
+        if(consolidatedItems.has(key)) {
+            consolidatedItems.get(key)!.quantity += item.quantity;
+        } else {
+            consolidatedItems.set(key, {...item});
+        }
+    });
 
-    onUpdateOrder({ ...order, items: updatedItems });
+    onUpdateOrder({ ...order, items: Array.from(consolidatedItems.values()) });
   };
 
-  const handleRemoveItem = (itemId: string, comment?: string) => {
-    const newItems = order.items.filter(i => !(i.menuItem.id === itemId && i.comment === comment));
-    onUpdateOrder({ ...order, items: newItems });
+
+  const handleRemoveItem = (itemId: string) => {
+    const updatedItems = order.items.filter(item => item.menuItem.id !== itemId);
+    onUpdateOrder({ ...order, items: updatedItems });
   };
 
   const addItemToOrder = (menuItem: MenuItem) => {
-    // Always add as a new item with quantity 1
-    const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
-    onUpdateOrder({ ...order, items: updatedItems });
-  };
-
-  const handleOpenCommentDialog = (item: OrderItem) => {
-    setSelectedItemForComment(item);
-    setIsCommentDialogOpen(true);
-  };
-
-  const handleSaveComment = (comment: string) => {
-    if (!selectedItemForComment) return;
-
-    // Find the specific instance of the item to update
-    const itemIndex = order.items.findIndex(
-      item => item.menuItem.id === selectedItemForComment.menuItem.id && item.comment === selectedItemForComment.comment
-    );
-
-    if (itemIndex === -1) return; // Should not happen
-
-    const updatedItems = [...order.items];
-    updatedItems[itemIndex] = { ...updatedItems[itemIndex], comment };
-
-    onUpdateOrder({ ...order, items: updatedItems });
-
-    setIsCommentDialogOpen(false);
-    setSelectedItemForComment(null);
+    const existingItem = order.items.find(item => item.menuItem.id === menuItem.id);
+    if (existingItem) {
+        updateQuantity(menuItem.id, 1);
+    } else {
+        const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
+        onUpdateOrder({ ...order, items: updatedItems });
+    }
   };
   
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
     const itemsText = groupedItems.map(item => 
-      `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}` +
-      (item.comment ? `\n  - ${item.comment}` : '')
+      `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
     ).join('\n');
     const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
     const paidText = paidAmount > 0 ? `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*` : '';
@@ -283,7 +242,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 {groupedItems.length > 0 ? (
                   <div className="pr-4">
                     {groupedItems.map((item, index) => (
-                      <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
+                      <div key={`${item.menuItem.id}-${index}`} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -294,21 +253,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         />
                         <div className="flex-1">
                           <p className="font-semibold">{item.menuItem.name}</p>
-                          {item.comment && (
-                            <p className="text-sm text-muted-foreground italic">Obs: {item.comment}</p>
-                          )}
                           <p className="text-sm text-muted-foreground">R$ {item.menuItem.price.toFixed(2).replace('.', ',')}</p>
-                          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => handleOpenCommentDialog(item)}>
-                            <MessageSquarePlus className="mr-1 h-3 w-3"/>
-                            {item.comment ? 'Editar Obs.' : 'Adicionar Obs.'}
-                          </Button>
                         </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => item.quantity === 1 ? handleRemoveItem(item.menuItem.id, item.comment) : updateQuantity(item.menuItem.id, -1, item.comment)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => item.quantity === 1 ? handleRemoveItem(item.menuItem.id) : updateQuantity(item.menuItem.id, -1)}>
                               {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.menuItem.id, 1)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -415,18 +367,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 onConfirmPayment={handlePayment}
                 />
             )}
-             {isCommentDialogOpen && selectedItemForComment && (
-                <CommentDialog
-                    isOpen={isCommentDialogOpen}
-                    onOpenChange={setIsCommentDialogOpen}
-                    onSave={handleSaveComment}
-                    item={selectedItemForComment}
-                />
-            )}
         </>
       )}
     </>
   );
 }
-
-    

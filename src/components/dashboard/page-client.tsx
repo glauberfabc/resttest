@@ -98,7 +98,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
         quantity: item.quantity,
-        // comment: item.comment || '' // This column must exist in the DB
     }));
 
     // 3c. Insert the new state of items, but only if there are any

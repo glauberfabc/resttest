@@ -44,15 +44,12 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
         <p className="break-words">{line}</p>
         
         <div className="space-y-1 my-1 text-sm">
-            {order.items.map(({ menuItem, quantity, comment }, index) => (
+            {order.items.map(({ menuItem, quantity }, index) => (
                 <div key={`${menuItem.id}-${index}`}>
                     <div className="flex justify-between">
                         <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
                         <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
                     </div>
-                     {comment && (
-                        <p className="text-xs italic pl-4">- {comment}</p>
-                    )}
                 </div>
             ))}
         </div>
