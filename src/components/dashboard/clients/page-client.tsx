@@ -99,7 +99,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o cliente." });
         return;
       }
-      setClients(clients.map(c => c.id === data.id ? data : c));
+      setClients(clients.map(c => c.id === data.id ? { ...data, user_id: data.user_id } : c));
 
     } else { // Adding new client
       const { data, error } = await supabase
@@ -113,7 +113,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o cliente." });
         return;
       }
-      setClients([data, ...clients]);
+      setClients([ { ...data, user_id: data.user_id }, ...clients]);
     }
     
     setSelectedClient(null);

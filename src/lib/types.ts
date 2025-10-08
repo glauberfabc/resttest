@@ -51,7 +51,7 @@ export interface Client {
   name: string;
   phone?: string;
   document?: string;
-  user_id: string;
+  user_id?: string;
 }
 
     
