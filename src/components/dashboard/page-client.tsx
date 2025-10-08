@@ -52,7 +52,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         console.log('Change received for order_items!', payload);
         fetchData();
       })
-      .on('postgres_changes', { event: '*', schema:.public', table: 'order_payments' }, payload => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_payments' }, payload => {
         console.log('Change received for order_payments!', payload);
         fetchData();
       })
