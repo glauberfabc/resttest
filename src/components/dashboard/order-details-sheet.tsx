@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import type { Order, MenuItem, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -458,3 +458,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
