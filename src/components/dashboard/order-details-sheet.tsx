@@ -60,14 +60,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   useEffect(() => {
     // This effect calculates which items are new and need to be printed.
     const currentItemsMap = new Map<string, OrderItem>();
-    order.items.forEach(item => {
+    order.items.forEach((item, index) => {
         // Use a consistent key based on item properties, not a temporary ID
         const key = `${item.menuItem.id}-${item.comment || ''}`;
         const existing = currentItemsMap.get(key);
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            currentItemsMap.set(key, { ...item });
+            currentItemsMap.set(key, { ...item, id: key });
         }
     });
 
@@ -120,15 +120,13 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     if (delta > 0) {
-      // Add a new instance of the item to the order, which will be grouped visually.
+      // Add a new instance of the item to the order. This allows for different comments.
       addItemToOrder(itemGroup.menuItem, itemGroup.comment);
     } else {
-      // Find the first matching item instance in the original array to remove/decrement.
+      // Find the first matching item instance in the original array to remove.
       const itemIndex = order.items.findIndex(i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment);
       if (itemIndex > -1) {
         const updatedItems = [...order.items];
-        // If there's only one, remove it. Otherwise, this logic is flawed for grouped items.
-        // The safest way to handle decrement is to remove one instance.
         updatedItems.splice(itemIndex, 1);
         onUpdateOrder({ ...order, items: updatedItems });
       }
@@ -276,10 +274,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {groupedItems.length > 0 ? (
+                {order.items.length > 0 ? (
                   <div className="pr-4">
-                    {groupedItems.map((item) => (
-                      <div key={item.id} className="flex items-center gap-4 py-3">
+                    {order.items.map((item, index) => (
+                      <div key={`${item.id}-${index}-${Math.random()}`} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -305,7 +303,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         </div>
                           <div className="flex items-center gap-2">
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
-                              {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
+                              {order.items.filter(i => i.menuItem.id === item.menuItem.id && i.comment === item.comment).length === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
