@@ -78,7 +78,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setSelectedOrder(updatedOrder);
     }
   
-    // 1. Update the order status and paid_at timestamp
+    // 1. Update order status and paid_at timestamp
     const { error: orderError } = await supabase
       .from('orders')
       .update({

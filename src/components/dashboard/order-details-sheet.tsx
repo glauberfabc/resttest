@@ -103,6 +103,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const existing = map.get(key);
     if (existing) {
       existing.quantity += item.quantity;
+      // Also aggregate original IDs if needed for other logic
     } else {
       // Create a shallow copy and ensure it has a unique ID for React key
       map.set(key, { ...item, id: item.id || key });
@@ -114,15 +115,15 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
 
-    if (delta > 0) { // Add a new instance of the item with the same comment
+    if (delta > 0) {
       const newItem: OrderItem = {
         id: `new-${Date.now()}-${Math.random()}`,
         menuItem: itemGroup.menuItem,
         quantity: 1,
-        comment: itemGroup.comment,
+        comment: '', // Always add with blank comment when using '+'
       };
       updatedItems.push(newItem);
-    } else { // Remove one unit of the specified item group
+    } else {
       // Find the last matching item instance to remove from
       const itemIndexToRemove = updatedItems.findLastIndex(
         i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment
@@ -139,42 +140,36 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
   
  const addItemToOrder = (menuItem: MenuItem) => {
-    const comment = ''; // Always add with blank comment
     const updatedItems = [...order.items];
-
     const newItem: OrderItem = {
         id: `new-${Date.now()}-${Math.random()}`,
         menuItem,
         quantity: 1,
-        comment,
+        comment: '',
     };
     updatedItems.push(newItem);
-    
     onUpdateOrder({ ...order, items: updatedItems });
 };
   
   const handleEditComment = (item: OrderItem) => {
-    // Find the actual item instance in the original `order.items` array
-    // This is important if there are multiple un-commented items of the same type
     const itemToEdit = order.items.find(i => i.id === item.id);
-    setEditingItem(itemToEdit || item); // Fallback to the grouped item if not found
+    setEditingItem(itemToEdit || item);
     setIsCommentDialogOpen(true);
   };
   
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-  
-    const finalItems = order.items.map(item => {
-      // Use the temporary ID to find the specific item instance to update
-      if (item.id === editingItem.id) {
-        return { ...item, comment: newComment };
-      }
-      return item;
-    });
-  
-    onUpdateOrder({ ...order, items: finalItems });
+
+    // Create a new array with the updated item
+    const updatedItems = order.items.map(item =>
+        item.id === editingItem.id
+            ? { ...item, comment: newComment }
+            : item
+    );
+
+    onUpdateOrder({ ...order, items: updatedItems });
     setEditingItem(null);
-  };
+};
 
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
