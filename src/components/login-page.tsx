@@ -21,8 +21,8 @@ import { useUser } from "@/context/user-context";
 export function LoginPage() {
   const router = useRouter();
   const { login } = useUser();
-  const [email, setEmail] = useState("admin@comandazap.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,12 +74,6 @@ export function LoginPage() {
             <Button type="submit" className="w-full">
               Entrar
             </Button>
-            <div className="text-center text-sm">
-                Não tem uma conta?{" "}
-                <Link href="/signup" className="underline">
-                    Cadastre-se
-                </Link>
-            </div>
           </CardFooter>
         </form>
       </Card>
