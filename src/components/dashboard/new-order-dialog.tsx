@@ -156,16 +156,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 key={client.id}
                                 value={client.name}
                                 onSelect={(currentValue) => {
-                                    // Always find the client from the main list to ensure we have the right data
                                     const selectedClient = clients.find(c => c.name.toUpperCase() === currentValue.toUpperCase());
-                                    
                                     if (selectedClient) {
-                                      // If client exists, create order immediately and close everything
                                       onCreateOrder('name', selectedClient.name);
                                       setOpen(false);
                                     } else {
-                                      // This case should not be hit if clicking from the list,
-                                      // but as a fallback, it sets the name for a new client.
                                       setCustomerName(currentValue);
                                       setOpen(false);
                                     }
