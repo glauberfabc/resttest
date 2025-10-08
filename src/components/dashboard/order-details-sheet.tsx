@@ -134,24 +134,13 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   
   const addItemToOrder = (menuItem: MenuItem) => {
       const updatedItems = [...order.items];
-      // Try to find an item with the same menu item ID and NO comment.
-      const existingItemIndex = updatedItems.findIndex(
-          (item) => item.menuItem.id === menuItem.id && !item.comment
-      );
-  
-      if (existingItemIndex > -1) {
-          // If it exists, just increment its quantity
-          updatedItems[existingItemIndex].quantity += 1;
-      } else {
-          // Otherwise, add it as a new item
-          const newItem: OrderItem = {
-              id: `new-${Date.now()}-${Math.random()}`,
-              menuItem,
-              quantity: 1,
-              comment: '',
-          };
-          updatedItems.push(newItem);
-      }
+      const newItem: OrderItem = {
+          id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
+          menuItem,
+          quantity: 1,
+          comment: '',
+      };
+      updatedItems.push(newItem);
   
       onUpdateOrder({ ...order, items: updatedItems });
   };
@@ -165,6 +154,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     if (!editingItem) return;
   
     const updatedItems = order.items.map(i => {
+        // Use the unique frontend ID to find the correct item
         if (i.id === editingItem.id) {
             return { ...i, comment: newComment };
         }
@@ -275,9 +265,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {groupedItemsForDisplay.length > 0 ? (
+                {order.items.length > 0 ? (
                   <div className="pr-4">
-                    {groupedItemsForDisplay.map((item) => (
+                    {order.items.map((item) => (
                       <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
@@ -431,3 +421,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
