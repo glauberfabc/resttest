@@ -26,10 +26,16 @@ export function CommentDialog({ isOpen, onOpenChange, onSave, initialComment }: 
     setComment(initialComment);
   }, [initialComment]);
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     onSave(comment);
     onOpenChange(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit();
+    }
   };
 
   return (
@@ -38,12 +44,14 @@ export function CommentDialog({ isOpen, onOpenChange, onSave, initialComment }: 
         <DialogHeader>
           <DialogTitle>Adicionar/Editar Observação</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
+            onKeyDown={handleKeyDown}
             placeholder="Ex: sem cebola, ponto da carne, etc."
             className="min-h-[100px]"
+            autoFocus
           />
           <DialogFooter className="mt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -56,5 +64,3 @@ export function CommentDialog({ isOpen, onOpenChange, onSave, initialComment }: 
     </Dialog>
   );
 }
-
-    
