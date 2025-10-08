@@ -71,7 +71,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        fetchUser(session.user);
+        // Fetch user only if user state is not already set
+        if (!user) {
+          fetchUser(session.user);
+        }
       }
     });
 
@@ -95,7 +98,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener.subscription.unsubscribe();
     };
-  }, [router, toast, pathname, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, toast, pathname]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
