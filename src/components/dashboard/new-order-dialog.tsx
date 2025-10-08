@@ -10,7 +10,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
@@ -53,7 +52,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     return !clients.some(client => client.name.toUpperCase() === customerName);
   }, [customerName, clients]);
 
-  const handleSubmit = () => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
     if (activeTab === 'table' && tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10));
     } else if (activeTab === 'name' && customerName) {
@@ -78,95 +78,97 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             Escolha abrir por mesa ou por nome do cliente.
           </DialogDescription>
         </DialogHeader>
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'table' | 'name')} className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="table">Por Mesa</TabsTrigger>
-            <TabsTrigger value="name">Por Nome</TabsTrigger>
-          </TabsList>
-          <TabsContent value="table" className="pt-4">
-            <div className="space-y-2">
-              <Label htmlFor="table-number">Número da Mesa</Label>
-              <Input
-                id="table-number"
-                type="number"
-                placeholder="Ex: 5"
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-              />
-            </div>
-          </TabsContent>
-          <TabsContent value="name" className="pt-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="customer-name">Nome do Cliente</Label>
-                <Popover open={open} onOpenChange={setOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={open}
-                      className="w-full justify-between font-normal"
-                    >
-                      <span className="truncate">{customerName || "Selecione ou digite um nome..."}</span>
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                    <Command>
-                      <CommandInput 
-                        placeholder="Buscar cliente..."
-                        onValueChange={handleNameChange}
-                        value={customerName}
-                      />
-                      <CommandEmpty>Nenhum cliente encontrado. Crie um novo.</CommandEmpty>
-                      <CommandList>
-                        <CommandGroup>
-                          {clients.map((client) => (
-                            <CommandItem
-                              key={client.id}
-                              value={client.name}
-                              onSelect={(currentValue) => {
-                                setCustomerName(currentValue.toUpperCase());
-                                setOpen(false);
-                              }}
-                            >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  customerName === client.name ? "opacity-100" : "opacity-0"
-                                )}
-                              />
-                              <div>
-                                <p>{client.name}</p>
-                                <p className="text-xs text-muted-foreground">{client.phone}</p>
-                              </div>
-                            </CommandItem>
-                          ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              {isNewCustomer && customerName && (
-                <div className="space-y-2 animate-in fade-in-0 duration-300">
-                  <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
-                  <Input
-                    id="phone"
-                    placeholder="Telefone para contato"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
+        <form onSubmit={handleSubmit}>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'table' | 'name')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="table">Por Mesa</TabsTrigger>
+                <TabsTrigger value="name">Por Nome</TabsTrigger>
+            </TabsList>
+            <TabsContent value="table" className="pt-4">
+                <div className="space-y-2">
+                <Label htmlFor="table-number">Número da Mesa</Label>
+                <Input
+                    id="table-number"
+                    type="number"
+                    placeholder="Ex: 5"
+                    value={tableNumber}
+                    onChange={(e) => setTableNumber(e.target.value)}
+                />
                 </div>
-              )}
-            </div>
-          </TabsContent>
-        </Tabs>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={activeTab === 'name' && !customerName}>Criar Comanda</Button>
-        </DialogFooter>
+            </TabsContent>
+            <TabsContent value="name" className="pt-4">
+                <div className="space-y-4">
+                <div className="space-y-2">
+                    <Label htmlFor="customer-name">Nome do Cliente</Label>
+                    <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                        <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={open}
+                        className="w-full justify-between font-normal"
+                        >
+                        <span className="truncate">{customerName || "Selecione ou digite um nome..."}</span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                        </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                        <Command>
+                        <CommandInput 
+                            placeholder="Buscar cliente..."
+                            onValueChange={handleNameChange}
+                            value={customerName}
+                        />
+                        <CommandEmpty>Nenhum cliente encontrado. Crie um novo.</CommandEmpty>
+                        <CommandList>
+                            <CommandGroup>
+                            {clients.map((client) => (
+                                <CommandItem
+                                key={client.id}
+                                value={client.name}
+                                onSelect={(currentValue) => {
+                                    setCustomerName(currentValue.toUpperCase());
+                                    setOpen(false);
+                                }}
+                                >
+                                <Check
+                                    className={cn(
+                                    "mr-2 h-4 w-4",
+                                    customerName === client.name ? "opacity-100" : "opacity-0"
+                                    )}
+                                />
+                                <div>
+                                    <p>{client.name}</p>
+                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
+                                </div>
+                                </CommandItem>
+                            ))}
+                            </CommandGroup>
+                        </CommandList>
+                        </Command>
+                    </PopoverContent>
+                    </Popover>
+                </div>
+
+                {isNewCustomer && customerName && (
+                    <div className="space-y-2 animate-in fade-in-0 duration-300">
+                    <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
+                    <Input
+                        id="phone"
+                        placeholder="Telefone para contato (opcional)"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                    />
+                    </div>
+                )}
+                </div>
+            </TabsContent>
+            </Tabs>
+            <DialogFooter className="mt-4">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button type="submit" disabled={activeTab === 'name' && !customerName}>Criar Comanda</Button>
+            </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );
