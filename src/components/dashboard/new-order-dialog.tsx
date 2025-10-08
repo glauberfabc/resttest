@@ -153,12 +153,15 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 key={client.id}
                                 value={client.name}
                                 onSelect={(currentValue) => {
-                                    // Check if the selected client is an existing one before closing
-                                    const isExisting = clients.some(c => c.name.toUpperCase() === currentValue.toUpperCase());
-                                    setCustomerName(currentValue.toUpperCase());
+                                    const formattedValue = currentValue.toUpperCase();
+                                    const isExisting = clients.some(c => c.name.toUpperCase() === formattedValue);
+                                    
+                                    setCustomerName(formattedValue);
                                     setOpen(false);
+
                                     if(isExisting) {
-                                      onCreateOrder('name', currentValue.toUpperCase());
+                                      // If an existing client is clicked/selected, create the order immediately
+                                      onCreateOrder('name', formattedValue);
                                     }
                                 }}
                                 >
