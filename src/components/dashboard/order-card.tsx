@@ -37,6 +37,8 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
     }
   };
 
+  const displayAmount = isPaid ? total : remainingAmount;
+
   return (
     <Card 
         className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-200 flex flex-col"
@@ -73,10 +75,10 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
       </CardContent>
       <CardFooter>
         <div className="flex flex-col w-full">
-            {(isPartiallyPaid) && <p className="text-xs text-muted-foreground">Restante</p>}
+            {(isPartiallyPaid || order.status === 'open' || order.status === 'paying') && !isPaid && <p className="text-xs text-muted-foreground">Restante</p>}
             {isPaid && <p className="text-xs text-muted-foreground">Total Pago</p>}
             <div className="text-2xl font-bold">
-              R$ {(isPaid ? total : remainingAmount).toFixed(2).replace('.', ',')}
+              R$ {displayAmount.toFixed(2).replace('.', ',')}
             </div>
         </div>
       </CardFooter>
