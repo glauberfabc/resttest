@@ -50,12 +50,10 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
 
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
-    // Normalize to uppercase for comparison, as input is also uppercase
     return !clients.some(client => client.name.toUpperCase() === customerName.toUpperCase());
   }, [customerName, clients]);
   
   useEffect(() => {
-    // When the dialog opens/closes, reset the state
     if (!isOpen) {
         setTimeout(() => {
             setTableNumber('');
@@ -71,29 +69,18 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     if (activeTab === 'table' && tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10));
     } else if (activeTab === 'name' && customerName) {
-      // Logic to create new client is handled in parent component
       onCreateOrder('name', customerName, phone);
     }
-  };
-
-  const handleNameChange = (search: string) => {
-    setCustomerName(search);
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      e.preventDefault(); // Prevent form submission
+      e.preventDefault();
       if (isNewCustomer && customerName) {
-        setOpen(false); // Close popover
-        setTimeout(() => phoneInputRef.current?.focus(), 50); // Focus on phone input
-      } else if (!isNewCustomer && customerName) {
-        // Find the matching client and create order
-        const client = clients.find(c => c.name.toUpperCase() === customerName.toUpperCase());
-        if (client) {
-            onCreateOrder('name', client.name);
-        }
-      } else if (activeTab === 'name' && customerName) {
-         onCreateOrder('name', customerName, phone);
+        setOpen(false);
+        setTimeout(() => phoneInputRef.current?.focus(), 50);
+      } else {
+        handleSubmit(e as any);
       }
     }
   };
@@ -133,6 +120,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                     placeholder="Ex: 5"
                     value={tableNumber}
                     onChange={(e) => setTableNumber(e.target.value)}
+                    autoFocus
                 />
                 </div>
             </TabsContent>
@@ -156,7 +144,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                         <Command>
                         <CommandInput 
                             placeholder="Buscar cliente..."
-                            onValueChange={handleNameChange}
+                            onValueChange={(search) => setCustomerName(search)}
                             value={customerName}
                             onKeyDown={handleKeyDown}
                         />
@@ -168,10 +156,15 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 key={client.id}
                                 value={client.name}
                                 onSelect={(currentValue) => {
+                                    // Find if the selected value corresponds to an existing client
                                     const selectedClient = clients.find(c => c.name.toUpperCase() === currentValue.toUpperCase());
-                                    if(selectedClient) {
+                                    
+                                    if (selectedClient) {
+                                      // If client exists, create order immediately
                                       onCreateOrder('name', selectedClient.name);
+                                      setOpen(false); // Close the popover
                                     } else {
+                                      // If it's a new name, just update the input and close popover
                                       setCustomerName(currentValue.toUpperCase());
                                       setOpen(false);
                                     }
