@@ -69,13 +69,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
+    // Update local state first for instant UI feedback
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
   
-    // 1. Update order status if changed
+    // 1. Update order status if it changed
     const { error: orderError } = await supabase
       .from('orders')
       .update({
@@ -84,18 +85,19 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order to avoid conflicts
+    // 2. Delete all existing items for this order to ensure consistency
     const { error: deleteError } = await supabase
       .from('order_items')
       .delete()
       .eq('order_id', updatedOrder.id);
   
-    // 3. Prepare the new items to be inserted, EXCLUDING the comment field
+    // 3. Prepare the new, cleaned items to be inserted.
+    // This is the crucial part: we explicitly ONLY include fields that exist in the DB.
     const newOrderItems = updatedOrder.items.map(({ menuItem, quantity }) => ({
       order_id: updatedOrder.id,
       menu_item_id: menuItem.id,
       quantity: quantity,
-      // The 'comment' field is intentionally omitted as it does not exist in the database.
+      // 'comment' field is intentionally omitted as it doesn't exist in the database table.
     }));
   
     // 4. Insert the new state of items, but only if there are any
@@ -107,6 +109,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       itemsError = error;
     }
   
+    // 5. Check for any errors and revert if necessary
     if (orderError || deleteError || itemsError) {
       console.error("Error updating order:", orderError || deleteError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });

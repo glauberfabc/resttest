@@ -19,7 +19,6 @@ export interface OrderItem {
   menuItem: MenuItem;
   quantity: number;
   comment?: string;
-  id?: number; // Unique identifier for the item within the order
 }
 
 export interface Payment {
