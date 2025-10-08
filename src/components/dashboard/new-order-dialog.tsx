@@ -55,11 +55,16 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   }, [customerName, clients]);
   
   useEffect(() => {
-    if (isNewCustomer && customerName && phoneInputRef.current) {
-        // We need a small delay for the input to be visible and focusable
-        setTimeout(() => phoneInputRef.current?.focus(), 100);
+    // When the dialog opens/closes, reset the state
+    if (!isOpen) {
+        setTimeout(() => {
+            setTableNumber('');
+            setCustomerName('');
+            setPhone('');
+            setActiveTab('table');
+        }, 200);
     }
-  }, [isNewCustomer, customerName]);
+  }, [isOpen]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +86,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       if (isNewCustomer && customerName) {
         e.preventDefault();
         setOpen(false); // Close the popover
-        phoneInputRef.current?.focus();
+        setTimeout(() => phoneInputRef.current?.focus(), 0); // Use timeout to ensure element is focusable
       }
       // Otherwise, the default form submission will handle it
     }
@@ -147,9 +152,13 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 key={client.id}
                                 value={client.name}
                                 onSelect={(currentValue) => {
-                                    onCreateOrder('name', currentValue.toUpperCase());
+                                    // Check if the selected client is an existing one before closing
+                                    const isExisting = clients.some(c => c.name.toUpperCase() === currentValue.toUpperCase());
+                                    setCustomerName(currentValue.toUpperCase());
                                     setOpen(false);
-                                    onOpenChange(false);
+                                    if(isExisting) {
+                                      onCreateOrder('name', currentValue.toUpperCase());
+                                    }
                                 }}
                                 >
                                 <Check
