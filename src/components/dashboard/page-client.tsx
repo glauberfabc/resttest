@@ -93,12 +93,30 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .delete()
       .eq('order_id', updatedOrder.id);
 
-    // 3. Insert the updated items from the frontend state
-    const itemsToInsert = updatedOrder.items.map(item => ({
-      order_id: updatedOrder.id,
-      menu_item_id: item.menuItem.id,
-      quantity: item.quantity,
-      comment: item.comment || null,
+    // 3. Consolidate and insert items
+    const consolidatedItems = new Map<string, { menuItemId: string, quantity: number, comment: string | null }>();
+    
+    updatedOrder.items.forEach(item => {
+        // Use a composite key of item ID and comment to correctly group items
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        const existing = consolidatedItems.get(key);
+
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            consolidatedItems.set(key, {
+                menuItemId: item.menuItem.id,
+                quantity: item.quantity,
+                comment: item.comment || null,
+            });
+        }
+    });
+
+    const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
+        order_id: updatedOrder.id,
+        menu_item_id: item.menuItemId,
+        quantity: item.quantity,
+        comment: item.comment,
     }));
 
     let itemsError = null;
@@ -117,17 +135,39 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     }
   };
   
-  const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number) => {
+const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, phone?: string) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
         return;
+    }
+
+    // If it's a new client, create it first
+    if (type === 'name' && phone !== undefined) {
+        const clientName = String(identifier).toUpperCase();
+        const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
+
+        if (!clientExists) {
+            const { data: newClient, error: clientError } = await supabase
+                .from('clients')
+                .insert({ name: clientName, phone: phone || null, user_id: user.id })
+                .select()
+                .single();
+            
+            if (clientError || !newClient) {
+                console.error("Error creating new client:", clientError);
+                toast({ variant: 'destructive', title: "Erro ao criar cliente", description: "Não foi possível salvar o novo cliente." });
+                return;
+            }
+            // Add new client to local state to avoid re-fetching
+            setClients(prev => [newClient, ...prev]);
+        }
     }
 
     const { data, error } = await supabase
       .from('orders')
       .insert({ 
         type, 
-        identifier: String(identifier), 
+        identifier: String(identifier).toUpperCase(), 
         status: 'open',
         user_id: user.id,
        })
@@ -211,7 +251,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       return orders;
     }
     return orders.filter(order =>
-      order.type === 'name' &&
       String(order.identifier).toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [orders, searchTerm]);
@@ -298,7 +337,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
           <Input
-              placeholder="Buscar comanda por nome..."
+              placeholder="Buscar comanda por nome ou mesa..."
               className="pl-10"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -342,5 +381,3 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
-
-    
