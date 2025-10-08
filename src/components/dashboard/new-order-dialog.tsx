@@ -68,13 +68,6 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     setCustomerName(search.toUpperCase());
   };
 
-  const handleItemClick = (client: Client) => {
-    // This function is now guaranteed to be called on click.
-    onCreateOrder('name', client.name);
-    setOpen(false); 
-    onOpenChange(false); // Also close the main dialog
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeTab === 'table' && tableNumber) {
@@ -90,7 +83,9 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       // Find if the current typed name is an existing client
       const existingClient = clients.find(c => c.name.toUpperCase() === customerName.toUpperCase());
       if (existingClient) {
-          handleItemClick(existingClient);
+          onCreateOrder('name', existingClient.name);
+          setOpen(false);
+          onOpenChange(false);
       } else if (isNewCustomer && customerName) {
         setOpen(false);
         setTimeout(() => phoneInputRef.current?.focus(), 50);
@@ -170,12 +165,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 <CommandItem
                                   key={client.id}
                                   value={client.name}
-                                  onSelect={(currentValue) => {
-                                      // onSelect is still useful for keyboard navigation
-                                      setCustomerName(currentValue.toUpperCase());
-                                      setOpen(false);
+                                  onSelect={() => {
+                                    onCreateOrder('name', client.name);
+                                    setOpen(false);
+                                    onOpenChange(false);
                                   }}
-                                  onClick={() => handleItemClick(client)} // DIRECTLY handle the click
                                 >
                                 <Check
                                     className={cn(
