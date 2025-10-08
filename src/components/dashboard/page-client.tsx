@@ -72,66 +72,72 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
     const originalOrder = originalOrders.find(o => o.id === updatedOrder.id);
-    
-    // Optimistically update the local state
+  
+    // Optimistically update local state for a responsive UI
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
-    
+  
+    // Logic to move notebook orders to today's open orders
     const wasInNotebook = originalOrder && new Date(originalOrder.created_at) < startOfToday();
     const originalTotalQuantity = originalOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
     const updatedTotalQuantity = updatedOrder.items.reduce((sum, item) => sum + item.quantity, 0);
-    const itemWasAdded = updatedTotalQuantity > originalTotalQuantity;
-
-    let shouldUpdateCreatedAt = wasInNotebook && itemWasAdded;
-    if (shouldUpdateCreatedAt) {
-      updatedOrder.created_at = new Date().toISOString();
+    const itemWasAddedOrQuantityIncreased = updatedTotalQuantity > originalTotalQuantity;
+    
+    let finalOrderDataForUpdate: Partial<Order> = {
+      status: updatedOrder.status,
+      paid_at: updatedOrder.paidAt,
+    };
+  
+    if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
+      finalOrderDataForUpdate.created_at = new Date().toISOString();
     }
   
-    // 1. Update order status, paid_at, and potentially created_at timestamp
+    // 1. Update the order itself (status, timestamps)
     const { error: orderError } = await supabase
       .from('orders')
-      .update({
-        status: updatedOrder.status,
-        paid_at: updatedOrder.paidAt,
-        created_at: shouldUpdateCreatedAt ? updatedOrder.created_at : originalOrder?.created_at,
-      })
+      .update(finalOrderDataForUpdate)
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order to avoid conflicts
-    const { error: deleteError } = await supabase
-      .from('order_items')
-      .delete()
-      .eq('order_id', updatedOrder.id);
-      
-    // 3. Consolidate and insert items
-    const consolidatedItems = new Map<string, OrderItem>();
+    // 2. Consolidate items before DB operations to prevent conflicts
+    const consolidatedItems = new Map<string, { menuItem: MenuItem; quantity: number; comment: string | null }>();
     updatedOrder.items.forEach(item => {
       const key = `${item.menuItem.id}-${item.comment || ''}`;
       const existing = consolidatedItems.get(key);
       if (existing) {
         existing.quantity += item.quantity;
       } else {
-        consolidatedItems.set(key, { ...item });
+        consolidatedItems.set(key, {
+          menuItem: item.menuItem,
+          quantity: item.quantity,
+          comment: item.comment || null,
+        });
       }
     });
-
+  
     const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
-        order_id: updatedOrder.id,
-        menu_item_id: item.menuItem.id,
-        quantity: item.quantity,
-        comment: item.comment || null,
+      order_id: updatedOrder.id,
+      menu_item_id: item.menuItem.id,
+      quantity: item.quantity,
+      comment: item.comment,
     }));
-
-
+  
+    // 3. Delete all existing items for this order
+    const { error: deleteError } = await supabase
+      .from('order_items')
+      .delete()
+      .eq('order_id', updatedOrder.id);
+  
+    // 4. Insert the new, consolidated items
     let itemsError = null;
     if (itemsToInsert.length > 0) {
       const { error } = await supabase.from('order_items').insert(itemsToInsert);
       itemsError = error;
     }
   
+    // 5. Error handling and state rollback if necessary
     if (orderError || deleteError || itemsError) {
       console.error("Error updating order:", orderError || deleteError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
@@ -140,15 +146,9 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
       }
     } else {
-      if (shouldUpdateCreatedAt) {
-        // Manually update the local state to reflect the new created_at time
-        const finalUpdatedOrders = orders.map(o => 
-            o.id === updatedOrder.id 
-            ? { ...updatedOrder, created_at: updatedOrder.created_at, createdAt: updatedOrder.created_at }
-            : o
-        );
-        setOrders(finalUpdatedOrders);
-      }
+      // If everything was successful, we might need to re-fetch to get the most accurate state
+      // or manually update the local state carefully. For now, a re-fetch is safer.
+      fetchData();
     }
   };
   
@@ -421,7 +421,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
 
     

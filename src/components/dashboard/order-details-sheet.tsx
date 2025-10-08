@@ -117,57 +117,48 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
-    // Find the first occurrence of the item to get its ID, as grouped items have a composite ID.
     const itemIndex = updatedItems.findIndex(i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment);
   
     if (itemIndex === -1) return;
-  
-    const originalItem = updatedItems[itemIndex];
-    const newQuantity = originalItem.quantity + delta;
-  
-    if (newQuantity <= 0) {
-      // Remove all items with the same menu item ID and comment
-      const filteredItems = updatedItems.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
-      onUpdateOrder({ ...order, items: filteredItems });
-    } else {
-      // If quantity is increasing, we just add a new item instance.
-      // If quantity is decreasing, we need a more complex logic, but for now, let's simplify.
-      // The backend consolidation will handle summing them up.
-      // For decreasing, we'll just remove one instance.
-      if (delta < 0) {
-          updatedItems.splice(itemIndex, 1);
-      } else {
-          updatedItems.push({ ...originalItem, quantity: delta });
-      }
-      
-      const newUpdatedItems = updatedItems.map((item, idx) => ({ ...item, id: `item-${idx}` }));
-      onUpdateOrder({ ...order, items: newUpdatedItems });
+    
+    // Find one instance of the item to modify or remove
+    const firstInstanceIndex = updatedItems.findIndex(i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment);
+
+    if (delta > 0) {
+        // Add a new instance of the item for the delta
+        const newItem: OrderItem = {
+            id: `new-${Date.now()}-${Math.random()}`,
+            menuItem: itemToUpdate.menuItem,
+            quantity: delta,
+            comment: itemToUpdate.comment,
+        };
+        updatedItems.push(newItem);
+    } else if (delta < 0 && firstInstanceIndex !== -1) {
+        // Decrease quantity or remove
+        const itemToRemoveOrUpdate = updatedItems[firstInstanceIndex];
+        if (itemToRemoveOrUpdate.quantity > -delta) {
+            itemToRemoveOrUpdate.quantity += delta; // delta is negative
+        } else {
+            updatedItems.splice(firstInstanceIndex, 1);
+        }
+    } else if (delta === 0) { // Special case to remove all
+        const filteredItems = updatedItems.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
+        onUpdateOrder({ ...order, items: filteredItems });
+        return;
     }
+
+    onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const addItemToOrder = (menuItem: MenuItem) => {
-      const updatedItems = [...order.items];
-      
-      // Check if an item without a comment already exists.
-      const existingItemIndex = updatedItems.findIndex(
-        (item) => item.menuItem.id === menuItem.id && !item.comment
-      );
-
-      if(existingItemIndex !== -1) {
-          // Instead of creating a new item, just increase the quantity of the existing one.
-          updatedItems[existingItemIndex].quantity += 1;
-      } else {
-          // If no such item exists, create a new one.
-          const newItem: OrderItem = {
-              id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
-              menuItem,
-              quantity: 1,
-              comment: '',
-          };
-          updatedItems.push(newItem);
-      }
-  
-      onUpdateOrder({ ...order, items: updatedItems });
+    const newItem: OrderItem = {
+        id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
+        menuItem,
+        quantity: 1,
+        comment: '',
+    };
+    const updatedItems = [...order.items, newItem];
+    onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const handleEditComment = (item: OrderItem) => {
@@ -320,7 +311,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                             )}
                         </div>
                           <div className="flex items-center gap-2">
-                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -item.quantity)}>
+                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
@@ -451,7 +442,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
 
     
