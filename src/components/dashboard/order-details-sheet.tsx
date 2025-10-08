@@ -114,12 +114,12 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
 
-    if (delta > 0) { // Add a new instance of the item with a blank comment
+    if (delta > 0) { // Add a new instance of the item with the same comment
       const newItem: OrderItem = {
         id: `new-${Date.now()}-${Math.random()}`,
         menuItem: itemGroup.menuItem,
         quantity: 1,
-        comment: '',
+        comment: itemGroup.comment,
       };
       updatedItems.push(newItem);
     } else { // Remove one unit of the specified item group
@@ -142,27 +142,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const comment = ''; // Always add with blank comment
     const updatedItems = [...order.items];
 
-    // Instead of always adding, find an existing item with the same ID and blank comment
-    const existingItemIndex = updatedItems.findLastIndex(
-        i => i.menuItem.id === menuItem.id && i.comment === comment
-    );
-
-    if (existingItemIndex !== -1) {
-        // If found, increment its quantity
-        updatedItems[existingItemIndex] = {
-            ...updatedItems[existingItemIndex],
-            quantity: updatedItems[existingItemIndex].quantity + 1,
-        };
-    } else {
-        // If not found, add as a new item
-        const newItem: OrderItem = {
-            id: `new-${Date.now()}-${Math.random()}`,
-            menuItem,
-            quantity: 1,
-            comment,
-        };
-        updatedItems.push(newItem);
-    }
+    const newItem: OrderItem = {
+        id: `new-${Date.now()}-${Math.random()}`,
+        menuItem,
+        quantity: 1,
+        comment,
+    };
+    updatedItems.push(newItem);
+    
     onUpdateOrder({ ...order, items: updatedItems });
 };
   
@@ -176,24 +163,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-
-    let alreadyExists = false;
-    const updatedItems = order.items.map(item => {
-      // Check if another item with the same product and new comment already exists
-      if (item.id !== editingItem.id && item.menuItem.id === editingItem.menuItem.id && item.comment === newComment) {
-        alreadyExists = true;
-      }
-      return item;
-    });
-
-    if (alreadyExists) {
-        toast({
-            variant: "destructive",
-            title: "Observação já existe",
-            description: "Um item com essa observação já foi adicionado. Aumente a quantidade do item existente.",
-        });
-        return;
-    }
   
     const finalItems = order.items.map(item => {
       // Use the temporary ID to find the specific item instance to update

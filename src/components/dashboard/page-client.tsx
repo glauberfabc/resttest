@@ -97,7 +97,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
 
     for (const item of updatedOrder.items) {
-      // Create a key from menu item ID and comment to group identical items
       const key = `${item.menuItem.id}-${item.comment || ''}`;
       const existing = consolidatedItems.get(key);
 
