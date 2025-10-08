@@ -84,11 +84,11 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .eq('order_id', updatedOrder.id);
 
     // 3. Insert all current items as new
-    const itemsToInsert = updatedOrder.items.map(({ menuItem, quantity, comment }) => ({
-        order_id: updatedOrder.id,
-        menu_item_id: menuItem.id,
-        quantity,
-        comment: comment || null,
+    const itemsToInsert = updatedOrder.items.map(item => ({
+      order_id: updatedOrder.id,
+      menu_item_id: item.menuItem.id,
+      quantity: item.quantity,
+      comment: item.comment || null,
     }));
 
     let itemsError = null;
@@ -267,3 +267,5 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
+
+    
