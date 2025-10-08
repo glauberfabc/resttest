@@ -28,19 +28,39 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
 
-  useEffect(() => {
-    const fetchData = async () => {
-        const [ordersData, menuItemsData, clientsData] = await Promise.all([
-            getOrders(),
-            getMenuItems(),
-            getClients()
-        ]);
-        setOrders(ordersData);
-        setMenuItems(menuItemsData);
-        setClients(clientsData);
-    };
+  const fetchData = async () => {
+    const [ordersData, menuItemsData, clientsData] = await Promise.all([
+      getOrders(),
+      getMenuItems(),
+      getClients()
+    ]);
+    setOrders(ordersData);
+    setMenuItems(menuItemsData);
+    setClients(clientsData);
+  };
 
+  useEffect(() => {
     fetchData();
+
+    const channel = supabase
+      .channel('orders-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, payload => {
+        console.log('Change received for orders!', payload);
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, payload => {
+        console.log('Change received for order_items!', payload);
+        fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema:.public', table: 'order_payments' }, payload => {
+        console.log('Change received for order_payments!', payload);
+        fetchData();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const handleSelectOrder = (order: Order) => {
