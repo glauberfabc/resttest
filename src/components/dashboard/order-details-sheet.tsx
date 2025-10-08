@@ -60,14 +60,13 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   useEffect(() => {
     // This effect calculates which items are new and need to be printed.
     const currentItemsMap = new Map<string, OrderItem>();
-    order.items.forEach((item, index) => {
-        // Use a consistent key based on item properties, not a temporary ID
+    order.items.forEach(item => {
         const key = `${item.menuItem.id}-${item.comment || ''}`;
         const existing = currentItemsMap.get(key);
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            currentItemsMap.set(key, { ...item, id: key });
+            currentItemsMap.set(key, { ...item, id: key, quantity: 1 });
         }
     });
 
@@ -78,7 +77,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            printedItemsMap.set(key, { ...item });
+            printedItemsMap.set(key, { ...item, quantity: 1 });
         }
     });
     
@@ -98,7 +97,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   }, [order.items, printedKitchenItems]);
 
 
-  const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+  const total = order.items.reduce((acc, item) => acc + item.menuItem.price, 0);
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
@@ -109,10 +108,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const key = `${item.menuItem.id}-${item.comment || ''}`;
     const existing = map.get(key);
     if (existing) {
-      existing.quantity += item.quantity;
+      existing.quantity += 1;
     } else {
       // Create a new entry in the map with a unique ID for React's key prop.
-      map.set(key, { ...item, id: key });
+      map.set(key, { ...item, id: key, quantity: 1 });
     }
     return map;
   }, new Map<string, OrderItem & { id: string }>()).values());
@@ -120,8 +119,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     if (delta > 0) {
-      // Add a new instance of the item to the order. This allows for different comments.
-      addItemToOrder(itemGroup.menuItem, itemGroup.comment);
+      // Add a new instance of the item with a blank comment
+      addItemToOrder(itemGroup.menuItem, '');
     } else {
       // Find the first matching item instance in the original array to remove.
       const itemIndex = order.items.findIndex(i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment);
@@ -137,40 +136,39 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const newItem: OrderItem = {
       id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID for React keys
       menuItem,
-      quantity: 1,
+      quantity: 1, // Always add as 1, grouping will handle totals
       comment,
     };
     onUpdateOrder({ ...order, items: [...order.items, newItem] });
   };
   
   const handleEditComment = (item: OrderItem) => {
-    // `item` here is from the `groupedItems`, which has the unique `id` we need.
     setEditingItem(item);
     setIsCommentDialogOpen(true);
   };
   
-  const handleSaveComment = (newComment: string) => {
+ const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
 
-    // Find the first item in the original `order.items` array that matches the grouped item being edited
-    // (i.e., same menu item ID and original comment). This ensures we only change one item instance,
-    // which is what the user expects when they click to edit.
+    // Find the specific item instance in the original array that corresponds to the one clicked.
+    // The `id` on editingItem is the temporary grouped ID, so we find the first match of menu item and old comment.
     const itemToUpdateIndex = order.items.findIndex(
-      (item) => item.menuItem.id === editingItem.menuItem.id && item.comment === editingItem.comment
+        (item) => item.menuItem.id === editingItem.menuItem.id && item.comment === editingItem.comment
     );
 
     if (itemToUpdateIndex > -1) {
-      const updatedItems = [...order.items];
-      // Create a new item object with the updated comment
-      const updatedItem = { ...updatedItems[itemToUpdateIndex], comment: newComment };
-      // Replace the old item with the updated one in the array
-      updatedItems[itemToUpdateIndex] = updatedItem;
-      
-      onUpdateOrder({ ...order, items: updatedItems });
+        const updatedItems = [...order.items];
+        // Create a new item object with the updated comment
+        const updatedItem = { ...updatedItems[itemToUpdateIndex], comment: newComment };
+        // Replace the old item with the updated one in the array
+        updatedItems[itemToUpdateIndex] = updatedItem;
+        
+        onUpdateOrder({ ...order, items: updatedItems });
     }
 
     setEditingItem(null);
-  };
+};
+
 
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
@@ -274,10 +272,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {order.items.length > 0 ? (
+                {groupedItems.length > 0 ? (
                   <div className="pr-4">
-                    {order.items.map((item, index) => (
-                      <div key={`${item.id}-${index}-${Math.random()}`} className="flex items-center gap-4 py-3">
+                    {groupedItems.map((item) => (
+                      <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -288,7 +286,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         />
                         <div className="flex-1">
                           <p className="font-semibold">{item.menuItem.name}</p>
-                           <p className="text-sm text-muted-foreground">R$ {item.menuItem.price.toFixed(2).replace('.', ',')}</p>
+                           <p className="text-sm text-muted-foreground">R$ {(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}</p>
                            {item.comment ? (
                               <p className="text-sm text-primary font-medium flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
                                 <MessageSquareText className="w-3 h-3" />
@@ -303,7 +301,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         </div>
                           <div className="flex items-center gap-2">
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
-                              {order.items.filter(i => i.menuItem.id === item.menuItem.id && i.comment === item.comment).length === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
+                              {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
@@ -425,3 +423,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    

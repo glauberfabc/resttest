@@ -20,7 +20,7 @@ export interface OrderItem {
   id?: string; // Unique identifier for the item within the order
   menuItem: MenuItem;
   quantity: number;
-  comment?: string;
+  comment: string;
 }
 
 export interface Payment {
@@ -54,3 +54,4 @@ export interface Client {
   user_id: string;
 }
 
+    

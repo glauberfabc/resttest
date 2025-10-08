@@ -83,26 +83,26 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .delete()
       .eq('order_id', updatedOrder.id);
 
-    // 3. Consolidate and insert all current items as new
-    const consolidatedItems = new Map<string, Omit<OrderItem, 'id'>>();
+    // 3. Consolidate and prepare all current items for re-insertion
+    const consolidatedItems = new Map<string, { menuItemId: string, quantity: number, comment: string | null }>();
     for (const item of updatedOrder.items) {
       const key = `${item.menuItem.id}-${item.comment || ''}`;
       if (consolidatedItems.has(key)) {
-        consolidatedItems.get(key)!.quantity += item.quantity;
+        consolidatedItems.get(key)!.quantity += 1;
       } else {
         consolidatedItems.set(key, {
-          menuItem: item.menuItem,
-          quantity: item.quantity,
-          comment: item.comment,
+          menuItemId: item.menuItem.id,
+          quantity: 1,
+          comment: item.comment || null,
         });
       }
     }
     
     const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
       order_id: updatedOrder.id,
-      menu_item_id: item.menuItem.id,
+      menu_item_id: item.menuItemId,
       quantity: item.quantity,
-      comment: item.comment || null,
+      comment: item.comment,
     }));
 
     let itemsError = null;
@@ -186,7 +186,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       payments: [...(orderToPay.payments || []), newPayment] as any, //TODO: fix types
     };
 
-    const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+    const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price, 0);
     const totalPaid = updatedOrder.payments.reduce((acc, p) => acc + p.amount, 0);
     
     const isFullyPaid = totalPaid >= orderTotal - 0.001;
