@@ -143,10 +143,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {menuItems.map((item) => {
-              const canEdit = user?.role === 'admin' || user?.id === item.user_id;
-
-              return (
+            {menuItems.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
                   <Image
@@ -167,7 +164,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0" disabled={!canEdit}>
+                      <Button variant="ghost" className="h-8 w-8 p-0" disabled={!user}>
                         <span className="sr-only">Abrir menu</span>
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
@@ -185,7 +182,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            )})}
+            ))}
           </TableBody>
         </Table>
       </div>

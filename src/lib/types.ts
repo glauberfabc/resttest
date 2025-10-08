@@ -13,7 +13,7 @@ export interface MenuItem {
   stock?: number;
   lowStockThreshold?: number;
   unit?: string;
-  user_id: string;
+  user_id?: string;
 }
 
 export interface OrderItem {
