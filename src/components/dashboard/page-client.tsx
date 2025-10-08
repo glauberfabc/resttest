@@ -71,19 +71,32 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
+    const originalOrder = originalOrders.find(o => o.id === updatedOrder.id);
+    
     // Optimistically update the local state
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
+    
+    const wasInNotebook = originalOrder && new Date(originalOrder.created_at) < startOfToday();
+    const originalTotalQuantity = originalOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+    const updatedTotalQuantity = updatedOrder.items.reduce((sum, item) => sum + item.quantity, 0);
+    const itemWasAdded = updatedTotalQuantity > originalTotalQuantity;
+
+    let shouldUpdateCreatedAt = wasInNotebook && itemWasAdded;
+    if (shouldUpdateCreatedAt) {
+      updatedOrder.created_at = new Date().toISOString();
+    }
   
-    // 1. Update order status and paid_at timestamp
+    // 1. Update order status, paid_at, and potentially created_at timestamp
     const { error: orderError } = await supabase
       .from('orders')
       .update({
         status: updatedOrder.status,
         paid_at: updatedOrder.paidAt,
+        created_at: shouldUpdateCreatedAt ? updatedOrder.created_at : originalOrder?.created_at,
       })
       .eq('id', updatedOrder.id);
   
@@ -97,7 +110,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const consolidatedItems = new Map<string, { menuItemId: string, quantity: number, comment: string | null }>();
     
     updatedOrder.items.forEach(item => {
-        // Use a composite key of item ID and comment to correctly group items
         const key = `${item.menuItem.id}-${item.comment || ''}`;
         const existing = consolidatedItems.get(key);
 
@@ -131,6 +143,16 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setOrders(originalOrders); // Revert local state on error
       if (selectedOrder?.id === updatedOrder.id) {
         setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
+      }
+    } else {
+      if (shouldUpdateCreatedAt) {
+        // Manually update the local state to reflect the new created_at time
+        const finalUpdatedOrders = orders.map(o => 
+            o.id === updatedOrder.id 
+            ? { ...updatedOrder, created_at: updatedOrder.created_at, createdAt: updatedOrder.created_at }
+            : o
+        );
+        setOrders(finalUpdatedOrders);
       }
     }
   };
