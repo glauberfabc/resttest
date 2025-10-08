@@ -55,7 +55,6 @@ export async function getOrders(): Promise<Order[]> {
             *,
             items:order_items (
                 quantity,
-                comment,
                 menu_item:menu_items (
                     *
                 )
@@ -74,7 +73,7 @@ export async function getOrders(): Promise<Order[]> {
         ...order,
         items: order.items.map((item: any) => ({
             quantity: item.quantity,
-            comment: item.comment || '',
+            comment: '', // Always return an empty comment as it's not in the DB
             menuItem: {
                 ...item.menu_item,
                 imageUrl: item.menu_item.image_url,
