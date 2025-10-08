@@ -115,7 +115,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       map.set(key, { ...item, id: key });
     }
     return map;
-  }, new Map<string, OrderItem>()).values());
+  }, new Map<string, OrderItem & { id: string }>()).values());
 
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
@@ -151,28 +151,26 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     setIsCommentDialogOpen(true);
   };
   
-  const handleSaveComment = (comment: string) => {
+  const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-    
-    // Create a new array to hold the updated items.
-    const updatedItems: OrderItem[] = [];
-    let updated = false;
 
-    // Go through all original items.
-    order.items.forEach(item => {
-      // Check if the current item matches the one we were editing (same product, same original comment).
-      const itemKey = `${item.menuItem.id}-${item.comment || ''}`;
-      if (itemKey === editingItem.id && !updated) {
-        // This is the first item that matches. Change its comment.
-        updatedItems.push({ ...item, comment });
-        updated = true; // Mark as updated so we only change one.
-      } else {
-        // This item is not the one we're editing, so push it as is.
-        updatedItems.push(item);
-      }
-    });
+    // Find the first item in the original `order.items` array that matches the grouped item being edited
+    // (i.e., same menu item ID and original comment). This ensures we only change one item instance,
+    // which is what the user expects when they click to edit.
+    const itemToUpdateIndex = order.items.findIndex(
+      (item) => item.menuItem.id === editingItem.menuItem.id && item.comment === editingItem.comment
+    );
 
-    onUpdateOrder({ ...order, items: updatedItems });
+    if (itemToUpdateIndex > -1) {
+      const updatedItems = [...order.items];
+      // Create a new item object with the updated comment
+      const updatedItem = { ...updatedItems[itemToUpdateIndex], comment: newComment };
+      // Replace the old item with the updated one in the array
+      updatedItems[itemToUpdateIndex] = updatedItem;
+      
+      onUpdateOrder({ ...order, items: updatedItems });
+    }
+
     setEditingItem(null);
   };
 
@@ -429,5 +427,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
