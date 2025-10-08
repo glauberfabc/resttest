@@ -17,7 +17,7 @@ export interface MenuItem {
 }
 
 export interface OrderItem {
-  id?: string; // Unique identifier for the item within the order
+  id: string;
   menuItem: MenuItem;
   quantity: number;
   comment: string;
@@ -37,13 +37,13 @@ export interface Order {
   identifier: string | number;
   items: OrderItem[];
   status: 'open' | 'paying' | 'paid';
-  created_at: string;
-  paid_at?: string;
+  created_at: Date;
+  paid_at?: Date;
   payments?: Payment[];
   user_id: string;
   // Compatibility with frontend components that might use camelCase
-  createdAt?: string;
-  paidAt?: string;
+  createdAt?: Date;
+  paidAt?: Date;
 }
 
 export interface Client {

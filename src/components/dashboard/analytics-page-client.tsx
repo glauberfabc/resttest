@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import type { Order, MenuItem } from "@/lib/types";
-import { addDays, format, startOfDay, endOfDay, eachDayOfInterval, parseISO } from "date-fns";
+import { addDays, format, startOfDay, endOfDay, eachDayOfInterval } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
   Card,
@@ -84,7 +84,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
         const paidAt = o.paidAt || o.paid_at;
         if (!paidAt) return false;
 
-        const paidDate = parseISO(paidAt);
+        const paidDate = paidAt; // It's already a Date object
         const fromDate = date?.from ? startOfDay(date.from) : null;
         const toDate = date?.to ? endOfDay(date.to) : null;
 
@@ -120,7 +120,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
     paidOrdersInDateRange.forEach(order => {
         const paidAt = order.paidAt || order.paid_at;
         if (paidAt) {
-            const orderDateStr = format(parseISO(paidAt), 'dd/MM');
+            const orderDateStr = format(paidAt, 'dd/MM');
             const dayData = dailySales.find(d => d.date === orderDateStr);
             if (dayData) {
                 const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);

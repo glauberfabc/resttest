@@ -34,7 +34,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
         return [];
     }
     // TODO: This is a temporary hack to match frontend expectations. We should align data sources.
-    return data.map(item => ({ ...item, code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+    return data.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -55,6 +55,7 @@ export async function getOrders(): Promise<Order[]> {
         .select(`
             *,
             items:order_items (
+                id,
                 quantity,
                 comment,
                 menu_item_id,
@@ -74,18 +75,23 @@ export async function getOrders(): Promise<Order[]> {
     // Remap data to match frontend type expectations
     return data.map(order => ({
         ...order,
-        items: order.items.map((item: any, index: number) => ({
-            id: `${order.id}-item-${item.menu_item_id}-${index}`, // Generate a stable unique ID for the frontend
+        items: order.items.map((item: any) => ({
+            id: item.id, 
             quantity: item.quantity,
             comment: item.comment || '',
             menuItem: {
                 ...item.menu_item,
+                id: item.menu_item.id || crypto.randomUUID(),
                 imageUrl: item.menu_item.image_url,
                 lowStockThreshold: item.menu_item.low_stock_threshold,
             }
         })),
-        createdAt: order.created_at,
-        paidAt: order.paid_at
+        created_at: new Date(order.created_at), // Convert string to Date object
+        paid_at: order.paid_at ? new Date(order.paid_at) : undefined, // Convert string to Date object
+        // Compatibility props
+        createdAt: new Date(order.created_at),
+        paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
     })) as unknown as Order[];
 }
+
 

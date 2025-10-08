@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import type { Order, MenuItem, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -103,88 +103,66 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
   
-  // Consolidate items for display only
-  const groupedItemsForDisplay = Array.from(order.items.reduce((map, item) => {
-    const key = `${item.menuItem.id}-${item.comment || ''}`;
-    const existing = map.get(key);
-    if (existing) {
-      existing.quantity += item.quantity;
-    } else {
-      map.set(key, { ...item, id: item.id || key, quantity: item.quantity });
-    }
-    return map;
-  }, new Map<string, OrderItem>()).values());
+  const groupedItemsForDisplay = useMemo(() => {
+    const map = new Map<string, OrderItem>();
+    order.items.forEach(item => {
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
+      const existing = map.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        map.set(key, { ...item, id: item.id || key });
+      }
+    });
+    return Array.from(map.values());
+  }, [order.items]);
 
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
-    let updatedItems = [...order.items];
+    const updatedItems = [...order.items];
+    const itemIndex = updatedItems.findIndex(i => i.id === itemToUpdate.id);
   
-    if (delta > 0) {
-      // Add new item instance
-      const newItem: OrderItem = {
-        id: `new-${Date.now()}-${Math.random()}`,
-        menuItem: itemToUpdate.menuItem,
-        quantity: delta,
-        comment: itemToUpdate.comment,
-      };
-      updatedItems.push(newItem);
-    } else if (delta < 0) {
-      // Decrease quantity or remove
-      let quantityToRemove = -delta;
-      updatedItems = updatedItems
-        .map(i => ({ ...i })) // Create shallow copies to avoid direct mutation
-        .reverse(); // Start from the end to remove most recent additions first
-
-      for (const item of updatedItems) {
-        if (item.menuItem.id === itemToUpdate.menuItem.id && item.comment === itemToUpdate.comment) {
-          if (item.quantity > quantityToRemove) {
-            item.quantity -= quantityToRemove;
-            quantityToRemove = 0;
-          } else {
-            quantityToRemove -= item.quantity;
-            item.quantity = 0;
-          }
-        }
-        if (quantityToRemove === 0) break;
-      }
-      updatedItems = updatedItems.filter(i => i.quantity > 0).reverse();
-
-    } else if (delta === 0) { // Special case to remove all
-      updatedItems = updatedItems.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
+    if (itemIndex === -1) return; // Should not happen
+  
+    if (delta === 0) { // Remove all with same menu item id and comment
+      const newItems = order.items.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
+       onUpdateOrder({ ...order, items: newItems });
+       return;
     }
   
+    const currentItem = updatedItems[itemIndex];
+    const newQuantity = currentItem.quantity + delta;
+  
+    if (newQuantity > 0) {
+      updatedItems[itemIndex] = { ...currentItem, quantity: newQuantity };
+    } else {
+      updatedItems.splice(itemIndex, 1);
+    }
     onUpdateOrder({ ...order, items: updatedItems });
   };
   
-  const addItemToOrder = (menuItem: MenuItem) => {
-    // Check if an item without a comment already exists.
-    const existingItemIndex = order.items.findIndex(
+  const addItemToOrder = useCallback((menuItem: MenuItem) => {
+    const existingItem = order.items.find(
       (item) => item.menuItem.id === menuItem.id && (item.comment === '' || item.comment === null)
     );
   
     let updatedItems;
   
-    if (existingItemIndex > -1) {
-      // If it exists, create a new array with the updated quantity.
-      updatedItems = order.items.map((item, index) => {
-        if (index === existingItemIndex) {
-          return { ...item, quantity: item.quantity + 1 };
-        }
-        return item;
-      });
+    if (existingItem) {
+      updatedItems = order.items.map((item) =>
+        item.id === existingItem.id ? { ...item, quantity: item.quantity + 1 } : item
+      );
     } else {
-      // If it doesn't exist, add it as a new item.
       const newItem: OrderItem = {
-        id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
+        id: crypto.randomUUID(), // Use crypto for unique ID
         menuItem,
         quantity: 1,
         comment: '',
       };
       updatedItems = [...order.items, newItem];
     }
-  
     onUpdateOrder({ ...order, items: updatedItems });
-  };
+  },[order, onUpdateOrder]);
   
   const handleEditComment = (item: OrderItem) => {
     setEditingItem(item);
@@ -194,34 +172,30 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
 
-    // Find one instance of the item to update. This is tricky because items are not unique.
-    // We'll create a new item with the comment and remove one of the old ones.
-    const oldItemIndex = order.items.findIndex(i => i.menuItem.id === editingItem.menuItem.id && i.comment === editingItem.comment);
+    const keyToUpdate = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
 
-    if (oldItemIndex === -1) return;
+    const itemsToKeep: OrderItem[] = [];
+    const itemsToMerge: OrderItem[] = [];
 
-    const updatedItems = [...order.items];
-    const itemToUpdate = { ...updatedItems[oldItemIndex] };
+    order.items.forEach(item => {
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        if (key === keyToUpdate) {
+            itemsToMerge.push(item);
+        } else {
+            itemsToKeep.push(item);
+        }
+    });
 
-    // Create new item if comment is different, otherwise just update the first found instance.
+    const totalQuantity = itemsToMerge.reduce((sum, item) => sum + item.quantity, 0);
+
     const newItem: OrderItem = {
-        id: `new-${Date.now()}-${Math.random()}`,
+        id: crypto.randomUUID(),
         menuItem: editingItem.menuItem,
-        quantity: 1, // Assume we are splitting one item
+        quantity: totalQuantity,
         comment: newComment
     };
-
-    if (itemToUpdate.quantity > 1) {
-        itemToUpdate.quantity -= 1;
-        updatedItems.splice(oldItemIndex, 1, itemToUpdate); // update the old item
-        updatedItems.push(newItem); // add the new one
-    } else {
-        // Just change the comment of the single item
-        itemToUpdate.comment = newComment;
-        updatedItems.splice(oldItemIndex, 1, itemToUpdate);
-    }
   
-    onUpdateOrder({ ...order, items: updatedItems });
+    onUpdateOrder({ ...order, items: [...itemsToKeep, newItem] });
     setEditingItem(null);
   };
 
@@ -356,11 +330,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)} disabled={item.quantity <= 1}>
                               <Minus className="h-4 w-4" />
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>

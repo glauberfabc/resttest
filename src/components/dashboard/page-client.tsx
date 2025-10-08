@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import type { Order, MenuItem, Client } from "@/lib/types";
+import type { Order, MenuItem, Client, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
@@ -57,39 +57,19 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   useEffect(() => {
     const handleRealtimeUpdate = (payload: any) => {
-      const { eventType, new: newRecord, old: oldRecord, table } = payload;
-      
-      setOrders(currentOrders => {
-        let updatedOrders = [...currentOrders];
-
-        // This is a simple but effective way to handle updates.
-        // For a more complex app, you might want more granular updates.
-        if (table.startsWith('order')) {
-            fetchData();
-            
-            // If the currently selected order is the one that changed, update it.
-            if (selectedOrder && (newRecord?.id === selectedOrder.id || oldRecord?.id === selectedOrder.id)) {
-                 getOrders().then(allOrders => {
-                    const freshlyFetchedOrder = allOrders.find(o => o.id === selectedOrder.id);
-                    if (freshlyFetchedOrder) {
-                        setSelectedOrder(freshlyFetchedOrder);
-                    } else {
-                        // The order was deleted
-                        setSelectedOrder(null);
-                    }
-                 });
-            }
-
-        } else if (table === 'clients') {
-             getClients().then(setClients);
-        } else if (table === 'menu_items') {
-             getMenuItems().then(setMenuItems);
-        }
-
-        return updatedOrders;
-      });
+      fetchData();
+      if (selectedOrder && payload.table === 'orders' && payload.new.id === selectedOrder.id) {
+        getOrders().then(allOrders => {
+          const freshlyFetchedOrder = allOrders.find(o => o.id === selectedOrder.id);
+          if (freshlyFetchedOrder) {
+              setSelectedOrder(freshlyFetchedOrder);
+          } else {
+              setSelectedOrder(null);
+          }
+        });
+      }
     };
-
+  
     const channel = supabase
       .channel('public-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, handleRealtimeUpdate)
@@ -101,7 +81,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           console.error('Erro no canal de tempo real:', err);
         }
       });
-
+  
     return () => {
       supabase.removeChannel(channel);
     };
@@ -123,7 +103,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setSelectedOrder(updatedOrder);
     }
   
-    const wasInNotebook = originalOrder && new Date(originalOrder.created_at) < startOfToday();
+    const wasInNotebook = originalOrder && originalOrder.created_at < startOfToday();
     const originalTotalQuantity = originalOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
     const updatedTotalQuantity = updatedOrder.items.reduce((sum, item) => sum + item.quantity, 0);
     const itemWasAddedOrQuantityIncreased = updatedTotalQuantity > originalTotalQuantity;
@@ -134,7 +114,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     };
   
     if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
-      finalOrderDataForUpdate.created_at = new Date().toISOString();
+      finalOrderDataForUpdate.created_at = new Date();
     }
   
     const { error: orderError } = await supabase
@@ -246,8 +226,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         return;
     }
 
-    const newPayment = { ...paymentData, paidAt: paymentData.paid_at };
-    let updatedOrder = {
+    const newPayment = { ...paymentData, paid_at: paymentData.paid_at };
+    let updatedOrder: Order = {
       ...orderToPay,
       payments: [...(orderToPay.payments || []), newPayment] as any,
     };
@@ -261,7 +241,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       updatedOrder = {
         ...updatedOrder,
         status: 'paid',
-        paidAt: new Date().toISOString(),
+        paid_at: new Date(),
+        paidAt: new Date(),
       };
     } else {
         updatedOrder = {
@@ -272,9 +253,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     
     await handleUpdateOrder(updatedOrder); 
     
-    // Realtime will handle the update, but we can optimistically update the selected order
     if (isFullyPaid) {
-      setSelectedOrder(updatedOrder); 
+      setSelectedOrder(null); 
     } else {
       setSelectedOrder(updatedOrder);
     }
@@ -313,8 +293,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   const todayStart = startOfToday();
 
   const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
-  const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
-  const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart && o.items.length > 0);
+  const openOrdersToday = openOrders.filter(o => o.created_at >= todayStart);
+  const notebookOrders = openOrders.filter(o => o.created_at < todayStart && o.items.length > 0);
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
 
   const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
