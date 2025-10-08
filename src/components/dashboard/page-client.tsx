@@ -1,18 +1,21 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
-import type { Order, MenuItem, Client, OrderItem } from "@/lib/types";
+import { useState, useEffect, useMemo } from "react";
+import type { Order, MenuItem, Client } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
 import { supabase, getOrders, getMenuItems, getClients } from "@/lib/supabase";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday } from 'date-fns';
+
+const ITEMS_PER_PAGE = 20;
 
 interface DashboardPageClientProps {
   initialOrders: Order[];
@@ -28,6 +31,13 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [pagination, setPagination] = useState({
+    abertas: { currentPage: 1 },
+    caderneta: { currentPage: 1 },
+    fechadas: { currentPage: 1 },
+  });
 
   const fetchData = async () => {
     const [ordersData, menuItemsData, clientsData] = await Promise.all([
@@ -46,7 +56,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const channel = supabase
       .channel('realtime-all')
       .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
-        console.log('Change received!', payload);
         fetchData();
       })
       .subscribe();
@@ -83,17 +92,17 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
     for (const item of updatedOrder.items) {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      const existing = consolidatedItems.get(key);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        consolidatedItems.set(key, {
-          menuItemId: item.menuItem.id,
-          quantity: item.quantity,
-          comment: item.comment || null,
-        });
-      }
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        const existing = consolidatedItems.get(key);
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            consolidatedItems.set(key, {
+                menuItemId: item.menuItem.id,
+                quantity: item.quantity,
+                comment: item.comment || null,
+            });
+        }
     }
     
     const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
@@ -178,7 +187,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const newPayment = { ...paymentData, paidAt: paymentData.paid_at };
     let updatedOrder = {
       ...orderToPay,
-      payments: [...(orderToPay.payments || []), newPayment] as any, //TODO: fix types
+      payments: [...(orderToPay.payments || []), newPayment] as any,
     };
 
     const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
@@ -208,13 +217,84 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     }
   };
 
+  const filteredOrders = useMemo(() => {
+    if (!searchTerm) {
+      return orders;
+    }
+    return orders.filter(order =>
+      order.type === 'name' &&
+      String(order.identifier).toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [orders, searchTerm]);
+
 
   const todayStart = startOfToday();
 
-  const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
+  const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
   const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart);
-  const paidOrders = orders.filter(o => o.status === 'paid');
+  const paidOrders = filteredOrders.filter(o => o.status === 'paid');
+
+  const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
+    setPagination(prev => ({
+      ...prev,
+      [tab]: {
+        currentPage: direction === 'next'
+          ? prev[tab].currentPage + 1
+          : prev[tab].currentPage - 1,
+      },
+    }));
+  };
+
+  const renderPaginatedOrders = (orderList: Order[], tab: 'abertas' | 'caderneta' | 'fechadas') => {
+    const { currentPage } = pagination[tab];
+    const totalPages = Math.ceil(orderList.length / ITEMS_PER_PAGE);
+    const paginatedItems = orderList.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+    );
+
+    return (
+      <>
+        {paginatedItems.length > 0 ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {paginatedItems.map((order) => (
+              <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
+            <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda encontrada</h3>
+            <p className="text-sm text-muted-foreground">Tente um termo de busca diferente ou crie uma nova comanda.</p>
+          </div>
+        )}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-4 mt-6">
+            <Button
+              variant="outline"
+              onClick={() => handlePageChange(tab, 'prev')}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-2" />
+              Anterior
+            </Button>
+            <span className="text-sm font-medium">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              onClick={() => handlePageChange(tab, 'next')}
+              disabled={currentPage === totalPages}
+            >
+              Próximo
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        )}
+      </>
+    );
+  };
+
 
   return (
     <div className="flex flex-col gap-6">
@@ -226,6 +306,16 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         </Button>
       </div>
 
+      <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+              placeholder="Buscar comanda por nome..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+          />
+      </div>
+
       <Tabs defaultValue="abertas" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="abertas">Abertas ({openOrdersToday.length})</TabsTrigger>
@@ -233,46 +323,13 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           <TabsTrigger value="fechadas">Fechadas ({paidOrders.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="abertas" className="mt-4">
-           {openOrdersToday.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {openOrdersToday.map((order) => (
-                <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
-                <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda aberta hoje</h3>
-                <p className="text-sm text-muted-foreground">Crie uma nova comanda para começar.</p>
-            </div>
-          )}
+           {renderPaginatedOrders(openOrdersToday, 'abertas')}
         </TabsContent>
          <TabsContent value="caderneta" className="mt-4">
-           {notebookOrders.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {notebookOrders.map((order) => (
-                <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
-                <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda antiga aberta</h3>
-                <p className="text-sm text-muted-foreground">As comandas de dias anteriores aparecerão aqui.</p>
-            </div>
-          )}
+           {renderPaginatedOrders(notebookOrders, 'caderneta')}
         </TabsContent>
         <TabsContent value="fechadas" className="mt-4">
-            {paidOrders.length > 0 ? (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-                {paidOrders.map((order) => (
-                  <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
-                ))}
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
-                  <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda fechada</h3>
-                  <p className="text-sm text-muted-foreground">As comandas pagas aparecerão aqui.</p>
-              </div>
-            )}
+            {renderPaginatedOrders(paidOrders, 'fechadas')}
         </TabsContent>
       </Tabs>
 
@@ -296,5 +353,3 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
-
-    
