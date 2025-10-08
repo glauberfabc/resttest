@@ -55,6 +55,7 @@ export async function getOrders(): Promise<Order[]> {
             *,
             items:order_items (
                 quantity,
+                comment,
                 menu_item:menu_items (
                     *
                 )
@@ -84,3 +85,5 @@ export async function getOrders(): Promise<Order[]> {
         paidAt: order.paid_at
     })) as unknown as Order[];
 }
+
+    

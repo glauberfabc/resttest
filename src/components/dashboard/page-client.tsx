@@ -87,7 +87,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .eq('id', updatedOrder.id)
     
     // 3. Synchronize order items by deleting and re-inserting
-    // This is safer than upserting when dealing with composite keys or items that need to be distinguished by comments.
     
     // 3a. Delete all existing items for this order
     const { error: deleteError } = await supabase
@@ -95,12 +94,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         .delete()
         .eq('order_id', updatedOrder.id);
 
-    // 3b. Prepare the new items to be inserted
+    // 3b. Prepare the new items to be inserted, EXCLUDING the comment field for now
     const newOrderItems = updatedOrder.items.map(item => ({
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
         quantity: item.quantity,
-        comment: item.comment,
+        // comment: item.comment, // Temporarily removed until DB schema is updated
     }));
 
     // 3c. Insert the new state of items, but only if there are any
@@ -283,3 +282,5 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
+
+    
