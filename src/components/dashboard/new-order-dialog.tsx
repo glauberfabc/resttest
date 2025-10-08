@@ -58,14 +58,12 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   }, [isOpen]);
 
   const handleSelectClient = (clientName: string) => {
-    // This function is now the single source of truth for creating an order from the list.
     onCreateOrder('name', clientName);
   };
   
   const filteredClients = useMemo(() => {
     const lowercasedFilter = customerName.toLowerCase();
     if (!lowercasedFilter) {
-      // Don't show any clients if search is empty to keep UI clean
       return [];
     }
     return clients
@@ -77,7 +75,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
      e.preventDefault();
      if (activeTab === 'table' && tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10));
-    } else if (activeTab === 'name' && customerName) {
+    } else if (activeTab === 'name' && customerName && isNewCustomer) {
       // This handles creating a new customer or one that was typed manually
       onCreateOrder('name', customerName.toUpperCase(), phone);
     }
@@ -172,8 +170,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 )}
                 <DialogFooter className="mt-4">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button type="submit" disabled={!customerName}>
-                      {isNewCustomer ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
+                    <Button type="submit" disabled={!customerName || !isNewCustomer}>
+                      Criar Cliente e Abrir
                     </Button>
                 </DialogFooter>
             </form>
