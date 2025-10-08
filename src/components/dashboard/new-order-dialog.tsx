@@ -82,13 +82,14 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      // If it's a new customer, prevent form submission and focus on phone input
       if (isNewCustomer && customerName) {
         e.preventDefault();
-        setOpen(false); // Close the popover
-        setTimeout(() => phoneInputRef.current?.focus(), 0); // Use timeout to ensure element is focusable
+        setOpen(false);
+        setTimeout(() => phoneInputRef.current?.focus(), 50);
+      } else if (!isNewCustomer && customerName) {
+        e.preventDefault();
+        onCreateOrder('name', customerName);
       }
-      // Otherwise, the default form submission will handle it
     }
   };
 
