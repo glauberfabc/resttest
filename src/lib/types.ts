@@ -1,4 +1,5 @@
 
+
 export type MenuItemCategory = "Lanches" | "Porções" | "Bebidas" | "Sucos" | "Salgados" | "Pratos Quentes" | "Saladas" | "Destilados" | "Caipirinhas" | "Bebidas Quentes" | "Adicional" | "Água - Refrigerante" | "Cervejas";
 
 export interface MenuItem {
@@ -16,7 +17,7 @@ export interface MenuItem {
 }
 
 export interface OrderItem {
-  id: string; // Unique identifier for the item within the order
+  id?: string; // Unique identifier for the item within the order
   menuItem: MenuItem;
   quantity: number;
   comment?: string;
@@ -52,3 +53,4 @@ export interface Client {
   document?: string;
   user_id: string;
 }
+

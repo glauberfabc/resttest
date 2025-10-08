@@ -77,44 +77,28 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Get existing items from DB to compare
-    const { data: existingItems, error: fetchError } = await supabase
+    // 2. Delete all existing items for this order
+    const { error: deleteError } = await supabase
       .from('order_items')
-      .select('id')
+      .delete()
       .eq('order_id', updatedOrder.id);
 
-    if (fetchError) {
-       console.error("Error fetching existing items:", fetchError);
-       // Handle error, maybe revert
-       return;
-    }
-
-    const existingItemIds = existingItems.map(i => i.id);
-    const updatedItemIds = updatedOrder.items.map(i => i.id).filter(id => id);
-
-    // 3. Items to delete
-    const itemsToDelete = existingItemIds.filter(id => !updatedItemIds.includes(id));
-    if (itemsToDelete.length > 0) {
-      await supabase.from('order_items').delete().in('id', itemsToDelete);
-    }
-    
-    // 4. Items to upsert (insert or update)
-    const itemsToUpsert = updatedOrder.items.map(({ id, menuItem, quantity, comment }) => ({
-      id: id.startsWith('new-') ? undefined : id, // Let DB generate ID for new items
-      order_id: updatedOrder.id,
-      menu_item_id: menuItem.id,
-      quantity,
-      comment: comment || null,
+    // 3. Insert all current items as new
+    const itemsToInsert = updatedOrder.items.map(({ menuItem, quantity, comment }) => ({
+        order_id: updatedOrder.id,
+        menu_item_id: menuItem.id,
+        quantity,
+        comment: comment || null,
     }));
-  
+
     let itemsError = null;
-    if (itemsToUpsert.length > 0) {
-      const { error } = await supabase.from('order_items').upsert(itemsToUpsert);
+    if (itemsToInsert.length > 0) {
+      const { error } = await supabase.from('order_items').insert(itemsToInsert);
       itemsError = error;
     }
   
-    if (orderError || itemsError) {
-      console.error("Error updating order:", orderError || itemsError);
+    if (orderError || deleteError || itemsError) {
+      console.error("Error updating order:", orderError || deleteError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
       // Revert local state on error
       setOrders(originalOrders);

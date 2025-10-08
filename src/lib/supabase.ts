@@ -1,4 +1,5 @@
 
+
 import { createClient } from '@supabase/supabase-js'
 import type { Order, MenuItem, Client } from './types';
 
@@ -54,9 +55,9 @@ export async function getOrders(): Promise<Order[]> {
         .select(`
             *,
             items:order_items (
-                id,
                 quantity,
                 comment,
+                menu_item_id,
                 menu_item:menu_items (
                     *
                 )
@@ -73,8 +74,8 @@ export async function getOrders(): Promise<Order[]> {
     // Remap data to match frontend type expectations
     return data.map(order => ({
         ...order,
-        items: order.items.map((item: any) => ({
-            id: item.id,
+        items: order.items.map((item: any, index: number) => ({
+            id: `${order.id}-item-${item.menu_item_id}-${index}`, // Generate a stable unique ID for the frontend
             quantity: item.quantity,
             comment: item.comment || '',
             menuItem: {
@@ -87,3 +88,4 @@ export async function getOrders(): Promise<Order[]> {
         paidAt: order.paid_at
     })) as unknown as Order[];
 }
+
