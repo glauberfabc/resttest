@@ -55,6 +55,7 @@ export async function getOrders(): Promise<Order[]> {
             *,
             items:order_items (
                 quantity,
+                comment,
                 menu_item:menu_items (
                     *,
                     imageUrl:image_url,
@@ -75,6 +76,7 @@ export async function getOrders(): Promise<Order[]> {
         ...order,
         items: order.items.map((item: any) => ({
             quantity: item.quantity,
+            comment: item.comment,
             menuItem: {
                 ...item.menu_item,
                 imageUrl: item.menu_item.image_url,

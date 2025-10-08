@@ -90,7 +90,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const orderItems = updatedOrder.items.map(item => ({
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
-        quantity: item.quantity
+        quantity: item.quantity,
+        comment: item.comment,
     }));
 
     // Delete items that are no longer in the order

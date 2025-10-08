@@ -19,7 +19,8 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
+import { CommentDialog } from "@/components/dashboard/comment-dialog";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching, MessageSquarePlus } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -35,6 +36,8 @@ interface OrderDetailsSheetProps {
 export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
+  const [selectedItemForComment, setSelectedItemForComment] = useState<OrderItem | null>(null);
   
   // State to track items already sent to the kitchen printer
   const [printedKitchenItems, setPrintedKitchenItems] = useState<OrderItem[]>([]);
@@ -60,10 +63,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   useEffect(() => {
     const newItemsToPrint: OrderItem[] = [];
     order.items.forEach(currentItem => {
-      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id);
+      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id && pItem.comment === currentItem.comment);
       
       if (!printedItem) {
-        // This is a completely new item
+        // This is a completely new item or an item with a new comment
         newItemsToPrint.push(currentItem);
       } else if (currentItem.quantity > printedItem.quantity) {
         // The quantity has increased
@@ -83,9 +86,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo'; // GMT-3
 
-  const updateQuantity = (itemId: string, delta: number) => {
+  const updateQuantity = (itemId: string, delta: number, comment?: string) => {
     const updatedItems = order.items.map(item => {
-      if (item.menuItem.id === itemId) {
+      if (item.menuItem.id === itemId && item.comment === comment) {
         const newQuantity = item.quantity + delta;
         return newQuantity > 0 ? { ...item, quantity: newQuantity } : null;
       }
@@ -95,19 +98,54 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
 
   const addItemToOrder = (menuItem: MenuItem) => {
-    const existingItem = order.items.find(item => item.menuItem.id === menuItem.id);
+    const existingItem = order.items.find(item => item.menuItem.id === menuItem.id && !item.comment);
     if (existingItem) {
-      updateQuantity(menuItem.id, 1);
+      updateQuantity(menuItem.id, 1, undefined);
     } else {
-      const updatedItems = [...order.items, { menuItem, quantity: 1 }];
+      const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
       onUpdateOrder({ ...order, items: updatedItems });
     }
+  };
+
+  const handleOpenCommentDialog = (item: OrderItem) => {
+    setSelectedItemForComment(item);
+    setIsCommentDialogOpen(true);
+  };
+
+  const handleSaveComment = (comment: string) => {
+    if (!selectedItemForComment) return;
+
+    const oldItem = selectedItemForComment;
+    const itemsWithoutOld = order.items.filter(item => !(item.menuItem.id === oldItem.menuItem.id && item.comment === oldItem.comment));
+    
+    const newItem = { ...oldItem, comment };
+
+    // Check if an item with the new comment already exists
+    const existingItemWithNewComment = itemsWithoutOld.find(item => item.menuItem.id === newItem.menuItem.id && item.comment === newItem.comment);
+
+    if (existingItemWithNewComment) {
+        // Merge quantities
+        const mergedItems = itemsWithoutOld.map(item => {
+            if (item.menuItem.id === existingItemWithNewComment.menuItem.id && item.comment === existingItemWithNewComment.comment) {
+                return { ...item, quantity: item.quantity + oldItem.quantity };
+            }
+            return item;
+        });
+        onUpdateOrder({ ...order, items: mergedItems });
+    } else {
+        // Just add the item with the new comment
+        onUpdateOrder({ ...order, items: [...itemsWithoutOld, newItem] });
+    }
+
+    setIsCommentDialogOpen(false);
+    setSelectedItemForComment(null);
   };
   
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
     const itemsText = order.items.map(item => 
-      `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
+      `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}` +
+      (item.comment ? `\n  - ${item.comment}` : '')
     ).join('\n');
     const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
     const paidText = paidAmount > 0 ? `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*` : '';
@@ -147,6 +185,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     text += line;
     itemsToPrint.forEach(item => {
         text += `${item.quantity}x ${item.menuItem.name}\n`;
+        if (item.comment) {
+            text += `  Obs: ${item.comment}\n`;
+        }
     });
     text += line;
 
@@ -206,26 +247,33 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
               <ScrollArea className="flex-1">
                 {order.items.length > 0 ? (
                   <div className="pr-4">
-                    {order.items.map(({ menuItem, quantity }) => (
-                      <div key={menuItem.id} className="flex items-center gap-4 py-3">
+                    {order.items.map((item, index) => (
+                      <div key={`${item.menuItem.id}-${index}`} className="flex items-center gap-4 py-3">
                         <Image
-                          src={menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
-                          alt={menuItem.name}
+                          src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
+                          alt={item.menuItem.name}
                           width={64}
                           height={64}
                           className="rounded-md object-contain"
                           data-ai-hint="food drink"
                         />
                         <div className="flex-1">
-                          <p className="font-semibold">{menuItem.name}</p>
-                          <p className="text-sm text-muted-foreground">R$ {menuItem.price.toFixed(2).replace('.', ',')}</p>
+                          <p className="font-semibold">{item.menuItem.name}</p>
+                          {item.comment && (
+                            <p className="text-sm text-muted-foreground italic">Obs: {item.comment}</p>
+                          )}
+                          <p className="text-sm text-muted-foreground">R$ {item.menuItem.price.toFixed(2).replace('.', ',')}</p>
+                          <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => handleOpenCommentDialog(item)}>
+                            <MessageSquarePlus className="mr-1 h-3 w-3"/>
+                            {item.comment ? 'Editar Obs.' : 'Adicionar Obs.'}
+                          </Button>
                         </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(menuItem.id, -1)}>
-                              {quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.menuItem.id, -1, item.comment)}>
+                              {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
-                            <span className="font-bold w-6 text-center">{quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(menuItem.id, 1)}>
+                            <span className="font-bold w-6 text-center">{item.quantity}</span>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.menuItem.id, 1, item.comment)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -330,6 +378,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 isOpen={isPaymentDialogOpen}
                 onOpenChange={setIsPaymentDialogOpen}
                 onConfirmPayment={handlePayment}
+                />
+            )}
+             {isCommentDialogOpen && selectedItemForComment && (
+                <CommentDialog
+                    isOpen={isCommentDialogOpen}
+                    onOpenChange={setIsCommentDialogOpen}
+                    onSave={handleSaveComment}
+                    item={selectedItemForComment}
                 />
             )}
         </>

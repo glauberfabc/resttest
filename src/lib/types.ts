@@ -18,6 +18,7 @@ export interface MenuItem {
 export interface OrderItem {
   menuItem: MenuItem;
   quantity: number;
+  comment?: string;
 }
 
 export interface Payment {

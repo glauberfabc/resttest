@@ -14,7 +14,7 @@ interface PrintableReceiptProps {
 
 export function PrintableReceipt({ order, total, paidAmount, remainingAmount, className }: PrintableReceiptProps) {
   const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
-  const timeZone = 'America/Sao_Paulo'; // GMT-3
+  const timeZone = 'America/Sao_ Paulo'; // GMT-3
 
   const receiptDate = order.paid_at ? new Date(order.paid_at) : new Date();
   const formattedDate = formatInTimeZone(receiptDate, timeZone, 'dd/MM/yyyy');
@@ -44,10 +44,15 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
         <p className="break-words">{line}</p>
         
         <div className="space-y-1 my-1 text-sm">
-            {order.items.map(({ menuItem, quantity }) => (
-                <div key={menuItem.id} className="flex justify-between">
-                    <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
-                    <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
+            {order.items.map(({ menuItem, quantity, comment }, index) => (
+                <div key={`${menuItem.id}-${index}`}>
+                    <div className="flex justify-between">
+                        <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
+                        <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
+                    </div>
+                     {comment && (
+                        <p className="text-xs italic pl-4">- {comment}</p>
+                    )}
                 </div>
             ))}
         </div>
