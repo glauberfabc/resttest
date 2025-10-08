@@ -10,6 +10,7 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
+  CommandInput,
   CommandItem,
   CommandList,
 } from "@/components/ui/command"
@@ -166,7 +167,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             </Tabs>
             <DialogFooter className="mt-4">
                 <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                <Button type="submit" disabled={activeTab === 'name' && !customerName}>Criar Comanda</Button>
+                <Button type="submit" disabled={(activeTab === 'table' && !tableNumber) || (activeTab === 'name' && !customerName)}>Criar Comanda</Button>
             </DialogFooter>
         </form>
       </DialogContent>
