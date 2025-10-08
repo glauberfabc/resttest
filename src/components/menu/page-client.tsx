@@ -24,12 +24,14 @@ import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
 import { supabase, getMenuItems } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/context/user-context";
 
 interface MenuPageClientProps {
   initialMenuItems: MenuItem[];
 }
 
 export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp }: MenuPageClientProps) {
+  const { user } = useUser();
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItemsProp);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -67,12 +69,12 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
         .update(itemForDb)
         .eq('id', item.id)
         .select()
-        .single();
+        .maybeSingle();
       
       if (error) {
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o item." + error.message });
-      } else {
-        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
+      } else if (data) {
+        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold, user_id: data.user_id };
         setMenuItems(menuItems.map(i => i.id === remappedData.id ? remappedData : i));
         toast({ title: "Sucesso!", description: "Item do cardápio atualizado." });
       }
@@ -87,7 +89,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
       if (error) {
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o item." + error.message });
       } else {
-        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
+        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold, user_id: data.user_id };
         setMenuItems([remappedData, ...menuItems]);
         toast({ title: "Sucesso!", description: "Novo item adicionado ao cardápio." });
       }
@@ -141,7 +143,10 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
             </TableRow>
           </TableHeader>
           <TableBody>
-            {menuItems.map((item) => (
+            {menuItems.map((item) => {
+              const canEdit = user?.role === 'admin' || user?.id === item.user_id;
+
+              return (
               <TableRow key={item.id}>
                 <TableCell>
                   <Image
@@ -162,7 +167,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" className="h-8 w-8 p-0">
+                      <Button variant="ghost" className="h-8 w-8 p-0" disabled={!canEdit}>
                         <span className="sr-only">Abrir menu</span>
                         <MoreHorizontal className="h-4 w-4" />
                       </Button>
@@ -180,7 +185,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                   </DropdownMenu>
                 </TableCell>
               </TableRow>
-            ))}
+            )})}
           </TableBody>
         </Table>
       </div>
