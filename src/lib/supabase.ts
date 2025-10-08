@@ -57,9 +57,7 @@ export async function getOrders(): Promise<Order[]> {
                 quantity,
                 comment,
                 menu_item:menu_items (
-                    *,
-                    imageUrl:image_url,
-                    lowStockThreshold:low_stock_threshold
+                    *
                 )
             ),
             payments:order_payments (*)
@@ -67,7 +65,7 @@ export async function getOrders(): Promise<Order[]> {
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error('Error fetching orders:', error);
+        console.error('Error fetching orders:', error.message);
         return [];
     }
 
