@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Order, MenuItem, Client } from "@/lib/types";
+import type { Order, MenuItem, Client, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
@@ -83,8 +83,22 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .delete()
       .eq('order_id', updatedOrder.id);
 
-    // 3. Insert all current items as new
-    const itemsToInsert = updatedOrder.items.map(item => ({
+    // 3. Consolidate and insert all current items as new
+    const consolidatedItems = new Map<string, Omit<OrderItem, 'id'>>();
+    for (const item of updatedOrder.items) {
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
+      if (consolidatedItems.has(key)) {
+        consolidatedItems.get(key)!.quantity += item.quantity;
+      } else {
+        consolidatedItems.set(key, {
+          menuItem: item.menuItem,
+          quantity: item.quantity,
+          comment: item.comment,
+        });
+      }
+    }
+    
+    const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
       order_id: updatedOrder.id,
       menu_item_id: item.menuItem.id,
       quantity: item.quantity,
@@ -267,5 +281,3 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
-
-    

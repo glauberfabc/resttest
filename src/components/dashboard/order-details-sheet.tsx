@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import type { Order, MenuItem, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -66,7 +66,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            currentItemsMap.set(key, { ...item });
+            currentItemsMap.set(key, { ...item, quantity: item.quantity });
         }
     });
 
@@ -77,7 +77,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            printedItemsMap.set(key, { ...item });
+            printedItemsMap.set(key, { ...item, quantity: item.quantity });
         }
     });
     
@@ -101,35 +101,43 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
+  
+  const groupedItems = Array.from(order.items.reduce((map, item) => {
+    const key = `${item.menuItem.id}-${item.comment || ''}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      map.set(key, { ...item, id: key }); // Ensure a unique ID for the group
+    }
+    return map;
+  }, new Map<string, OrderItem>()).values());
 
-  const groupedItems = useMemo(() => {
-    const itemMap = new Map<string, OrderItem>();
-    order.items.forEach((item) => {
-        const key = `${item.menuItem.id}-${item.comment || ''}`;
-        if (itemMap.has(key)) {
-            const existing = itemMap.get(key)!;
-            existing.quantity += item.quantity;
-        } else {
-            itemMap.set(key, { ...item });
-        }
-    });
-    return Array.from(itemMap.values());
-  }, [order.items]);
 
-  const updateItemQuantity = (itemId: string, delta: number) => {
+  const updateItemQuantity = (itemId: string, itemComment: string | undefined, delta: number) => {
     const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.id === itemId);
+    const itemIndex = updatedItems.findIndex(i => i.menuItem.id === itemId && i.comment === itemComment);
+    
+    // This logic is tricky. Let's simplify: + adds one, - removes one.
+    // Let's find THE FIRST item that matches to update it.
+    const firstMatchIndex = updatedItems.findIndex(i => i.menuItem.id === itemId && i.comment === (itemComment || ''));
 
-    if (itemIndex > -1) {
-      updatedItems[itemIndex].quantity += delta;
-      if (updatedItems[itemIndex].quantity <= 0) {
-        updatedItems.splice(itemIndex, 1);
+    if (firstMatchIndex > -1) {
+      if (delta > 0) {
+        updatedItems[firstMatchIndex].quantity += delta;
+      } else {
+        updatedItems[firstMatchIndex].quantity += delta;
+        if (updatedItems[firstMatchIndex].quantity <= 0) {
+          updatedItems.splice(firstMatchIndex, 1);
+        }
       }
-       onUpdateOrder({ ...order, items: updatedItems });
+      onUpdateOrder({ ...order, items: updatedItems });
     }
   };
   
   const addItemToOrder = (menuItem: MenuItem) => {
+    // To allow for different comments, we always add a new item.
+    // The aggregation will happen visually in groupedItems and before saving.
     const newItem: OrderItem = {
       id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID
       menuItem,
@@ -146,9 +154,12 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   
   const handleSaveComment = (comment: string) => {
     if (!editingItem) return;
+    
+    // We need to find the specific item instance to update, not just any item with the same menuitem id.
     const updatedItems = order.items.map(item =>
       item.id === editingItem.id ? { ...item, comment } : item
     );
+
     onUpdateOrder({ ...order, items: updatedItems });
     setEditingItem(null);
   };
@@ -224,6 +235,15 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     return <Bluetooth className="h-4 w-4" />;
   };
 
+  const removeItem = (itemToRemove: OrderItem) => {
+    const itemIndex = order.items.findIndex(i => i.id === itemToRemove.id);
+    if (itemIndex > -1) {
+      const updatedItems = [...order.items];
+      updatedItems.splice(itemIndex, 1);
+      onUpdateOrder({ ...order, items: updatedItems });
+    }
+  };
+
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
@@ -253,9 +273,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {order.items.length > 0 ? (
+                {groupedItems.length > 0 ? (
                   <div className="pr-4">
-                    {order.items.map((item) => (
+                    {groupedItems.map((item) => (
                       <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
@@ -281,11 +301,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                             )}
                         </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.id, -1)}>
+                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.menuItem.id, item.comment, -1)}>
                               {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.menuItem.id, item.comment, 1)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
