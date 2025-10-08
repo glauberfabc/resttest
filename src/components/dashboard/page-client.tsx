@@ -91,7 +91,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
         quantity: item.quantity,
-        comment: item.comment,
+        // comment: item.comment, // Temporarily disabled
     }));
 
     // Delete items that are no longer in the order
