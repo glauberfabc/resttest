@@ -87,7 +87,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order
+    // 2. Delete all existing items for this order to avoid conflicts
     const { error: deleteError } = await supabase
       .from('order_items')
       .delete()
@@ -97,18 +97,18 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
 
     for (const item of updatedOrder.items) {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      const existing = consolidatedItems.get(key);
+        const key = `${item.menuItem.id}-${item.comment || ''}`; // Key by item ID and comment
+        const existing = consolidatedItems.get(key);
 
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        consolidatedItems.set(key, {
-            menuItemId: item.menuItem.id,
-            quantity: item.quantity,
-            comment: item.comment || null,
-        });
-      }
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            consolidatedItems.set(key, {
+                menuItemId: item.menuItem.id,
+                quantity: item.quantity,
+                comment: item.comment || null,
+            });
+        }
     }
     
     const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({

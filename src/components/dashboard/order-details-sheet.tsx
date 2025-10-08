@@ -103,10 +103,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const existing = map.get(key);
     if (existing) {
       existing.quantity += item.quantity;
-      // Also aggregate original IDs if needed for other logic
     } else {
-      // Create a shallow copy and ensure it has a unique ID for React key
-      map.set(key, { ...item, id: item.id || key });
+      map.set(key, { ...item, id: item.id || key, quantity: item.quantity });
     }
     return map;
   }, new Map<string, OrderItem>()).values());
@@ -114,62 +112,72 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
-
-    if (delta > 0) {
-      const newItem: OrderItem = {
-        id: `new-${Date.now()}-${Math.random()}`,
-        menuItem: itemGroup.menuItem,
-        quantity: 1,
-        comment: '', // Always add with blank comment when using '+'
-      };
-      updatedItems.push(newItem);
-    } else {
-      // Find the last matching item instance to remove from
-      const itemIndexToRemove = updatedItems.findLastIndex(
+    const itemIndex = updatedItems.findLastIndex(
         i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment
-      );
-      if (itemIndexToRemove !== -1) {
-        if (updatedItems[itemIndexToRemove].quantity > 1) {
-          updatedItems[itemIndexToRemove].quantity -= 1;
+    );
+
+    if (itemIndex !== -1) {
+        if (delta > 0) {
+            updatedItems[itemIndex].quantity += 1;
         } else {
-          updatedItems.splice(itemIndexToRemove, 1);
+            if (updatedItems[itemIndex].quantity > 1) {
+                updatedItems[itemIndex].quantity -= 1;
+            } else {
+                updatedItems.splice(itemIndex, 1);
+            }
         }
-      }
+    } else if (delta > 0) {
+        // This case should ideally not happen if the button is on a grouped item
+        const newItem: OrderItem = {
+            id: `new-${Date.now()}-${Math.random()}`,
+            menuItem: itemGroup.menuItem,
+            quantity: 1,
+            comment: itemGroup.comment,
+        };
+        updatedItems.push(newItem);
     }
+
     onUpdateOrder({ ...order, items: updatedItems });
   };
   
  const addItemToOrder = (menuItem: MenuItem) => {
     const updatedItems = [...order.items];
-    const newItem: OrderItem = {
-        id: `new-${Date.now()}-${Math.random()}`,
-        menuItem,
-        quantity: 1,
-        comment: '',
-    };
-    updatedItems.push(newItem);
+    const existingItemIndex = updatedItems.findIndex(i => i.menuItem.id === menuItem.id && i.comment === '');
+
+    if (existingItemIndex !== -1) {
+        // If item without comment exists, increment its quantity
+        updatedItems[existingItemIndex].quantity += 1;
+    } else {
+        // Otherwise, add a new item
+        const newItem: OrderItem = {
+            id: `new-${Date.now()}-${Math.random()}`,
+            menuItem,
+            quantity: 1,
+            comment: '',
+        };
+        updatedItems.push(newItem);
+    }
     onUpdateOrder({ ...order, items: updatedItems });
 };
   
   const handleEditComment = (item: OrderItem) => {
-    const itemToEdit = order.items.find(i => i.id === item.id);
-    setEditingItem(itemToEdit || item);
+    setEditingItem(item);
     setIsCommentDialogOpen(true);
   };
   
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-
-    // Create a new array with the updated item
-    const updatedItems = order.items.map(item =>
-        item.id === editingItem.id
-            ? { ...item, comment: newComment }
-            : item
-    );
-
-    onUpdateOrder({ ...order, items: updatedItems });
+  
+    const updatedItems = [...order.items];
+    const itemToUpdateIndex = updatedItems.findIndex(i => i.id === editingItem.id);
+  
+    if (itemToUpdateIndex !== -1) {
+      updatedItems[itemToUpdateIndex] = { ...updatedItems[itemToUpdateIndex], comment: newComment };
+      onUpdateOrder({ ...order, items: updatedItems });
+    }
+    
     setEditingItem(null);
-};
+  };
 
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
