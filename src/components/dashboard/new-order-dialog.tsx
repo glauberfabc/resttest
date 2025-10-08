@@ -117,7 +117,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             </form>
         </TabsContent>
         <TabsContent value="name" className="pt-4">
-            <Command shouldFilter={false} className="overflow-visible">
+            <Command shouldFilter={false} className="overflow-visible bg-transparent">
                 <div className="space-y-2">
                     <Label htmlFor="customer-name">Nome do Cliente</Label>
                     <CommandInput
@@ -128,7 +128,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                         autoFocus
                     />
                 </div>
-                <CommandList className="mt-2 max-h-[180px] overflow-y-auto border rounded-md">
+                <CommandList className="mt-2 max-h-[180px] overflow-y-auto rounded-md border">
                     <CommandEmpty>
                       {customerName && isNewCustomer ? 'Nenhum cliente encontrado. Continue para criar um novo.' : 'Nenhum cliente encontrado.'}
                     </CommandEmpty>
@@ -170,9 +170,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 )}
                 <DialogFooter className="mt-4">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button type="submit" disabled={!customerName || !isNewCustomer}>
-                      Criar Cliente e Abrir
-                    </Button>
+                    {isNewCustomer && (
+                        <Button type="submit" disabled={!customerName}>
+                        Criar Cliente e Abrir
+                        </Button>
+                    )}
                 </DialogFooter>
             </form>
         </TabsContent>
