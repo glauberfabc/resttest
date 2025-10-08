@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import type { Order, MenuItem, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -86,25 +86,70 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo'; // GMT-3
 
+  const groupedItems = useMemo(() => {
+    const itemMap = new Map<string, OrderItem>();
+    order.items.forEach(item => {
+      // Items with comments are always unique
+      if (item.comment) {
+        // Create a unique key for items with comments to prevent grouping
+        const uniqueKey = `${item.menuItem.id}-${item.comment}-${Math.random()}`;
+        itemMap.set(uniqueKey, item);
+        return;
+      }
+      
+      // Group items without comments by their menuItem ID
+      const key = item.menuItem.id;
+      if (itemMap.has(key)) {
+        const existing = itemMap.get(key)!;
+        existing.quantity += item.quantity;
+      } else {
+        itemMap.set(key, { ...item });
+      }
+    });
+    return Array.from(itemMap.values());
+  }, [order.items]);
+
   const updateQuantity = (itemId: string, delta: number, comment?: string) => {
     const updatedItems = order.items.map(item => {
-      if (item.menuItem.id === itemId && item.comment === comment) {
+      // Find the first matching item to decrement. For items without comments, any will do.
+      if (item.menuItem.id === itemId && (comment !== undefined ? item.comment === comment : true)) {
         const newQuantity = item.quantity + delta;
+        // Decrement only this one instance
+        if (delta < 0) {
+           const itemToRemove = order.items.find(i => i.menuItem.id === itemId && i.comment === comment);
+           if (!itemToRemove) return null; // Should not happen
+
+           if (itemToRemove.quantity > 1) {
+              const newItems = [...order.items];
+              const index = newItems.findIndex(i => i.menuItem.id === itemId && i.comment === comment);
+              newItems[index] = { ...itemToRemove, quantity: itemToRemove.quantity - 1};
+              onUpdateOrder({ ...order, items: newItems });
+           } else {
+              const newItems = order.items.filter((_, index) => index !== order.items.findIndex(i => i.menuItem.id === itemId && i.comment === comment));
+              onUpdateOrder({ ...order, items: newItems });
+           }
+           return null; // Stop mapping
+        }
+
         return newQuantity > 0 ? { ...item, quantity: newQuantity } : null;
       }
       return item;
     }).filter(Boolean) as OrderItem[];
+
+    if (delta < 0) return; // Already handled inside the map for decrements
+
     onUpdateOrder({ ...order, items: updatedItems });
   };
 
+  const handleRemoveItem = (itemId: string, comment?: string) => {
+    const newItems = order.items.filter(i => !(i.menuItem.id === itemId && i.comment === comment));
+    onUpdateOrder({ ...order, items: newItems });
+  };
+
   const addItemToOrder = (menuItem: MenuItem) => {
-    const existingItem = order.items.find(item => item.menuItem.id === menuItem.id && !item.comment);
-    if (existingItem) {
-      updateQuantity(menuItem.id, 1, existingItem.comment);
-    } else {
-      const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
-      onUpdateOrder({ ...order, items: updatedItems });
-    }
+    // Always add as a new item with quantity 1
+    const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
+    onUpdateOrder({ ...order, items: updatedItems });
   };
 
   const handleOpenCommentDialog = (item: OrderItem) => {
@@ -115,27 +160,17 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const handleSaveComment = (comment: string) => {
     if (!selectedItemForComment) return;
 
-    const oldItem = selectedItemForComment;
-    const itemsWithoutOld = order.items.filter(item => !(item.menuItem.id === oldItem.menuItem.id && item.comment === oldItem.comment));
-    
-    const newItem = { ...oldItem, comment };
+    // Find the specific instance of the item to update
+    const itemIndex = order.items.findIndex(
+      item => item.menuItem.id === selectedItemForComment.menuItem.id && item.comment === selectedItemForComment.comment
+    );
 
-    // Check if an item with the new comment already exists
-    const existingItemWithNewComment = itemsWithoutOld.find(item => item.menuItem.id === newItem.menuItem.id && item.comment === newItem.comment);
+    if (itemIndex === -1) return; // Should not happen
 
-    if (existingItemWithNewComment) {
-        // Merge quantities
-        const mergedItems = itemsWithoutOld.map(item => {
-            if (item.menuItem.id === existingItemWithNewComment.menuItem.id && item.comment === existingItemWithNewComment.comment) {
-                return { ...item, quantity: item.quantity + oldItem.quantity };
-            }
-            return item;
-        });
-        onUpdateOrder({ ...order, items: mergedItems });
-    } else {
-        // Just add the item with the new comment
-        onUpdateOrder({ ...order, items: [...itemsWithoutOld, newItem] });
-    }
+    const updatedItems = [...order.items];
+    updatedItems[itemIndex] = { ...updatedItems[itemIndex], comment };
+
+    onUpdateOrder({ ...order, items: updatedItems });
 
     setIsCommentDialogOpen(false);
     setSelectedItemForComment(null);
@@ -143,7 +178,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
-    const itemsText = order.items.map(item => 
+    const itemsText = groupedItems.map(item => 
       `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}` +
       (item.comment ? `\n  - ${item.comment}` : '')
     ).join('\n');
@@ -245,10 +280,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {order.items.length > 0 ? (
+                {groupedItems.length > 0 ? (
                   <div className="pr-4">
-                    {order.items.map((item, index) => (
-                      <div key={`${item.menuItem.id}-${index}`} className="flex items-center gap-4 py-3">
+                    {groupedItems.map((item, index) => (
+                      <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -269,11 +304,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                           </Button>
                         </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.menuItem.id, -1, item.comment)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => item.quantity === 1 ? handleRemoveItem(item.menuItem.id, item.comment) : updateQuantity(item.menuItem.id, -1, item.comment)}>
                               {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.menuItem.id, 1, item.comment)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -393,3 +428,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
