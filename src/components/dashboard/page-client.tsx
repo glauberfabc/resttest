@@ -77,7 +77,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setSelectedOrder(updatedOrder);
     }
     
-    // 2. Persist changes to the database
+    // 2. Persist order status changes to the database
     const { error: orderError } = await supabase
       .from('orders')
       .update({ 
@@ -86,30 +86,35 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
        })
       .eq('id', updatedOrder.id)
     
-    // 3. Upsert order items
-    const orderItems = updatedOrder.items.map(item => ({
+    // 3. Synchronize order items by deleting and re-inserting
+    // This is safer than upserting when dealing with composite keys or items that need to be distinguished by comments.
+    
+    // 3a. Delete all existing items for this order
+    const { error: deleteError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', updatedOrder.id);
+
+    // 3b. Prepare the new items to be inserted
+    const newOrderItems = updatedOrder.items.map(item => ({
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
         quantity: item.quantity,
-        // comment: item.comment, // Temporarily disabled
+        comment: item.comment,
     }));
 
-    // Delete items that are no longer in the order
-    const currentItemIds = orderItems.map(i => i.menu_item_id);
-    const originalOrder = originalOrders.find(o => o.id === updatedOrder.id);
-    const itemsToDelete = originalOrder?.items.filter(i => !currentItemIds.includes(i.menuItem.id)) || [];
-
-    for (const item of itemsToDelete) {
-        await supabase.from('order_items').delete().match({ order_id: updatedOrder.id, menu_item_id: item.menuItem.id });
+    // 3c. Insert the new state of items, but only if there are any
+    let itemsError = null;
+    if (newOrderItems.length > 0) {
+        const { error } = await supabase
+            .from('order_items')
+            .insert(newOrderItems);
+        itemsError = error;
     }
 
-    const { error: itemsError } = await supabase
-        .from('order_items')
-        .upsert(orderItems, { onConflict: 'order_id,menu_item_id' });
 
-
-    if (orderError || itemsError) {
-        console.error("Error updating order:", orderError || itemsError);
+    if (orderError || deleteError || itemsError) {
+        console.error("Error updating order:", orderError || deleteError || itemsError);
         toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
         // Revert local state on error
         setOrders(originalOrders);
@@ -211,7 +216,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
 
   const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
-  const paidOrders = orders.filter(o => o.status === 'paid' && o.type === 'name');
+  const paidOrders = orders.filter(o => o.status === 'paid');
 
   return (
     <div className="flex flex-col gap-6">
