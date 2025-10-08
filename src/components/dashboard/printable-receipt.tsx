@@ -1,5 +1,5 @@
 
-import type { Order, Payment } from "@/lib/types";
+import type { Order, Payment, OrderItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatInTimeZone } from 'date-fns-tz';
 
@@ -14,7 +14,7 @@ interface PrintableReceiptProps {
 
 export function PrintableReceipt({ order, total, paidAmount, remainingAmount, className }: PrintableReceiptProps) {
   const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
-  const timeZone = 'America/Sao_ Paulo'; // GMT-3
+  const timeZone = 'America/Sao_Paulo'; // GMT-3
 
   const receiptDate = order.paid_at ? new Date(order.paid_at) : new Date();
   const formattedDate = formatInTimeZone(receiptDate, timeZone, 'dd/MM/yyyy');
@@ -23,6 +23,17 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
   const paymentMethods = order.payments?.map(p => p.method).join(', ') || 'Pendente';
 
   const line = "----------------------------------------";
+
+  const groupedItems = Array.from(order.items.reduce((map, item) => {
+    const key = `${item.menuItem.id}-${item.comment || ''}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      map.set(key, { ...item });
+    }
+    return map;
+  }, new Map<string, OrderItem>()).values());
 
   return (
     <div className={cn("printable-receipt hidden", className)}>
@@ -44,12 +55,17 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
         <p className="break-words">{line}</p>
         
         <div className="space-y-1 my-1 text-sm">
-            {order.items.map(({ menuItem, quantity }, index) => (
+            {groupedItems.map(({ menuItem, quantity, comment }, index) => (
                 <div key={`${menuItem.id}-${index}`}>
                     <div className="flex justify-between">
                         <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
                         <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
                     </div>
+                     {comment && (
+                        <p className="text-sm pl-2">
+                            - {comment}
+                        </p>
+                    )}
                 </div>
             ))}
         </div>

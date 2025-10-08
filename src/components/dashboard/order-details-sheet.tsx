@@ -19,7 +19,8 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
+import { CommentDialog } from "@/components/dashboard/comment-dialog";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching, MessageSquarePlus } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -35,8 +36,9 @@ interface OrderDetailsSheetProps {
 export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
-  
-  // State to track items already sent to the kitchen printer
+  const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
+  const [selectedOrderItem, setSelectedOrderItem] = useState<OrderItem | null>(null);
+
   const [printedKitchenItems, setPrintedKitchenItems] = useState<OrderItem[]>([]);
   const [itemsToPrint, setItemsToPrint] = useState<OrderItem[]>([]);
   
@@ -50,23 +52,22 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     print,
   } = useBluetoothPrinter();
 
-  // When the order details are opened, initialize the printed items state
-  // to the current state of the order, assuming they were already handled.
   useEffect(() => {
-    setPrintedKitchenItems([...order.items]);
-  }, [order.id]); // Only runs when a new order is selected
+    // Initialize with a unique ID for each item based on its position
+    const initialItemsWithId = order.items.map((item, index) => ({...item, id: index}));
+    setPrintedKitchenItems(initialItemsWithId);
+  }, [order.id]);
 
-  // Recalculate what needs to be printed every time the order items change
   useEffect(() => {
     const newItemsToPrint: OrderItem[] = [];
-    order.items.forEach(currentItem => {
-      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id);
+    const currentItemsWithId = order.items.map((item, index) => ({...item, id: index}));
+
+    currentItemsWithId.forEach(currentItem => {
+      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id && pItem.comment === currentItem.comment);
       
       if (!printedItem) {
-        // This is a completely new item
         newItemsToPrint.push(currentItem);
       } else if (currentItem.quantity > printedItem.quantity) {
-        // The quantity has increased
         newItemsToPrint.push({
           ...currentItem,
           quantity: currentItem.quantity - printedItem.quantity
@@ -81,65 +82,69 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
-  const timeZone = 'America/Sao_Paulo'; // GMT-3
+  const timeZone = 'America/Sao_Paulo';
 
   const groupedItems = useMemo(() => {
     const itemMap = new Map<string, OrderItem>();
-    order.items.forEach(item => {
-      const key = item.menuItem.id;
-      if (itemMap.has(key)) {
-        const existing = itemMap.get(key)!;
-        existing.quantity += item.quantity;
-      } else {
-        itemMap.set(key, { ...item });
-      }
+    order.items.forEach((item, index) => {
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        if (itemMap.has(key)) {
+            const existing = itemMap.get(key)!;
+            existing.quantity += item.quantity;
+        } else {
+            itemMap.set(key, { ...item, id: index });
+        }
     });
     return Array.from(itemMap.values());
   }, [order.items]);
 
-  const updateQuantity = (itemId: string, delta: number) => {
-    const updatedItems = order.items.map(item => {
-      if (item.menuItem.id === itemId) {
-        const newQuantity = item.quantity + delta;
-        return newQuantity > 0 ? { ...item, quantity: newQuantity } : null;
+ const updateItem = (itemToUpdate: OrderItem, delta: number) => {
+    const updatedItems = [...order.items];
+    const itemIndex = updatedItems.findIndex(i => i.id === itemToUpdate.id);
+  
+    if (itemIndex > -1) {
+      const newQuantity = updatedItems[itemIndex].quantity + delta;
+      if (newQuantity > 0) {
+        updatedItems[itemIndex].quantity = newQuantity;
+      } else {
+        updatedItems.splice(itemIndex, 1);
       }
-      return item;
-    }).filter(Boolean) as OrderItem[];
-
-    // This part handles the case where multiple entries for the same item exist and we need to consolidate
-    const consolidatedItems = new Map<string, OrderItem>();
-    updatedItems.forEach(item => {
-        const key = item.menuItem.id;
-        if(consolidatedItems.has(key)) {
-            consolidatedItems.get(key)!.quantity += item.quantity;
-        } else {
-            consolidatedItems.set(key, {...item});
-        }
-    });
-
-    onUpdateOrder({ ...order, items: Array.from(consolidatedItems.values()) });
+      onUpdateOrder({ ...order, items: updatedItems });
+    }
   };
 
-
-  const handleRemoveItem = (itemId: string) => {
-    const updatedItems = order.items.filter(item => item.menuItem.id !== itemId);
+  const handleRemoveItem = (itemToRemove: OrderItem) => {
+    const updatedItems = order.items.filter(item => item.id !== itemToRemove.id);
     onUpdateOrder({ ...order, items: updatedItems });
   };
 
   const addItemToOrder = (menuItem: MenuItem) => {
-    const existingItem = order.items.find(item => item.menuItem.id === menuItem.id);
-    if (existingItem) {
-        updateQuantity(menuItem.id, 1);
-    } else {
-        const updatedItems = [...order.items, { menuItem, quantity: 1, comment: '' }];
-        onUpdateOrder({ ...order, items: updatedItems });
-    }
+    // Always add as a new item with a temporary unique ID
+    const newId = order.items.length > 0 ? Math.max(...order.items.map(i => i.id || 0)) + 1 : 0;
+    const newItem: OrderItem = { menuItem, quantity: 1, comment: '', id: newId };
+    const updatedItems = [...order.items, newItem];
+    onUpdateOrder({ ...order, items: updatedItems });
+  };
+
+  const handleOpenCommentDialog = (item: OrderItem) => {
+    setSelectedOrderItem(item);
+    setIsCommentDialogOpen(true);
   };
   
+  const handleSaveComment = (comment: string) => {
+    if (!selectedOrderItem) return;
+    const updatedItems = order.items.map(item =>
+        item.id === selectedOrderItem.id ? { ...item, comment } : item
+    );
+    onUpdateOrder({ ...order, items: updatedItems });
+    setIsCommentDialogOpen(false);
+    setSelectedOrderItem(null);
+  };
+
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
     const itemsText = groupedItems.map(item => 
-      `${item.quantity}x ${item.menuItem.name} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
+      `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
     ).join('\n');
     const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
     const paidText = paidAmount > 0 ? `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*` : '';
@@ -158,10 +163,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
       return;
     }
-    // This will trigger the print-area to re-render with only the new items
     window.print();
-    // After printing, update the baseline of printed items to the current state
-    setPrintedKitchenItems([...order.items]);
+    const currentItemsWithId = order.items.map((item, index) => ({...item, id: index}));
+    setPrintedKitchenItems(currentItemsWithId);
   };
   
   const handleBluetoothPrint = () => {
@@ -186,8 +190,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     text += line;
 
     print(text);
-    // After sending to printer, update the baseline
-    setPrintedKitchenItems([...order.items]);
+    const currentItemsWithId = order.items.map((item, index) => ({...item, id: index}));
+    setPrintedKitchenItems(currentItemsWithId);
   };
 
   const getFormattedPaidAt = () => {
@@ -242,7 +246,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 {groupedItems.length > 0 ? (
                   <div className="pr-4">
                     {groupedItems.map((item, index) => (
-                      <div key={`${item.menuItem.id}-${index}`} className="flex items-center gap-4 py-3">
+                      <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -253,14 +257,22 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         />
                         <div className="flex-1">
                           <p className="font-semibold">{item.menuItem.name}</p>
-                          <p className="text-sm text-muted-foreground">R$ {item.menuItem.price.toFixed(2).replace('.', ',')}</p>
+                          {item.comment ? (
+                              <p className="text-sm text-primary font-medium">{item.comment}</p>
+                          ) : (
+                             <Button variant="link" size="sm" className="p-0 h-auto text-xs" onClick={() => handleOpenCommentDialog(item)}>
+                                <MessageSquarePlus className="mr-1 h-3 w-3"/>
+                                Adicionar Obs.
+                             </Button>
+                          )}
+                           <p className="text-sm text-muted-foreground">R$ {item.menuItem.price.toFixed(2).replace('.', ',')}</p>
                         </div>
                           <div className="flex items-center gap-2">
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => item.quantity === 1 ? handleRemoveItem(item.menuItem.id) : updateQuantity(item.menuItem.id, -1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => item.quantity === 1 ? handleRemoveItem(item) : updateItem(item, -1)}>
                               {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateQuantity(item.menuItem.id, 1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -346,7 +358,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         {isPaid && <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />}
       </div>
 
-
       {!isPaid && (
           <>
             {isMenuPickerOpen && (
@@ -365,6 +376,15 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 isOpen={isPaymentDialogOpen}
                 onOpenChange={setIsPaymentDialogOpen}
                 onConfirmPayment={handlePayment}
+                />
+            )}
+
+            {isCommentDialogOpen && selectedOrderItem && (
+                <CommentDialog
+                    isOpen={isCommentDialogOpen}
+                    onOpenChange={setIsCommentDialogOpen}
+                    onSave={handleSaveComment}
+                    item={selectedOrderItem}
                 />
             )}
         </>

@@ -69,11 +69,13 @@ export async function getOrders(): Promise<Order[]> {
     }
 
     // Remap data to match frontend type expectations
+    let itemCounter = 0;
     return data.map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
             quantity: item.quantity,
             comment: '', // Always return an empty comment as it's not in the DB
+            id: itemCounter++, // Assign a temporary unique ID for local state management
             menuItem: {
                 ...item.menu_item,
                 imageUrl: item.menu_item.image_url,

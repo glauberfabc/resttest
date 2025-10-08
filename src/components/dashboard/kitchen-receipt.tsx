@@ -30,12 +30,17 @@ export function KitchenReceipt({ identifier, type, itemsToPrint }: KitchenReceip
         <p className="break-words my-2">{line}</p>
         
         <div className="space-y-1 my-1 text-sm">
-            {itemsToPrint.map(({ menuItem, quantity }, index) => (
+            {itemsToPrint.map(({ menuItem, quantity, comment }, index) => (
                 <div key={`${menuItem.id}-${index}`} className="text-base">
                     <div className="flex justify-between">
                         <span className="font-bold pr-2">{quantity}x</span>
                         <span>{menuItem.name}</span>
                     </div>
+                    {comment && (
+                        <p className="text-sm pl-6 font-semibold">
+                            Obs: {comment}
+                        </p>
+                    )}
                 </div>
             ))}
         </div>

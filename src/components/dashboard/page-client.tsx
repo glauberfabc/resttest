@@ -68,55 +68,53 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   };
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
-    // 1. Update local state immediately for snappy UI
     const originalOrders = [...orders];
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
-
-    // 2. Persist order status changes to the database
+  
+    // 1. Update order status
     const { error: orderError } = await supabase
       .from('orders')
-      .update({ 
-          status: updatedOrder.status,
-          paid_at: updatedOrder.paidAt,
-       })
+      .update({
+        status: updatedOrder.status,
+        paid_at: updatedOrder.paidAt,
+      })
       .eq('id', updatedOrder.id);
-    
-    // 3. Synchronize order items by deleting and re-inserting
-    
-    // 3a. Delete all existing items for this order
+  
+    // 2. Delete all existing items for this order
     const { error: deleteError } = await supabase
-        .from('order_items')
-        .delete()
-        .eq('order_id', updatedOrder.id);
-
-    // 3b. Prepare the new items to be inserted
+      .from('order_items')
+      .delete()
+      .eq('order_id', updatedOrder.id);
+  
+    // 3. Prepare the new items to be inserted, EXCLUDING the comment field
     const newOrderItems = updatedOrder.items.map(item => ({
-        order_id: updatedOrder.id,
-        menu_item_id: item.menuItem.id,
-        quantity: item.quantity,
+      order_id: updatedOrder.id,
+      menu_item_id: item.menuItem.id,
+      quantity: item.quantity,
+      // comment: item.comment, // This will be added back once the DB schema is updated
     }));
-
-    // 3c. Insert the new state of items, but only if there are any
+  
+    // 4. Insert the new state of items, but only if there are any
     let itemsError = null;
     if (newOrderItems.length > 0) {
-        const { error } = await supabase
-            .from('order_items')
-            .insert(newOrderItems);
-        itemsError = error;
+      const { error } = await supabase
+        .from('order_items')
+        .insert(newOrderItems);
+      itemsError = error;
     }
-
+  
     if (orderError || deleteError || itemsError) {
-        console.error("Error updating order:", orderError || deleteError || itemsError);
-        toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
-        // Revert local state on error
-        setOrders(originalOrders);
-        if (selectedOrder?.id === updatedOrder.id) {
-          setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
-        }
+      console.error("Error updating order:", orderError || deleteError || itemsError);
+      toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
+      // Revert local state on error
+      setOrders(originalOrders);
+      if (selectedOrder?.id === updatedOrder.id) {
+        setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
+      }
     }
   };
   
