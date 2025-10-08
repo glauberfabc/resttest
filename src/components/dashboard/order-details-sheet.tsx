@@ -31,9 +31,10 @@ interface OrderDetailsSheetProps {
   onOpenChange: (isOpen: boolean) => void;
   onUpdateOrder: (order: Order) => void;
   onProcessPayment: (orderId: string, amount: number, method: string) => void;
+  onDeleteOrder: (orderId: string) => void;
 }
 
-export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
+export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
@@ -302,7 +303,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                             )}
                         </div>
                           <div className="flex items-center gap-2">
-                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
+                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -item.quantity)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
@@ -314,9 +315,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                     ))}
                   </div>
                 ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+                    <div className="flex flex-col items-center justify-center h-full text-center p-8 gap-4">
                         <p className="text-muted-foreground">Nenhum item na comanda.</p>
-                        <Button variant="link" className="mt-2" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
+                        <div className="flex gap-2">
+                           <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
+                           <Button variant="destructive" size="icon" onClick={() => onDeleteOrder(order.id)}>
+                             <Trash2 className="h-4 w-4"/>
+                           </Button>
+                        </div>
                     </div>
                 )}
               </ScrollArea>
@@ -425,7 +431,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
-
-    

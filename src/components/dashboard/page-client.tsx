@@ -107,28 +107,11 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .eq('order_id', updatedOrder.id);
 
     // 3. Consolidate and insert items
-    const consolidatedItems = new Map<string, { menuItemId: string, quantity: number, comment: string | null }>();
-    
-    updatedOrder.items.forEach(item => {
-        const key = `${item.menuItem.id}-${item.comment || ''}`;
-        const existing = consolidatedItems.get(key);
-
-        if (existing) {
-            existing.quantity += item.quantity;
-        } else {
-            consolidatedItems.set(key, {
-                menuItemId: item.menuItem.id,
-                quantity: item.quantity,
-                comment: item.comment || null,
-            });
-        }
-    });
-
-    const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
+    const itemsToInsert = updatedOrder.items.map(item => ({
         order_id: updatedOrder.id,
-        menu_item_id: item.menuItemId,
+        menu_item_id: item.menuItem.id,
         quantity: item.quantity,
-        comment: item.comment,
+        comment: item.comment || null,
     }));
 
     let itemsError = null;
@@ -268,6 +251,26 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     }
   };
 
+  const handleDeleteOrder = async (orderId: string) => {
+    const originalOrders = [...orders];
+    setOrders(orders.filter(o => o.id !== orderId));
+    setSelectedOrder(null); 
+
+    const { error } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', orderId);
+
+    if (error) {
+      console.error("Error deleting order:", error);
+      toast({ variant: 'destructive', title: "Erro ao excluir comanda", description: "Não foi possível remover a comanda." });
+      setOrders(originalOrders);
+    } else {
+      toast({ title: "Comanda excluída", description: "A comanda vazia foi removida." });
+    }
+  };
+
+
   const filteredOrders = useMemo(() => {
     if (!searchTerm) {
       return orders;
@@ -391,6 +394,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
           onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
           onUpdateOrder={handleUpdateOrder}
           onProcessPayment={handleProcessPayment}
+          onDeleteOrder={handleDeleteOrder}
         />
       )}
 
@@ -403,5 +407,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
