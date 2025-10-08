@@ -71,16 +71,19 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       .slice(0, 5);
   }, [clients, customerName]);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  const handleTableSubmit = (e: React.FormEvent) => {
      e.preventDefault();
-     if (activeTab === 'table' && tableNumber) {
+     if (tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10));
-    } else if (activeTab === 'name' && customerName && isNewCustomer) {
-      // This handles creating a new customer or one that was typed manually
-      onCreateOrder('name', customerName.toUpperCase(), phone);
     }
   }
 
+  const handleNewCustomerSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (customerName && isNewCustomer) {
+        onCreateOrder('name', customerName.toUpperCase(), phone);
+      }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -106,7 +109,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             <TabsTrigger value="name">Por Nome</TabsTrigger>
         </TabsList>
         <TabsContent value="table" className="pt-4">
-            <form onSubmit={handleManualSubmit}>
+            <form onSubmit={handleTableSubmit}>
                 <div className="space-y-2">
                     <Label htmlFor="table-number">Número da Mesa</Label>
                     <Input
@@ -164,8 +167,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 </CommandList>
             </Command>
 
-            <form onSubmit={handleManualSubmit}>
-                {isNewCustomer && customerName && (
+            {isNewCustomer && customerName && (
+                <form onSubmit={handleNewCustomerSubmit}>
                     <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
                         <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
                         <Input
@@ -175,16 +178,20 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                             onChange={(e) => setPhone(e.target.value)}
                         />
                     </div>
-                )}
-                <DialogFooter className="mt-4">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    {isNewCustomer && (
+                     <DialogFooter className="mt-4">
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                         <Button type="submit" disabled={!customerName}>
                         Criar Cliente e Abrir
                         </Button>
-                    )}
-                </DialogFooter>
-            </form>
+                    </DialogFooter>
+                </form>
+            )}
+
+            {!isNewCustomer && (
+                 <DialogFooter className="mt-4">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                 </DialogFooter>
+            )}
         </TabsContent>
         </Tabs>
       </DialogContent>
