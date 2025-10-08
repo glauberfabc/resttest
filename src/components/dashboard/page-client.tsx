@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import type { Order, MenuItem, Client, OrderItem } from "@/lib/types";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import type { Order, MenuItem, Client } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
@@ -26,9 +26,9 @@ interface DashboardPageClientProps {
 export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp }: DashboardPageClientProps) {
   const { user } = useUser();
   const { toast } = useToast();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
+  const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
+  const [clients, setClients] = useState<Client[]>(initialClientsProp);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -39,7 +39,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     fechadas: { currentPage: 1 },
   });
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     const [ordersData, menuItemsData, clientsData] = await Promise.all([
       getOrders(),
       getMenuItems(),
@@ -48,22 +48,65 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     setOrders(ordersData);
     setMenuItems(menuItemsData);
     setClients(clientsData);
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+
+  useEffect(() => {
+    const handleRealtimeUpdate = (payload: any) => {
+      const { eventType, new: newRecord, old: oldRecord, table } = payload;
+      
+      setOrders(currentOrders => {
+        let updatedOrders = [...currentOrders];
+
+        // This is a simple but effective way to handle updates.
+        // For a more complex app, you might want more granular updates.
+        if (table.startsWith('order')) {
+            fetchData();
+            
+            // If the currently selected order is the one that changed, update it.
+            if (selectedOrder && (newRecord?.id === selectedOrder.id || oldRecord?.id === selectedOrder.id)) {
+                 getOrders().then(allOrders => {
+                    const freshlyFetchedOrder = allOrders.find(o => o.id === selectedOrder.id);
+                    if (freshlyFetchedOrder) {
+                        setSelectedOrder(freshlyFetchedOrder);
+                    } else {
+                        // The order was deleted
+                        setSelectedOrder(null);
+                    }
+                 });
+            }
+
+        } else if (table === 'clients') {
+             getClients().then(setClients);
+        } else if (table === 'menu_items') {
+             getMenuItems().then(setMenuItems);
+        }
+
+        return updatedOrders;
+      });
+    };
 
     const channel = supabase
-      .channel('realtime-all')
-      .on('postgres_changes', { event: '*', schema: 'public' }, payload => {
-        fetchData();
-      })
-      .subscribe();
+      .channel('public-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, handleRealtimeUpdate)
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Conectado ao canal de atualizações em tempo real.');
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error('Erro no canal de tempo real:', err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchData, selectedOrder]);
+
 
   const handleSelectOrder = (order: Order) => {
     setSelectedOrder(order);
@@ -80,7 +123,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setSelectedOrder(updatedOrder);
     }
   
-    // Logic to move notebook orders to today's open orders
     const wasInNotebook = originalOrder && new Date(originalOrder.created_at) < startOfToday();
     const originalTotalQuantity = originalOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
     const updatedTotalQuantity = updatedOrder.items.reduce((sum, item) => sum + item.quantity, 0);
@@ -95,13 +137,16 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       finalOrderDataForUpdate.created_at = new Date().toISOString();
     }
   
-    // 1. Update the order itself (status, timestamps)
     const { error: orderError } = await supabase
       .from('orders')
       .update(finalOrderDataForUpdate)
       .eq('id', updatedOrder.id);
   
-    // 2. Prepare items for insertion (no consolidation needed if DB has unique row IDs)
+    const { error: deleteError } = await supabase
+      .from('order_items')
+      .delete()
+      .eq('order_id', updatedOrder.id);
+  
     const itemsToInsert = updatedOrder.items.map(item => ({
       order_id: updatedOrder.id,
       menu_item_id: item.menuItem.id,
@@ -109,32 +154,20 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       comment: item.comment || null,
     }));
   
-    // 3. Delete all existing items for this order
-    const { error: deleteError } = await supabase
-      .from('order_items')
-      .delete()
-      .eq('order_id', updatedOrder.id);
-  
-    // 4. Insert the new, consolidated items
     let itemsError = null;
     if (itemsToInsert.length > 0) {
       const { error } = await supabase.from('order_items').insert(itemsToInsert);
       itemsError = error;
     }
   
-    // 5. Error handling and state rollback if necessary
     if (orderError || deleteError || itemsError) {
       console.error("Error updating order:", orderError || deleteError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
-      setOrders(originalOrders); // Revert local state on error
+      setOrders(originalOrders); 
       if (selectedOrder?.id === updatedOrder.id) {
         setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
       }
-    } else {
-      // If everything was successful, we might need to re-fetch to get the most accurate state
-      // or manually update the local state carefully. For now, a re-fetch is safer.
-      fetchData();
-    }
+    } 
   };
   
 const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, phone?: string) => {
@@ -145,7 +178,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
     const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
 
-    // If it's a new client, create it first
     if (type === 'name' && phone !== undefined) {
         const clientName = String(finalIdentifier);
         const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
@@ -162,7 +194,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                 toast({ variant: 'destructive', title: "Erro ao criar cliente", description: "Não foi possível salvar o novo cliente." });
                 return;
             }
-            // Add new client to local state to avoid re-fetching
             setClients(prev => [newClient, ...prev]);
         }
     }
@@ -183,18 +214,16 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         toast({ variant: 'destructive', title: "Erro ao criar comanda", description: "Tente novamente." });
         return;
     }
-
-    const newOrder: Order = {
-        ...data,
-        items: [],
-        payments: [],
-        createdAt: data.created_at,
-        paidAt: data.paid_at,
-    };
-
-    setOrders([newOrder, ...orders]);
+    
+    // The realtime subscription will handle adding the new order to the state
     setIsNewOrderDialogOpen(false);
-    setSelectedOrder(newOrder);
+    // Let's select it after a small delay to allow the state to update
+    setTimeout(() => {
+        getOrders().then(allOrders => {
+            const newOrder = allOrders.find(o => o.id === data.id);
+            if (newOrder) setSelectedOrder(newOrder);
+        });
+    }, 500);
   };
   
   const handleProcessPayment = async (orderId: string, amount: number, method: string) => {
@@ -243,6 +272,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     
     await handleUpdateOrder(updatedOrder); 
     
+    // Realtime will handle the update, but we can optimistically update the selected order
     if (isFullyPaid) {
       setSelectedOrder(updatedOrder); 
     } else {
@@ -406,7 +436,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
-
-    
