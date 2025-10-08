@@ -48,31 +48,35 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
 
   const handleSaveItem = async (item: MenuItem) => {
     
-    // Map frontend camelCase to backend snake_case
-    const itemForDb = {
-        name: item.name,
-        code: item.code,
-        description: item.description,
-        price: item.price,
-        category: item.category,
-        image_url: item.imageUrl,
-        stock: item.stock,
-        low_stock_threshold: item.lowStockThreshold,
-        unit: item.unit,
-        user_id: item.user_id,
-    };
-
+    if (!user) {
+        toast({ variant: 'destructive', title: "Erro", description: "Você não está logado." });
+        return;
+    }
 
     if (selectedItem) { // Editing existing item
+      // Map frontend camelCase to backend snake_case for update
+      const itemForDbUpdate = {
+          name: item.name,
+          code: item.code,
+          description: item.description,
+          price: item.price,
+          category: item.category,
+          image_url: item.imageUrl,
+          stock: item.stock,
+          low_stock_threshold: item.lowStockThreshold,
+          unit: item.unit,
+          // DO NOT include user_id here to avoid RLS policy issues on update
+      };
+
       const { data, error } = await supabase
         .from('menu_items')
-        .update(itemForDb)
+        .update(itemForDbUpdate)
         .eq('id', item.id)
         .select()
         .maybeSingle();
       
       if (error) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o item." + error.message });
+        toast({ variant: 'destructive', title: "Erro ao atualizar", description: "Não foi possível atualizar o item: " + error.message });
       } else if (data) {
         const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold, user_id: data.user_id };
         setMenuItems(menuItems.map(i => i.id === remappedData.id ? remappedData : i));
@@ -80,14 +84,27 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
       }
 
     } else { // Adding new item
+       const itemForDbInsert = {
+          name: item.name,
+          code: item.code,
+          description: item.description,
+          price: item.price,
+          category: item.category,
+          image_url: item.imageUrl,
+          stock: item.stock,
+          low_stock_threshold: item.lowStockThreshold,
+          unit: item.unit,
+          user_id: user.id,
+      };
+
       const { data, error } = await supabase
         .from('menu_items')
-        .insert(itemForDb)
+        .insert(itemForDbInsert)
         .select()
         .single();
 
       if (error) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o item." + error.message });
+        toast({ variant: 'destructive', title: "Erro ao adicionar", description: "Não foi possível adicionar o item: " + error.message });
       } else {
         const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold, user_id: data.user_id };
         setMenuItems([remappedData, ...menuItems]);
