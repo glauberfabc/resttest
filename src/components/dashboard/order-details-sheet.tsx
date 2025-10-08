@@ -114,35 +114,33 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   }, new Map<string, OrderItem>()).values());
 
 
-  const updateItemQuantity = (itemId: string, itemComment: string | undefined, delta: number) => {
+  const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.menuItem.id === itemId && i.comment === itemComment);
-    
-    // This logic is tricky. Let's simplify: + adds one, - removes one.
-    // Let's find THE FIRST item that matches to update it.
-    const firstMatchIndex = updatedItems.findIndex(i => i.menuItem.id === itemId && i.comment === (itemComment || ''));
+    const itemToUpdate = updatedItems.find(i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment);
 
-    if (firstMatchIndex > -1) {
-      if (delta > 0) {
-        updatedItems[firstMatchIndex].quantity += delta;
-      } else {
-        updatedItems[firstMatchIndex].quantity += delta;
-        if (updatedItems[firstMatchIndex].quantity <= 0) {
-          updatedItems.splice(firstMatchIndex, 1);
+    if (itemToUpdate) {
+        if (delta > 0) {
+            // To add quantity, we just add a new item instance
+            addItemToOrder(itemToUpdate.menuItem, itemToUpdate.comment);
+        } else {
+            const index = updatedItems.findIndex(i => i.id === itemToUpdate.id);
+            if (index > -1) {
+                updatedItems[index].quantity += delta;
+                 if (updatedItems[index].quantity <= 0) {
+                    updatedItems.splice(index, 1);
+                }
+            }
+             onUpdateOrder({ ...order, items: updatedItems });
         }
-      }
-      onUpdateOrder({ ...order, items: updatedItems });
     }
   };
   
-  const addItemToOrder = (menuItem: MenuItem) => {
-    // To allow for different comments, we always add a new item.
-    // The aggregation will happen visually in groupedItems and before saving.
+  const addItemToOrder = (menuItem: MenuItem, comment: string = '') => {
     const newItem: OrderItem = {
       id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID
       menuItem,
       quantity: 1,
-      comment: '',
+      comment,
     };
     onUpdateOrder({ ...order, items: [...order.items, newItem] });
   };
@@ -301,11 +299,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                             )}
                         </div>
                           <div className="flex items-center gap-2">
-                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.menuItem.id, item.comment, -1)}>
+                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
                               {item.quantity === 1 ? <Trash2 className="h-4 w-4 text-destructive" /> : <Minus className="h-4 w-4" />}
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item.menuItem.id, item.comment, 1)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -396,7 +394,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             {isMenuPickerOpen && (
                 <MenuPicker
                 menuItems={menuItems}
-                onAddItem={addItemToOrder}
+                onAddItem={(menuItem) => addItemToOrder(menuItem)}
                 isOpen={isMenuPickerOpen}
                 onOpenChange={setIsMenuPickerOpen}
                 />
@@ -424,3 +422,5 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
