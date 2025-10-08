@@ -95,7 +95,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       order_id: updatedOrder.id,
       menu_item_id: item.menuItem.id,
       quantity: item.quantity,
-      // comment: item.comment, // This will be added back once the DB schema is updated
+      comment: item.comment,
     }));
   
     // 4. Insert the new state of items, but only if there are any
@@ -277,3 +277,5 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
+
+    
