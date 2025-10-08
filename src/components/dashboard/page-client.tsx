@@ -75,7 +75,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setSelectedOrder(updatedOrder);
     }
   
-    // 1. Update order status
+    // 1. Update order status if changed
     const { error: orderError } = await supabase
       .from('orders')
       .update({
@@ -84,17 +84,17 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order
+    // 2. Delete all existing items for this order to avoid conflicts
     const { error: deleteError } = await supabase
       .from('order_items')
       .delete()
       .eq('order_id', updatedOrder.id);
   
     // 3. Prepare the new items to be inserted, EXCLUDING the comment field
-    const newOrderItems = updatedOrder.items.map(item => ({
+    const newOrderItems = updatedOrder.items.map(({ menuItem, quantity }) => ({
       order_id: updatedOrder.id,
-      menu_item_id: item.menuItem.id,
-      quantity: item.quantity,
+      menu_item_id: menuItem.id,
+      quantity: quantity,
       // The 'comment' field is intentionally omitted as it does not exist in the database.
     }));
   

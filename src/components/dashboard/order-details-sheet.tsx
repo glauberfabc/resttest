@@ -86,13 +86,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const groupedItems = useMemo(() => {
     const itemMap = new Map<string, OrderItem>();
-    order.items.forEach((item, index) => {
+    order.items.forEach((item) => {
         const key = `${item.menuItem.id}-${item.comment || ''}`;
         if (itemMap.has(key)) {
             const existing = itemMap.get(key)!;
             existing.quantity += item.quantity;
         } else {
-            itemMap.set(key, { ...item, id: index });
+            // Assign a temporary ID if it doesn't have one
+            itemMap.set(key, { ...item, id: item.id ?? Math.random() });
         }
     });
     return Array.from(itemMap.values());
@@ -100,7 +101,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
  const updateItem = (itemToUpdate: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.id === itemToUpdate.id);
+    // Find the first occurrence of the item to decrease its quantity or remove it
+    const itemIndex = updatedItems.findIndex(i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment);
   
     if (itemIndex > -1) {
       const newQuantity = updatedItems[itemIndex].quantity + delta;
@@ -117,10 +119,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const updatedItems = order.items.filter(item => item.id !== itemToRemove.id);
     onUpdateOrder({ ...order, items: updatedItems });
   };
-
+  
   const addItemToOrder = (menuItem: MenuItem) => {
     // Always add as a new item with a temporary unique ID
-    const newId = order.items.length > 0 ? Math.max(...order.items.map(i => i.id || 0)) + 1 : 0;
+    const newId = (order.items.length > 0 ? Math.max(...order.items.map(i => i.id || 0)) : 0) + 1;
     const newItem: OrderItem = { menuItem, quantity: 1, comment: '', id: newId };
     const updatedItems = [...order.items, newItem];
     onUpdateOrder({ ...order, items: updatedItems });
@@ -243,10 +245,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {groupedItems.length > 0 ? (
+                {order.items.length > 0 ? (
                   <div className="pr-4">
-                    {groupedItems.map((item, index) => (
-                      <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
+                    {order.items.map((item) => (
+                      <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
