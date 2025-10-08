@@ -63,6 +63,16 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         }, 200);
     }
   }, [isOpen]);
+  
+  const handleNameChange = (search: string) => {
+    setCustomerName(search.toUpperCase());
+  };
+
+  const handleItemClick = (client: Client) => {
+    setCustomerName(client.name); // Ensure the name is set before creating order
+    onCreateOrder('name', client.name);
+    setOpen(false); // Close popover
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,7 +154,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                         <Command>
                         <CommandInput 
                             placeholder="Buscar cliente..."
-                            onValueChange={(search) => setCustomerName(search)}
+                            onValueChange={handleNameChange}
                             value={customerName}
                             onKeyDown={handleKeyDown}
                         />
@@ -155,16 +165,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 <CommandItem
                                 key={client.id}
                                 value={client.name}
-                                onSelect={(currentValue) => {
-                                    const selectedClient = clients.find(c => c.name.toUpperCase() === currentValue.toUpperCase());
-                                    if (selectedClient) {
-                                      onCreateOrder('name', selectedClient.name);
-                                      setOpen(false);
-                                    } else {
-                                      setCustomerName(currentValue);
-                                      setOpen(false);
-                                    }
-                                }}
+                                onSelect={() => handleItemClick(client)}
                                 >
                                 <Check
                                     className={cn(
@@ -209,3 +210,5 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     </Dialog>
   );
 }
+
+    

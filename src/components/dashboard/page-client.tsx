@@ -146,9 +146,11 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         return;
     }
 
+    const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
+
     // If it's a new client, create it first
     if (type === 'name' && phone !== undefined) {
-        const clientName = String(identifier).toUpperCase();
+        const clientName = String(finalIdentifier);
         const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
 
         if (!clientExists) {
@@ -172,7 +174,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       .from('orders')
       .insert({ 
         type, 
-        identifier: String(identifier).toUpperCase(), 
+        identifier: String(finalIdentifier), 
         status: 'open',
         user_id: user.id,
        })

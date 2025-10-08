@@ -82,10 +82,15 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         return;
     }
 
+    const finalClientData = {
+        ...clientData,
+        name: clientData.name.toUpperCase(),
+    };
+
     if (selectedClient) { // Editing existing client
       const { data, error } = await supabase
         .from('clients')
-        .update({ name: clientData.name, phone: clientData.phone, document: clientData.document })
+        .update({ name: finalClientData.name, phone: finalClientData.phone, document: finalClientData.document })
         .eq('id', selectedClient.id)
         .select()
         .single();
@@ -99,7 +104,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     } else { // Adding new client
       const { data, error } = await supabase
         .from('clients')
-        .insert({ ...clientData, user_id: user.id })
+        .insert({ ...finalClientData, user_id: user.id })
         .select()
         .single();
 
@@ -125,7 +130,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
       .from('orders')
       .insert({ 
         type: 'name', 
-        identifier: clientName, 
+        identifier: clientName.toUpperCase(), 
         status: 'open',
         user_id: user.id,
        })
@@ -240,3 +245,5 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
+
+    
