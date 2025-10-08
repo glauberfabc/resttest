@@ -55,18 +55,19 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   useEffect(() => {
     // Initialize with items that are already in the order
     setPrintedKitchenItems(order.items);
-  }, [order.id, order.items]);
+  }, [order.id]); // Run only when the order ID changes
 
   useEffect(() => {
-    const newItemsToPrint: OrderItem[] = [];
+    // This effect calculates which items are new and need to be printed.
     const currentItemsMap = new Map<string, OrderItem>();
     order.items.forEach(item => {
+        // Use a consistent key based on item properties, not a temporary ID
         const key = `${item.menuItem.id}-${item.comment || ''}`;
         const existing = currentItemsMap.get(key);
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            currentItemsMap.set(key, { ...item, quantity: item.quantity });
+            currentItemsMap.set(key, { ...item });
         }
     });
 
@@ -77,22 +78,23 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            printedItemsMap.set(key, { ...item, quantity: item.quantity });
+            printedItemsMap.set(key, { ...item });
         }
     });
     
+    const newItems: OrderItem[] = [];
     currentItemsMap.forEach((currentItem, key) => {
         const printedItem = printedItemsMap.get(key);
         const printedQuantity = printedItem ? printedItem.quantity : 0;
+        
         if (currentItem.quantity > printedQuantity) {
-            newItemsToPrint.push({
+            newItems.push({
                 ...currentItem,
                 quantity: currentItem.quantity - printedQuantity,
             });
         }
     });
-
-    setItemsToPrint(newItemsToPrint);
+    setItemsToPrint(newItems);
   }, [order.items, printedKitchenItems]);
 
 
@@ -103,41 +105,39 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const timeZone = 'America/Sao_Paulo';
   
   const groupedItems = Array.from(order.items.reduce((map, item) => {
+    // The key ensures that items with different comments are treated as distinct.
     const key = `${item.menuItem.id}-${item.comment || ''}`;
     const existing = map.get(key);
     if (existing) {
       existing.quantity += item.quantity;
     } else {
-      map.set(key, { ...item, id: key }); // Ensure a unique ID for the group
+      // Create a new entry in the map with a unique ID for React's key prop.
+      map.set(key, { ...item, id: key });
     }
     return map;
   }, new Map<string, OrderItem>()).values());
 
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
-    const updatedItems = [...order.items];
-    const itemToUpdate = updatedItems.find(i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment);
-
-    if (itemToUpdate) {
-        if (delta > 0) {
-            // To add quantity, we just add a new item instance
-            addItemToOrder(itemToUpdate.menuItem, itemToUpdate.comment);
-        } else {
-            const index = updatedItems.findIndex(i => i.id === itemToUpdate.id);
-            if (index > -1) {
-                updatedItems[index].quantity += delta;
-                 if (updatedItems[index].quantity <= 0) {
-                    updatedItems.splice(index, 1);
-                }
-            }
-             onUpdateOrder({ ...order, items: updatedItems });
-        }
+    if (delta > 0) {
+      // Add a new instance of the item to the order, which will be grouped visually.
+      addItemToOrder(itemGroup.menuItem, itemGroup.comment);
+    } else {
+      // Find the first matching item instance in the original array to remove/decrement.
+      const itemIndex = order.items.findIndex(i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment);
+      if (itemIndex > -1) {
+        const updatedItems = [...order.items];
+        // If there's only one, remove it. Otherwise, this logic is flawed for grouped items.
+        // The safest way to handle decrement is to remove one instance.
+        updatedItems.splice(itemIndex, 1);
+        onUpdateOrder({ ...order, items: updatedItems });
+      }
     }
   };
   
   const addItemToOrder = (menuItem: MenuItem, comment: string = '') => {
     const newItem: OrderItem = {
-      id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID
+      id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID for React keys
       menuItem,
       quantity: 1,
       comment,
@@ -146,6 +146,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
   
   const handleEditComment = (item: OrderItem) => {
+    // `item` here is from the `groupedItems`, which has the unique `id` we need.
     setEditingItem(item);
     setIsCommentDialogOpen(true);
   };
@@ -153,10 +154,23 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const handleSaveComment = (comment: string) => {
     if (!editingItem) return;
     
-    // We need to find the specific item instance to update, not just any item with the same menuitem id.
-    const updatedItems = order.items.map(item =>
-      item.id === editingItem.id ? { ...item, comment } : item
-    );
+    // Create a new array to hold the updated items.
+    const updatedItems: OrderItem[] = [];
+    let updated = false;
+
+    // Go through all original items.
+    order.items.forEach(item => {
+      // Check if the current item matches the one we were editing (same product, same original comment).
+      const itemKey = `${item.menuItem.id}-${item.comment || ''}`;
+      if (itemKey === editingItem.id && !updated) {
+        // This is the first item that matches. Change its comment.
+        updatedItems.push({ ...item, comment });
+        updated = true; // Mark as updated so we only change one.
+      } else {
+        // This item is not the one we're editing, so push it as is.
+        updatedItems.push(item);
+      }
+    });
 
     onUpdateOrder({ ...order, items: updatedItems });
     setEditingItem(null);
@@ -185,6 +199,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       return;
     }
     window.print();
+    // After printing, update the `printedKitchenItems` to match the current state.
     setPrintedKitchenItems([...order.items]);
   };
   
@@ -210,6 +225,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     text += line;
 
     print(text);
+    // After printing, update the `printedKitchenItems` to match the current state.
     setPrintedKitchenItems([...order.items]);
   };
 
@@ -231,15 +247,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     if (isConnecting) return <BluetoothSearching className="h-4 w-4" />;
     if (isConnected) return <BluetoothConnected className="h-4 w-4" />;
     return <Bluetooth className="h-4 w-4" />;
-  };
-
-  const removeItem = (itemToRemove: OrderItem) => {
-    const itemIndex = order.items.findIndex(i => i.id === itemToRemove.id);
-    if (itemIndex > -1) {
-      const updatedItems = [...order.items];
-      updatedItems.splice(itemIndex, 1);
-      onUpdateOrder({ ...order, items: updatedItems });
-    }
   };
 
   return (
