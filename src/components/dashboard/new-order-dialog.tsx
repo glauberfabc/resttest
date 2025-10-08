@@ -69,9 +69,10 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   };
 
   const handleItemClick = (client: Client) => {
-    setCustomerName(client.name); // Ensure the name is set before creating order
+    // This function is now guaranteed to be called on click.
     onCreateOrder('name', client.name);
-    setOpen(false); // Close popover
+    setOpen(false); 
+    onOpenChange(false); // Also close the main dialog
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -86,7 +87,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (isNewCustomer && customerName) {
+      // Find if the current typed name is an existing client
+      const existingClient = clients.find(c => c.name.toUpperCase() === customerName.toUpperCase());
+      if (existingClient) {
+          handleItemClick(existingClient);
+      } else if (isNewCustomer && customerName) {
         setOpen(false);
         setTimeout(() => phoneInputRef.current?.focus(), 50);
       } else {
@@ -163,9 +168,14 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                             <CommandGroup>
                             {filteredClients.map((client) => (
                                 <CommandItem
-                                key={client.id}
-                                value={client.name}
-                                onSelect={() => handleItemClick(client)}
+                                  key={client.id}
+                                  value={client.name}
+                                  onSelect={(currentValue) => {
+                                      // onSelect is still useful for keyboard navigation
+                                      setCustomerName(currentValue.toUpperCase());
+                                      setOpen(false);
+                                  }}
+                                  onClick={() => handleItemClick(client)} // DIRECTLY handle the click
                                 >
                                 <Check
                                     className={cn(
@@ -210,5 +220,3 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     </Dialog>
   );
 }
-
-    
