@@ -54,4 +54,12 @@ export interface Client {
   user_id?: string;
 }
 
+export interface ClientCredit {
+  id: string;
+  client_id: string;
+  amount: number;
+  method: string;
+  created_at: Date;
+  user_id: string;
+}
     

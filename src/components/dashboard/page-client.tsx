@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import type { Order, MenuItem, Client, OrderItem } from "@/lib/types";
+import type { Order, MenuItem, Client, OrderItem, ClientCredit } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
@@ -10,7 +10,7 @@ import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
 import { PlusCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { supabase, getOrders, getMenuItems, getClients } from "@/lib/supabase";
+import { supabase, getOrders, getMenuItems, getClients, getClientCredits } from "@/lib/supabase";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday } from 'date-fns';
@@ -29,6 +29,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
+  const [credits, setCredits] = useState<ClientCredit[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -40,14 +41,16 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   });
 
   const fetchData = useCallback(async () => {
-    const [ordersData, menuItemsData, clientsData] = await Promise.all([
+    const [ordersData, menuItemsData, clientsData, creditsData] = await Promise.all([
       getOrders(),
       getMenuItems(),
-      getClients()
+      getClients(),
+      getClientCredits()
     ]);
     setOrders(ordersData);
     setMenuItems(menuItemsData);
     setClients(clientsData);
+    setCredits(creditsData);
   }, []);
 
   useEffect(() => {
@@ -57,19 +60,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   useEffect(() => {
     const handleRealtimeUpdate = (payload: any) => {
-      fetchData();
-      if (selectedOrder && payload.table === 'orders' && payload.new.id === selectedOrder.id) {
-        getOrders().then(allOrders => {
-          const freshlyFetchedOrder = allOrders.find(o => o.id === selectedOrder.id);
-          if (freshlyFetchedOrder) {
-              setSelectedOrder(freshlyFetchedOrder);
-          } else {
-              setSelectedOrder(null);
-          }
-        });
-      }
+      fetchData(); // Refetch all data for simplicity and consistency
+      // Optionally, you can implement more granular updates based on payload
     };
-  
+
     const channel = supabase
       .channel('public-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public' }, handleRealtimeUpdate)
@@ -81,11 +75,11 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           console.error('Erro no canal de tempo real:', err);
         }
       });
-  
+
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchData, selectedOrder]);
+  }, [fetchData]);
 
 
   const handleSelectOrder = (order: Order) => {
@@ -210,6 +204,31 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay) return;
     
+    if (method === "Saldo Cliente") {
+        const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        if (!client) {
+            toast({ variant: 'destructive', title: "Erro", description: "Cliente não encontrado para pagamento com saldo." });
+            return;
+        }
+
+        const { data: creditData, error: creditError } = await supabase
+            .from('client_credits')
+            .insert({
+                client_id: client.id,
+                amount: -amount, // Use negative amount for debit
+                method: `Pagamento Comanda #${orderToPay.id.substring(0, 4)}`,
+                user_id: user!.id,
+            })
+            .select()
+            .single();
+
+        if (creditError) {
+            toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível debitar do saldo do cliente." });
+            return;
+        }
+    }
+
+
     const { data: paymentData, error: paymentError } = await supabase
         .from('order_payments')
         .insert({

@@ -1,7 +1,7 @@
 
 
 import { createClient } from '@supabase/supabase-js'
-import type { Order, MenuItem, Client } from './types';
+import type { Order, MenuItem, Client, ClientCredit } from './types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -76,7 +76,7 @@ export async function getOrders(): Promise<Order[]> {
     return data.map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
-            id: item.id, 
+            id: item.id || crypto.randomUUID(),
             quantity: item.quantity,
             comment: item.comment || '',
             menuItem: {
@@ -94,4 +94,20 @@ export async function getOrders(): Promise<Order[]> {
     })) as unknown as Order[];
 }
 
+
+export async function getClientCredits(): Promise<ClientCredit[]> {
+    const { data, error } = await supabase
+        .from('client_credits')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
+    if (error) {
+        console.error('Error fetching client credits:', error);
+        return [];
+    }
+    return data.map(credit => ({
+        ...credit,
+        created_at: new Date(credit.created_at)
+    })) as ClientCredit[];
+}
 

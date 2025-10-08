@@ -11,7 +11,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CreditCard, Landmark, CircleDollarSign, QrCode } from "lucide-react";
+import { CreditCard, Landmark, CircleDollarSign, QrCode, WalletCards } from "lucide-react";
 import type { Order } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +58,11 @@ export function PaymentDialog({ order, total, isOpen, onOpenChange, onConfirmPay
         { name: "PIX", icon: QrCode },
         { name: "Dinheiro", icon: CircleDollarSign },
     ]
+
+    // Only show "Pagar com Saldo" if it's a client order
+    if (order.type === 'name') {
+        paymentMethods.push({ name: "Saldo Cliente", icon: WalletCards });
+    }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
