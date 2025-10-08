@@ -79,7 +79,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             const menuItem = menuItems.find(mi => mi.id === menuItemId);
             if (menuItem) {
                  newItems.push({
-                    id: `print-${key}`,
+                    id: `print-${key}-${Math.random()}`,
                     menuItem,
                     quantity: quantity - printedQuantity,
                     comment: comment || '',
