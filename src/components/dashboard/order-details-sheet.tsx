@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import type { Order, MenuItem, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -19,9 +19,10 @@ import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching, XCircle } from "lucide-react";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
+import { useToast } from "@/hooks/use-toast";
 
 interface OrderDetailsSheetProps {
   order: Order;
@@ -34,6 +35,12 @@ interface OrderDetailsSheetProps {
 export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+  
+  // State to track items already sent to the kitchen printer
+  const [printedKitchenItems, setPrintedKitchenItems] = useState<OrderItem[]>([]);
+  const [itemsToPrint, setItemsToPrint] = useState<OrderItem[]>([]);
+  
+  const { toast } = useToast();
   const {
     isConnecting,
     isConnected,
@@ -42,6 +49,32 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     disconnect,
     print,
   } = useBluetoothPrinter();
+
+  // When the order details are opened, initialize the printed items state
+  // to the current state of the order, assuming they were already handled.
+  useEffect(() => {
+    setPrintedKitchenItems([...order.items]);
+  }, [order.id]); // Only runs when a new order is selected
+
+  // Recalculate what needs to be printed every time the order items change
+  useEffect(() => {
+    const newItemsToPrint: OrderItem[] = [];
+    order.items.forEach(currentItem => {
+      const printedItem = printedKitchenItems.find(pItem => pItem.menuItem.id === currentItem.menuItem.id);
+      
+      if (!printedItem) {
+        // This is a completely new item
+        newItemsToPrint.push(currentItem);
+      } else if (currentItem.quantity > printedItem.quantity) {
+        // The quantity has increased
+        newItemsToPrint.push({
+          ...currentItem,
+          quantity: currentItem.quantity - printedItem.quantity
+        });
+      }
+    });
+    setItemsToPrint(newItemsToPrint);
+  }, [order.items, printedKitchenItems]);
 
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
@@ -88,11 +121,23 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     onProcessPayment(order.id, amount, method);
   };
   
-  const handlePrint = () => {
+  const handleKitchenPrint = () => {
+    if (itemsToPrint.length === 0) {
+      toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
+      return;
+    }
+    // This will trigger the print-area to re-render with only the new items
     window.print();
+    // After printing, update the baseline of printed items to the current state
+    setPrintedKitchenItems([...order.items]);
   };
   
   const handleBluetoothPrint = () => {
+     if (itemsToPrint.length === 0) {
+      toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
+      return;
+    }
+
     const receiptDate = new Date();
     const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
     const line = "--------------------------------\n";
@@ -100,12 +145,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     let text = `Comanda: ${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}\n`;
     text += `Pedido as: ${formattedTime}\n`;
     text += line;
-    order.items.forEach(item => {
+    itemsToPrint.forEach(item => {
         text += `${item.quantity}x ${item.menuItem.name}\n`;
     });
     text += line;
 
     print(text);
+    // After sending to printer, update the baseline
+    setPrintedKitchenItems([...order.items]);
   };
 
   const getFormattedPaidAt = () => {
@@ -147,9 +194,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                     <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} className="!block !relative !w-full !p-0 !text-black !bg-white !shadow-none !border-none !text-sm" />
                 </div>
                 <SheetFooter className="mt-auto">
-                    <Button variant="outline" className="w-full" onClick={handlePrint}>
+                    <Button variant="outline" className="w-full" onClick={() => window.print()}>
                         <Printer className="mr-2 h-4 w-4" />
-                        Imprimir
+                        Imprimir Comprovante
                     </Button>
                 </SheetFooter>
             </>
@@ -239,7 +286,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
                             <Share className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={handlePrint}>
+                        <Button variant="outline" size="icon" onClick={handleKitchenPrint}>
                             <Printer className="h-4 w-4" />
                         </Button>
                         <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0 || remainingAmount < 0.01}>
@@ -248,8 +295,8 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         </Button>
                     </div>
                      {isConnected && (
-                        <Button variant="secondary" className="w-full" onClick={handleBluetoothPrint}>
-                            <Bluetooth className="mr-2 h-4 w-4" /> Imprimir via Bluetooth
+                        <Button variant="secondary" className="w-full" onClick={handleBluetoothPrint} disabled={itemsToPrint.length === 0}>
+                            <Bluetooth className="mr-2 h-4 w-4" /> Imprimir Cozinha (Bluetooth)
                         </Button>
                     )}
                 </div>
@@ -260,7 +307,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       </Sheet>
 
       <div className="print-area">
-        <KitchenReceipt order={order} />
+        <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
         {isPaid && <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />}
       </div>
 
