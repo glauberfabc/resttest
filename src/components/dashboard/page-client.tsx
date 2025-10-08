@@ -101,27 +101,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .update(finalOrderDataForUpdate)
       .eq('id', updatedOrder.id);
   
-    // 2. Consolidate items before DB operations to prevent conflicts
-    const consolidatedItems = new Map<string, { menuItem: MenuItem; quantity: number; comment: string | null }>();
-    updatedOrder.items.forEach(item => {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      const existing = consolidatedItems.get(key);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        consolidatedItems.set(key, {
-          menuItem: item.menuItem,
-          quantity: item.quantity,
-          comment: item.comment || null,
-        });
-      }
-    });
-  
-    const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
+    // 2. Prepare items for insertion (no consolidation needed if DB has unique row IDs)
+    const itemsToInsert = updatedOrder.items.map(item => ({
       order_id: updatedOrder.id,
       menu_item_id: item.menuItem.id,
       quantity: item.quantity,
-      comment: item.comment,
+      comment: item.comment || null,
     }));
   
     // 3. Delete all existing items for this order
@@ -421,5 +406,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
 
     
