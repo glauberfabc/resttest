@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import type { Order, MenuItem, Client } from "@/lib/types";
+import type { Order, MenuItem, Client, OrderItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
@@ -105,14 +105,26 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       .from('order_items')
       .delete()
       .eq('order_id', updatedOrder.id);
-
+      
     // 3. Consolidate and insert items
-    const itemsToInsert = updatedOrder.items.map(item => ({
+    const consolidatedItems = new Map<string, OrderItem>();
+    updatedOrder.items.forEach(item => {
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
+      const existing = consolidatedItems.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        consolidatedItems.set(key, { ...item });
+      }
+    });
+
+    const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
         quantity: item.quantity,
         comment: item.comment || null,
     }));
+
 
     let itemsError = null;
     if (itemsToInsert.length > 0) {
@@ -409,5 +421,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
 
     

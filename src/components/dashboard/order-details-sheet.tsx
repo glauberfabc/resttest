@@ -117,30 +117,55 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.id === itemToUpdate.id);
+    // Find the first occurrence of the item to get its ID, as grouped items have a composite ID.
+    const itemIndex = updatedItems.findIndex(i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment);
   
     if (itemIndex === -1) return;
   
-    const newQuantity = updatedItems[itemIndex].quantity + delta;
+    const originalItem = updatedItems[itemIndex];
+    const newQuantity = originalItem.quantity + delta;
   
     if (newQuantity <= 0) {
-      updatedItems.splice(itemIndex, 1);
+      // Remove all items with the same menu item ID and comment
+      const filteredItems = updatedItems.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
+      onUpdateOrder({ ...order, items: filteredItems });
     } else {
-      updatedItems[itemIndex].quantity = newQuantity;
+      // If quantity is increasing, we just add a new item instance.
+      // If quantity is decreasing, we need a more complex logic, but for now, let's simplify.
+      // The backend consolidation will handle summing them up.
+      // For decreasing, we'll just remove one instance.
+      if (delta < 0) {
+          updatedItems.splice(itemIndex, 1);
+      } else {
+          updatedItems.push({ ...originalItem, quantity: delta });
+      }
+      
+      const newUpdatedItems = updatedItems.map((item, idx) => ({ ...item, id: `item-${idx}` }));
+      onUpdateOrder({ ...order, items: newUpdatedItems });
     }
-  
-    onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const addItemToOrder = (menuItem: MenuItem) => {
       const updatedItems = [...order.items];
-      const newItem: OrderItem = {
-          id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
-          menuItem,
-          quantity: 1,
-          comment: '',
-      };
-      updatedItems.push(newItem);
+      
+      // Check if an item without a comment already exists.
+      const existingItemIndex = updatedItems.findIndex(
+        (item) => item.menuItem.id === menuItem.id && !item.comment
+      );
+
+      if(existingItemIndex !== -1) {
+          // Instead of creating a new item, just increase the quantity of the existing one.
+          updatedItems[existingItemIndex].quantity += 1;
+      } else {
+          // If no such item exists, create a new one.
+          const newItem: OrderItem = {
+              id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
+              menuItem,
+              quantity: 1,
+              comment: '',
+          };
+          updatedItems.push(newItem);
+      }
   
       onUpdateOrder({ ...order, items: updatedItems });
   };
@@ -154,8 +179,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     if (!editingItem) return;
   
     const updatedItems = order.items.map(i => {
-        // Use the unique frontend ID to find the correct item
-        if (i.id === editingItem.id) {
+        // Use the composite key (id + comment) to find the correct item from the display list
+        const key = `${i.menuItem.id}-${i.comment || ''}`;
+        const editingKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
+        if (key === editingKey) {
             return { ...i, comment: newComment };
         }
         return i;
@@ -265,9 +292,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             <>
               <Separator />
               <ScrollArea className="flex-1">
-                {order.items.length > 0 ? (
+                {groupedItemsForDisplay.length > 0 ? (
                   <div className="pr-4">
-                    {order.items.map((item) => (
+                    {groupedItemsForDisplay.map((item) => (
                       <div key={item.id} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
@@ -295,6 +322,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                           <div className="flex items-center gap-2">
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -item.quantity)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
+                              <Minus className="h-4 w-4" />
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
@@ -421,5 +451,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
 
     
