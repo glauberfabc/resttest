@@ -71,12 +71,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
+    // Optimistically update the local state
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
   
+    // 1. Update the order status and paid_at timestamp
     const { error: orderError } = await supabase
       .from('orders')
       .update({
@@ -85,24 +87,29 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
+    // 2. Delete all existing items for this order
     const { error: deleteError } = await supabase
       .from('order_items')
       .delete()
       .eq('order_id', updatedOrder.id);
 
+    // 3. Consolidate and insert the updated items
     const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
+
     for (const item of updatedOrder.items) {
-        const key = `${item.menuItem.id}-${item.comment || ''}`;
-        const existing = consolidatedItems.get(key);
-        if (existing) {
-            existing.quantity += item.quantity;
-        } else {
-            consolidatedItems.set(key, {
-                menuItemId: item.menuItem.id,
-                quantity: item.quantity,
-                comment: item.comment || null,
-            });
-        }
+      // Create a key from menu item ID and comment to group identical items
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
+      const existing = consolidatedItems.get(key);
+
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        consolidatedItems.set(key, {
+            menuItemId: item.menuItem.id,
+            quantity: item.quantity,
+            comment: item.comment || null,
+        });
+      }
     }
     
     const itemsToInsert = Array.from(consolidatedItems.values()).map(item => ({
@@ -121,7 +128,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (orderError || deleteError || itemsError) {
       console.error("Error updating order:", orderError || deleteError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
-      setOrders(originalOrders);
+      setOrders(originalOrders); // Revert local state on error
       if (selectedOrder?.id === updatedOrder.id) {
         setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
       }

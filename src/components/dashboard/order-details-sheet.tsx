@@ -53,46 +53,42 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   } = useBluetoothPrinter();
 
   useEffect(() => {
+    // Initialize printed items state when order changes
     setPrintedKitchenItems(order.items);
-  }, [order.id]);
+  }, [order.id, order.items]);
 
   useEffect(() => {
-    const currentItemsMap = new Map<string, OrderItem>();
+    // This effect calculates which items are new or have increased quantity
+    const currentItemsMap = new Map<string, number>();
     order.items.forEach(item => {
-        const key = `${item.menuItem.id}-${item.comment || ''}`;
-        const existing = currentItemsMap.get(key);
-        if (existing) {
-            existing.quantity += item.quantity;
-        } else {
-            currentItemsMap.set(key, { ...item });
-        }
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
+      currentItemsMap.set(key, (currentItemsMap.get(key) || 0) + item.quantity);
     });
 
-    const printedItemsMap = new Map<string, OrderItem>();
+    const printedItemsMap = new Map<string, number>();
     printedKitchenItems.forEach(item => {
         const key = `${item.menuItem.id}-${item.comment || ''}`;
-        const existing = printedItemsMap.get(key);
-        if (existing) {
-            existing.quantity += item.quantity;
-        } else {
-            printedItemsMap.set(key, { ...item });
-        }
+        printedItemsMap.set(key, (printedItemsMap.get(key) || 0) + item.quantity);
     });
     
     const newItems: OrderItem[] = [];
-    currentItemsMap.forEach((currentItem, key) => {
-        const printedItem = printedItemsMap.get(key);
-        const printedQuantity = printedItem ? printedItem.quantity : 0;
-        
-        if (currentItem.quantity > printedQuantity) {
-            newItems.push({
-                ...currentItem,
-                quantity: currentItem.quantity - printedQuantity,
-            });
+    currentItemsMap.forEach((quantity, key) => {
+        const printedQuantity = printedItemsMap.get(key) || 0;
+        if (quantity > printedQuantity) {
+            const [menuItemId, comment] = key.split(/-(.*)/s)
+            const menuItem = menuItems.find(mi => mi.id === menuItemId);
+            if (menuItem) {
+                 newItems.push({
+                    id: `print-${key}`,
+                    menuItem,
+                    quantity: quantity - printedQuantity,
+                    comment: comment || '',
+                });
+            }
         }
     });
     setItemsToPrint(newItems);
-  }, [order.items, printedKitchenItems]);
+  }, [order.items, printedKitchenItems, menuItems]);
 
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
@@ -101,56 +97,105 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
   
+  // Consolidate items for display
   const groupedItems = Array.from(order.items.reduce((map, item) => {
     const key = `${item.menuItem.id}-${item.comment || ''}`;
     const existing = map.get(key);
     if (existing) {
       existing.quantity += item.quantity;
     } else {
-      map.set(key, { ...item, id: item.id || key, quantity: item.quantity });
+      // Create a shallow copy and ensure it has a unique ID for React key
+      map.set(key, { ...item, id: item.id || key });
     }
     return map;
   }, new Map<string, OrderItem>()).values());
 
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
-    if (delta > 0) {
-      addItemToOrder(itemGroup.menuItem, ""); // Add new item with blank comment
-    } else {
-      const itemIndexToRemove = order.items.findIndex(
+    const updatedItems = [...order.items];
+
+    if (delta > 0) { // Add a new instance of the item with a blank comment
+      const newItem: OrderItem = {
+        id: `new-${Date.now()}-${Math.random()}`,
+        menuItem: itemGroup.menuItem,
+        quantity: 1,
+        comment: '',
+      };
+      updatedItems.push(newItem);
+    } else { // Remove one unit of the specified item group
+      // Find the last matching item instance to remove from
+      const itemIndexToRemove = updatedItems.findLastIndex(
         i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment
       );
       if (itemIndexToRemove !== -1) {
-        const updatedItems = [...order.items];
         if (updatedItems[itemIndexToRemove].quantity > 1) {
           updatedItems[itemIndexToRemove].quantity -= 1;
         } else {
           updatedItems.splice(itemIndexToRemove, 1);
         }
-        onUpdateOrder({ ...order, items: updatedItems });
       }
     }
+    onUpdateOrder({ ...order, items: updatedItems });
   };
   
-  const addItemToOrder = (menuItem: MenuItem, comment: string = '') => {
-    const newItem: OrderItem = {
-      id: `new-${Date.now()}-${Math.random()}`,
-      menuItem,
-      quantity: 1,
-      comment,
-    };
-    onUpdateOrder({ ...order, items: [...order.items, newItem] });
-  };
+ const addItemToOrder = (menuItem: MenuItem) => {
+    const comment = ''; // Always add with blank comment
+    const updatedItems = [...order.items];
+
+    // Instead of always adding, find an existing item with the same ID and blank comment
+    const existingItemIndex = updatedItems.findLastIndex(
+        i => i.menuItem.id === menuItem.id && i.comment === comment
+    );
+
+    if (existingItemIndex !== -1) {
+        // If found, increment its quantity
+        updatedItems[existingItemIndex] = {
+            ...updatedItems[existingItemIndex],
+            quantity: updatedItems[existingItemIndex].quantity + 1,
+        };
+    } else {
+        // If not found, add as a new item
+        const newItem: OrderItem = {
+            id: `new-${Date.now()}-${Math.random()}`,
+            menuItem,
+            quantity: 1,
+            comment,
+        };
+        updatedItems.push(newItem);
+    }
+    onUpdateOrder({ ...order, items: updatedItems });
+};
   
   const handleEditComment = (item: OrderItem) => {
-    setEditingItem(item);
+    // Find the actual item instance in the original `order.items` array
+    // This is important if there are multiple un-commented items of the same type
+    const itemToEdit = order.items.find(i => i.id === item.id);
+    setEditingItem(itemToEdit || item); // Fallback to the grouped item if not found
     setIsCommentDialogOpen(true);
   };
   
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-  
+
+    let alreadyExists = false;
     const updatedItems = order.items.map(item => {
+      // Check if another item with the same product and new comment already exists
+      if (item.id !== editingItem.id && item.menuItem.id === editingItem.menuItem.id && item.comment === newComment) {
+        alreadyExists = true;
+      }
+      return item;
+    });
+
+    if (alreadyExists) {
+        toast({
+            variant: "destructive",
+            title: "Observação já existe",
+            description: "Um item com essa observação já foi adicionado. Aumente a quantidade do item existente.",
+        });
+        return;
+    }
+  
+    const finalItems = order.items.map(item => {
       // Use the temporary ID to find the specific item instance to update
       if (item.id === editingItem.id) {
         return { ...item, comment: newComment };
@@ -158,7 +203,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       return item;
     });
   
-    onUpdateOrder({ ...order, items: updatedItems });
+    onUpdateOrder({ ...order, items: finalItems });
     setEditingItem(null);
   };
 
@@ -185,7 +230,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       return;
     }
     window.print();
-    setPrintedKitchenItems([...order.items]);
+    setPrintedKitchenItems([...order.items]); // Mark all current items as printed
   };
   
   const handleBluetoothPrint = () => {
@@ -210,7 +255,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     text += line;
 
     print(text);
-    setPrintedKitchenItems([...order.items]);
+    setPrintedKitchenItems([...order.items]); // Mark all current items as printed
   };
 
   const getFormattedPaidAt = () => {
@@ -385,7 +430,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
             {isMenuPickerOpen && (
                 <MenuPicker
                 menuItems={menuItems}
-                onAddItem={(menuItem) => addItemToOrder(menuItem)}
+                onAddItem={addItemToOrder}
                 isOpen={isMenuPickerOpen}
                 onOpenChange={setIsMenuPickerOpen}
                 />
@@ -413,7 +458,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
-
-    
