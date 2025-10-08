@@ -54,9 +54,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   } = useBluetoothPrinter();
 
   useEffect(() => {
-    // Initialize printed items state when order changes
+    // Initialize printed items state only when the order ID changes.
     setPrintedKitchenItems(order.items);
-  }, [order.id, order.items]);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.id]);
 
   useEffect(() => {
     // This effect calculates which items are new or have increased quantity
@@ -116,48 +117,72 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
-    const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment);
+    let updatedItems = [...order.items];
   
-    if (itemIndex === -1) return;
-    
-    // Find one instance of the item to modify or remove
-    const firstInstanceIndex = updatedItems.findIndex(i => i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment);
-
     if (delta > 0) {
-        // Add a new instance of the item for the delta
-        const newItem: OrderItem = {
-            id: `new-${Date.now()}-${Math.random()}`,
-            menuItem: itemToUpdate.menuItem,
-            quantity: delta,
-            comment: itemToUpdate.comment,
-        };
-        updatedItems.push(newItem);
-    } else if (delta < 0 && firstInstanceIndex !== -1) {
-        // Decrease quantity or remove
-        const itemToRemoveOrUpdate = updatedItems[firstInstanceIndex];
-        if (itemToRemoveOrUpdate.quantity > -delta) {
-            itemToRemoveOrUpdate.quantity += delta; // delta is negative
-        } else {
-            updatedItems.splice(firstInstanceIndex, 1);
-        }
-    } else if (delta === 0) { // Special case to remove all
-        const filteredItems = updatedItems.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
-        onUpdateOrder({ ...order, items: filteredItems });
-        return;
-    }
+      // Add new item instance
+      const newItem: OrderItem = {
+        id: `new-${Date.now()}-${Math.random()}`,
+        menuItem: itemToUpdate.menuItem,
+        quantity: delta,
+        comment: itemToUpdate.comment,
+      };
+      updatedItems.push(newItem);
+    } else if (delta < 0) {
+      // Decrease quantity or remove
+      let quantityToRemove = -delta;
+      updatedItems = updatedItems
+        .map(i => ({ ...i })) // Create shallow copies to avoid direct mutation
+        .reverse(); // Start from the end to remove most recent additions first
 
+      for (const item of updatedItems) {
+        if (item.menuItem.id === itemToUpdate.menuItem.id && item.comment === itemToUpdate.comment) {
+          if (item.quantity > quantityToRemove) {
+            item.quantity -= quantityToRemove;
+            quantityToRemove = 0;
+          } else {
+            quantityToRemove -= item.quantity;
+            item.quantity = 0;
+          }
+        }
+        if (quantityToRemove === 0) break;
+      }
+      updatedItems = updatedItems.filter(i => i.quantity > 0).reverse();
+
+    } else if (delta === 0) { // Special case to remove all
+      updatedItems = updatedItems.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
+    }
+  
     onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const addItemToOrder = (menuItem: MenuItem) => {
-    const newItem: OrderItem = {
+    // Check if an item without a comment already exists.
+    const existingItemIndex = order.items.findIndex(
+      (item) => item.menuItem.id === menuItem.id && (item.comment === '' || item.comment === null)
+    );
+  
+    let updatedItems;
+  
+    if (existingItemIndex > -1) {
+      // If it exists, create a new array with the updated quantity.
+      updatedItems = order.items.map((item, index) => {
+        if (index === existingItemIndex) {
+          return { ...item, quantity: item.quantity + 1 };
+        }
+        return item;
+      });
+    } else {
+      // If it doesn't exist, add it as a new item.
+      const newItem: OrderItem = {
         id: `new-${Date.now()}-${Math.random()}`, // Create a unique ID for the frontend
         menuItem,
         quantity: 1,
         comment: '',
-    };
-    const updatedItems = [...order.items, newItem];
+      };
+      updatedItems = [...order.items, newItem];
+    }
+  
     onUpdateOrder({ ...order, items: updatedItems });
   };
   
@@ -168,16 +193,33 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-  
-    const updatedItems = order.items.map(i => {
-        // Use the composite key (id + comment) to find the correct item from the display list
-        const key = `${i.menuItem.id}-${i.comment || ''}`;
-        const editingKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
-        if (key === editingKey) {
-            return { ...i, comment: newComment };
-        }
-        return i;
-    });
+
+    // Find one instance of the item to update. This is tricky because items are not unique.
+    // We'll create a new item with the comment and remove one of the old ones.
+    const oldItemIndex = order.items.findIndex(i => i.menuItem.id === editingItem.menuItem.id && i.comment === editingItem.comment);
+
+    if (oldItemIndex === -1) return;
+
+    const updatedItems = [...order.items];
+    const itemToUpdate = { ...updatedItems[oldItemIndex] };
+
+    // Create new item if comment is different, otherwise just update the first found instance.
+    const newItem: OrderItem = {
+        id: `new-${Date.now()}-${Math.random()}`,
+        menuItem: editingItem.menuItem,
+        quantity: 1, // Assume we are splitting one item
+        comment: newComment
+    };
+
+    if (itemToUpdate.quantity > 1) {
+        itemToUpdate.quantity -= 1;
+        updatedItems.splice(oldItemIndex, 1, itemToUpdate); // update the old item
+        updatedItems.push(newItem); // add the new one
+    } else {
+        // Just change the comment of the single item
+        itemToUpdate.comment = newComment;
+        updatedItems.splice(oldItemIndex, 1, itemToUpdate);
+    }
   
     onUpdateOrder({ ...order, items: updatedItems });
     setEditingItem(null);
@@ -442,5 +484,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
