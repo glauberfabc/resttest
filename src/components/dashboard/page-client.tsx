@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase, getOrders, getMenuItems, getClients } from "@/lib/supabase";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
+import { startOfToday } from 'date-fns';
 
 interface DashboardPageClientProps {
   initialOrders: Order[];
@@ -61,14 +62,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
-    // Update local state first for instant UI feedback
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
   
-    // 1. Update order status if it changed
     const { error: orderError } = await supabase
       .from('orders')
       .update({
@@ -77,16 +76,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order to re-sync
     const { error: deleteError } = await supabase
       .from('order_items')
       .delete()
       .eq('order_id', updatedOrder.id);
 
-    // 3. Consolidate items before re-inserting
     const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
     for (const item of updatedOrder.items) {
-      const key = `${item.menuItem.id}-${item.comment || ''}`; // Group by item and comment
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
       const existing = consolidatedItems.get(key);
       if (existing) {
         existing.quantity += item.quantity;
@@ -115,7 +112,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (orderError || deleteError || itemsError) {
       console.error("Error updating order:", orderError || deleteError || itemsError);
       toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
-      // Revert local state on error
       setOrders(originalOrders);
       if (selectedOrder?.id === updatedOrder.id) {
         setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
@@ -163,7 +159,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay) return;
     
-    // 1. Add payment to database
     const { data: paymentData, error: paymentError } = await supabase
         .from('order_payments')
         .insert({
@@ -180,7 +175,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         return;
     }
 
-    // 2. Update local state with new payment
     const newPayment = { ...paymentData, paidAt: paymentData.paid_at };
     let updatedOrder = {
       ...orderToPay,
@@ -192,29 +186,34 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     
     const isFullyPaid = totalPaid >= orderTotal - 0.001;
 
-    // 3. Update order status if fully paid
     if (isFullyPaid) {
       updatedOrder = {
         ...updatedOrder,
         status: 'paid',
         paidAt: new Date().toISOString(),
       };
+    } else {
+        updatedOrder = {
+            ...updatedOrder,
+            status: 'paying',
+        };
     }
     
-    // 4. This will update local state and persist the final order status to DB
     await handleUpdateOrder(updatedOrder); 
     
-    // 5. Update UI
     if (isFullyPaid) {
       setSelectedOrder(updatedOrder); 
     } else {
-      // If partially paid, just update the selected order with new payment info
       setSelectedOrder(updatedOrder);
     }
   };
 
 
+  const todayStart = startOfToday();
+
   const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
+  const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
+  const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart);
   const paidOrders = orders.filter(o => o.status === 'paid');
 
   return (
@@ -228,21 +227,36 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       </div>
 
       <Tabs defaultValue="abertas" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="abertas">Abertas ({openOrders.length})</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="abertas">Abertas ({openOrdersToday.length})</TabsTrigger>
+          <TabsTrigger value="caderneta">Caderneta ({notebookOrders.length})</TabsTrigger>
           <TabsTrigger value="fechadas">Fechadas ({paidOrders.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="abertas" className="mt-4">
-           {openOrders.length > 0 ? (
+           {openOrdersToday.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {openOrders.map((order) => (
+              {openOrdersToday.map((order) => (
                 <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
-                <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda aberta</h3>
+                <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda aberta hoje</h3>
                 <p className="text-sm text-muted-foreground">Crie uma nova comanda para começar.</p>
+            </div>
+          )}
+        </TabsContent>
+         <TabsContent value="caderneta" className="mt-4">
+           {notebookOrders.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {notebookOrders.map((order) => (
+                <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
+                <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda antiga aberta</h3>
+                <p className="text-sm text-muted-foreground">As comandas de dias anteriores aparecerão aqui.</p>
             </div>
           )}
         </TabsContent>
@@ -282,7 +296,5 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
-
-    
 
     
