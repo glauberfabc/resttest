@@ -77,22 +77,23 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       })
       .eq('id', updatedOrder.id);
   
-    // 2. Delete all existing items for this order
+    // 2. Delete all existing items for this order to re-sync
     const { error: deleteError } = await supabase
       .from('order_items')
       .delete()
       .eq('order_id', updatedOrder.id);
 
-    // 3. Consolidate and prepare all current items for re-insertion
-    const consolidatedItems = new Map<string, { menuItemId: string, quantity: number, comment: string | null }>();
+    // 3. Consolidate items before re-inserting
+    const consolidatedItems = new Map<string, { menuItemId: string; quantity: number; comment: string | null }>();
     for (const item of updatedOrder.items) {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      if (consolidatedItems.has(key)) {
-        consolidatedItems.get(key)!.quantity += 1;
+      const key = `${item.menuItem.id}-${item.comment || ''}`; // Group by item and comment
+      const existing = consolidatedItems.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
       } else {
         consolidatedItems.set(key, {
           menuItemId: item.menuItem.id,
-          quantity: 1,
+          quantity: item.quantity,
           comment: item.comment || null,
         });
       }
@@ -186,7 +187,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       payments: [...(orderToPay.payments || []), newPayment] as any, //TODO: fix types
     };
 
-    const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price, 0);
+    const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
     const totalPaid = updatedOrder.payments.reduce((acc, p) => acc + p.amount, 0);
     
     const isFullyPaid = totalPaid >= orderTotal - 0.001;
@@ -281,5 +282,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
+
+    
 
     

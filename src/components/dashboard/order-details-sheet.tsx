@@ -53,12 +53,10 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   } = useBluetoothPrinter();
 
   useEffect(() => {
-    // Initialize with items that are already in the order
     setPrintedKitchenItems(order.items);
-  }, [order.id]); // Run only when the order ID changes
+  }, [order.id]);
 
   useEffect(() => {
-    // This effect calculates which items are new and need to be printed.
     const currentItemsMap = new Map<string, OrderItem>();
     order.items.forEach(item => {
         const key = `${item.menuItem.id}-${item.comment || ''}`;
@@ -66,7 +64,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            currentItemsMap.set(key, { ...item, id: key, quantity: 1 });
+            currentItemsMap.set(key, { ...item });
         }
     });
 
@@ -77,7 +75,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
         if (existing) {
             existing.quantity += item.quantity;
         } else {
-            printedItemsMap.set(key, { ...item, quantity: 1 });
+            printedItemsMap.set(key, { ...item });
         }
     });
     
@@ -97,36 +95,38 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   }, [order.items, printedKitchenItems]);
 
 
-  const total = order.items.reduce((acc, item) => acc + item.menuItem.price, 0);
+  const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
   
   const groupedItems = Array.from(order.items.reduce((map, item) => {
-    // The key ensures that items with different comments are treated as distinct.
     const key = `${item.menuItem.id}-${item.comment || ''}`;
     const existing = map.get(key);
     if (existing) {
-      existing.quantity += 1;
+      existing.quantity += item.quantity;
     } else {
-      // Create a new entry in the map with a unique ID for React's key prop.
-      map.set(key, { ...item, id: key, quantity: 1 });
+      map.set(key, { ...item, id: item.id || key, quantity: item.quantity });
     }
     return map;
-  }, new Map<string, OrderItem & { id: string }>()).values());
+  }, new Map<string, OrderItem>()).values());
 
 
   const updateItemQuantity = (itemGroup: OrderItem, delta: number) => {
     if (delta > 0) {
-      // Add a new instance of the item with a blank comment
-      addItemToOrder(itemGroup.menuItem, '');
+      addItemToOrder(itemGroup.menuItem, ""); // Add new item with blank comment
     } else {
-      // Find the first matching item instance in the original array to remove.
-      const itemIndex = order.items.findIndex(i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment);
-      if (itemIndex > -1) {
+      const itemIndexToRemove = order.items.findIndex(
+        i => i.menuItem.id === itemGroup.menuItem.id && i.comment === itemGroup.comment
+      );
+      if (itemIndexToRemove !== -1) {
         const updatedItems = [...order.items];
-        updatedItems.splice(itemIndex, 1);
+        if (updatedItems[itemIndexToRemove].quantity > 1) {
+          updatedItems[itemIndexToRemove].quantity -= 1;
+        } else {
+          updatedItems.splice(itemIndexToRemove, 1);
+        }
         onUpdateOrder({ ...order, items: updatedItems });
       }
     }
@@ -134,9 +134,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   
   const addItemToOrder = (menuItem: MenuItem, comment: string = '') => {
     const newItem: OrderItem = {
-      id: `new-${Date.now()}-${Math.random()}`, // Temporary unique ID for React keys
+      id: `new-${Date.now()}-${Math.random()}`,
       menuItem,
-      quantity: 1, // Always add as 1, grouping will handle totals
+      quantity: 1,
       comment,
     };
     onUpdateOrder({ ...order, items: [...order.items, newItem] });
@@ -147,28 +147,20 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     setIsCommentDialogOpen(true);
   };
   
- const handleSaveComment = (newComment: string) => {
+  const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
-
-    // Find the specific item instance in the original array that corresponds to the one clicked.
-    // The `id` on editingItem is the temporary grouped ID, so we find the first match of menu item and old comment.
-    const itemToUpdateIndex = order.items.findIndex(
-        (item) => item.menuItem.id === editingItem.menuItem.id && item.comment === editingItem.comment
-    );
-
-    if (itemToUpdateIndex > -1) {
-        const updatedItems = [...order.items];
-        // Create a new item object with the updated comment
-        const updatedItem = { ...updatedItems[itemToUpdateIndex], comment: newComment };
-        // Replace the old item with the updated one in the array
-        updatedItems[itemToUpdateIndex] = updatedItem;
-        
-        onUpdateOrder({ ...order, items: updatedItems });
-    }
-
+  
+    const updatedItems = order.items.map(item => {
+      // Use the temporary ID to find the specific item instance to update
+      if (item.id === editingItem.id) {
+        return { ...item, comment: newComment };
+      }
+      return item;
+    });
+  
+    onUpdateOrder({ ...order, items: updatedItems });
     setEditingItem(null);
-};
-
+  };
 
   const handleWhatsAppShare = () => {
     const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
@@ -193,7 +185,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
       return;
     }
     window.print();
-    // After printing, update the `printedKitchenItems` to match the current state.
     setPrintedKitchenItems([...order.items]);
   };
   
@@ -219,7 +210,6 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     text += line;
 
     print(text);
-    // After printing, update the `printedKitchenItems` to match the current state.
     setPrintedKitchenItems([...order.items]);
   };
 
@@ -423,5 +413,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
+
+    
 
     
