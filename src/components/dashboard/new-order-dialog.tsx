@@ -45,7 +45,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
 
-  const [open, setOpen] = useState(false);
+  const [openPopover, setOpenPopover] = useState(false);
   const phoneInputRef = useRef<HTMLInputElement>(null);
 
   const isNewCustomer = useMemo(() => {
@@ -63,43 +63,28 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         }, 200);
     }
   }, [isOpen]);
-  
-  const handleNameChange = (search: string) => {
-    setCustomerName(search.toUpperCase());
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeTab === 'table' && tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10));
     } else if (activeTab === 'name' && customerName) {
-      onCreateOrder('name', customerName, phone);
+      onCreateOrder('name', customerName.toUpperCase(), phone);
     }
   };
-  
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      // Find if the current typed name is an existing client
-      const existingClient = clients.find(c => c.name.toUpperCase() === customerName.toUpperCase());
-      if (existingClient) {
-          onCreateOrder('name', existingClient.name);
-          setOpen(false);
-          onOpenChange(false);
-      } else if (isNewCustomer && customerName) {
-        setOpen(false);
-        setTimeout(() => phoneInputRef.current?.focus(), 50);
-      } else {
-        handleSubmit(e as any);
-      }
-    }
+
+  const handleSelectClient = (clientName: string) => {
+    onCreateOrder('name', clientName);
+    setCustomerName(''); // Clear input after selection
+    setOpenPopover(false); // Close popover
+    onOpenChange(false); // Close dialog
   };
   
   const filteredClients = useMemo(() => {
-    if (!customerName) {
-      return clients.slice(0, 5);
-    }
     const lowercasedFilter = customerName.toLowerCase();
+    if (!lowercasedFilter) {
+      return clients.slice(0, 5); // Show first 5 clients if search is empty
+    }
     return clients
       .filter(client => client.name.toLowerCase().includes(lowercasedFilter))
       .slice(0, 5);
@@ -138,53 +123,48 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 <div className="space-y-4">
                 <div className="space-y-2">
                     <Label htmlFor="customer-name">Nome do Cliente</Label>
-                    <Popover open={open} onOpenChange={setOpen}>
+                    <Popover open={openPopover} onOpenChange={setOpenPopover}>
                     <PopoverTrigger asChild>
                         <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={open}
-                        className="w-full justify-between font-normal"
+                          variant="outline"
+                          role="combobox"
+                          aria-expanded={openPopover}
+                          className="w-full justify-between font-normal"
                         >
                         <span className="truncate">{customerName || "Selecione ou digite um nome..."}</span>
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                         </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-                        <Command>
-                        <CommandInput 
-                            placeholder="Buscar cliente..."
-                            onValueChange={handleNameChange}
-                            value={customerName}
-                            onKeyDown={handleKeyDown}
-                        />
-                        <CommandEmpty>Nenhum cliente encontrado. Crie um novo.</CommandEmpty>
-                        <CommandList>
-                            <CommandGroup>
-                            {filteredClients.map((client) => (
-                                <CommandItem
-                                  key={client.id}
-                                  value={client.name}
-                                  onSelect={() => {
-                                    onCreateOrder('name', client.name);
-                                    setOpen(false);
-                                    onOpenChange(false);
-                                  }}
-                                >
-                                <Check
-                                    className={cn(
-                                    "mr-2 h-4 w-4",
-                                    customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
-                                    )}
-                                />
-                                <div>
-                                    <p>{client.name}</p>
-                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
-                                </div>
-                                </CommandItem>
-                            ))}
-                            </CommandGroup>
-                        </CommandList>
+                        <Command shouldFilter={false}>
+                          <CommandInput 
+                              placeholder="Buscar cliente..."
+                              onValueChange={setCustomerName}
+                              value={customerName}
+                          />
+                          <CommandList>
+                              <CommandEmpty>Nenhum cliente encontrado. Continue digitando para criar um novo.</CommandEmpty>
+                              <CommandGroup>
+                              {filteredClients.map((client) => (
+                                  <CommandItem
+                                    key={client.id}
+                                    value={client.name}
+                                    onSelect={() => handleSelectClient(client.name)}
+                                  >
+                                    <Check
+                                        className={cn(
+                                        "mr-2 h-4 w-4",
+                                        customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    <div>
+                                        <p>{client.name}</p>
+                                        <p className="text-xs text-muted-foreground">{client.phone}</p>
+                                    </div>
+                                  </CommandItem>
+                              ))}
+                              </CommandGroup>
+                          </CommandList>
                         </Command>
                     </PopoverContent>
                     </Popover>
