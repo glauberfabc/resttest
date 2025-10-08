@@ -48,10 +48,21 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
     });
   };
 
+  const normalizeString = (str: string) =>
+    str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
   const filteredItems = menuItems.filter(item => {
     const matchesCategory = activeCategory === "Todos" || item.category === activeCategory;
-    const search = searchTerm.toLowerCase();
-    const matchesSearch = item.name.toLowerCase().includes(search) || item.code?.toLowerCase().includes(search);
+
+    const normalizedSearchTerm = normalizeString(searchTerm);
+    const normalizedItemName = normalizeString(item.name);
+    const normalizedItemCode = item.code ? normalizeString(item.code) : "";
+    
+    const matchesSearch = normalizedItemName.includes(normalizedSearchTerm) || normalizedItemCode.includes(normalizedSearchTerm);
+    
     return matchesCategory && matchesSearch;
   });
 
