@@ -282,7 +282,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
   const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
-  const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart);
+  const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart && o.items.length > 0);
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
 
   const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
