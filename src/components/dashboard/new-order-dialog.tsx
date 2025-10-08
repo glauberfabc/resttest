@@ -51,7 +51,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
     // Normalize to uppercase for comparison, as input is also uppercase
-    return !clients.some(client => client.name.toUpperCase() === customerName);
+    return !clients.some(client => client.name.toUpperCase() === customerName.toUpperCase());
   }, [customerName, clients]);
   
   useEffect(() => {
@@ -77,21 +77,36 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   };
 
   const handleNameChange = (search: string) => {
-    setCustomerName(search.toUpperCase());
+    setCustomerName(search);
   };
   
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      e.preventDefault(); // Prevent form submission
       if (isNewCustomer && customerName) {
-        e.preventDefault();
-        setOpen(false);
-        setTimeout(() => phoneInputRef.current?.focus(), 50);
+        setOpen(false); // Close popover
+        setTimeout(() => phoneInputRef.current?.focus(), 50); // Focus on phone input
       } else if (!isNewCustomer && customerName) {
-        e.preventDefault();
-        onCreateOrder('name', customerName);
+        // Find the matching client and create order
+        const client = clients.find(c => c.name.toUpperCase() === customerName.toUpperCase());
+        if (client) {
+            onCreateOrder('name', client.name);
+        }
+      } else if (activeTab === 'name' && customerName) {
+         onCreateOrder('name', customerName, phone);
       }
     }
   };
+  
+  const filteredClients = useMemo(() => {
+    if (!customerName) {
+      return clients.slice(0, 5);
+    }
+    const lowercasedFilter = customerName.toLowerCase();
+    return clients
+      .filter(client => client.name.toLowerCase().includes(lowercasedFilter))
+      .slice(0, 5);
+  }, [clients, customerName]);
 
 
   return (
@@ -148,27 +163,24 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                         <CommandEmpty>Nenhum cliente encontrado. Crie um novo.</CommandEmpty>
                         <CommandList>
                             <CommandGroup>
-                            {clients.map((client) => (
+                            {filteredClients.map((client) => (
                                 <CommandItem
                                 key={client.id}
                                 value={client.name}
                                 onSelect={(currentValue) => {
-                                    const formattedValue = currentValue.toUpperCase();
-                                    const isExisting = clients.some(c => c.name.toUpperCase() === formattedValue);
-                                    
-                                    setCustomerName(formattedValue);
-                                    setOpen(false);
-
-                                    if(isExisting) {
-                                      // If an existing client is clicked/selected, create the order immediately
-                                      onCreateOrder('name', formattedValue);
+                                    const selectedClient = clients.find(c => c.name.toUpperCase() === currentValue.toUpperCase());
+                                    if(selectedClient) {
+                                      onCreateOrder('name', selectedClient.name);
+                                    } else {
+                                      setCustomerName(currentValue.toUpperCase());
+                                      setOpen(false);
                                     }
                                 }}
                                 >
                                 <Check
                                     className={cn(
                                     "mr-2 h-4 w-4",
-                                    customerName === client.name ? "opacity-100" : "opacity-0"
+                                    customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
                                     )}
                                 />
                                 <div>
