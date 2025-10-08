@@ -128,8 +128,9 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 key={client.id}
                                 value={client.name}
                                 onSelect={(currentValue) => {
-                                    setCustomerName(currentValue.toUpperCase());
+                                    onCreateOrder('name', currentValue.toUpperCase());
                                     setOpen(false);
+                                    onOpenChange(false);
                                 }}
                                 >
                                 <Check
