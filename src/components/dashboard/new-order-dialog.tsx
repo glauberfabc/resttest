@@ -58,7 +58,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   }, [isOpen]);
 
   const handleSelectClient = (clientName: string) => {
-    onCreateOrder('name', clientName);
+    onCreateOrder('name', clientName.toUpperCase());
   };
   
   const filteredClients = useMemo(() => {
@@ -84,7 +84,15 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent 
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+            // Prevent dialog from closing when clicking on the command list
+            if ((e.target as HTMLElement).closest('[cmdk-list]')) {
+                e.preventDefault();
+            }
+        }}
+    >
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
           <DialogDescription>
