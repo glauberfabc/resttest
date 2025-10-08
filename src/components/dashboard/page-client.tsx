@@ -68,15 +68,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   };
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
-    
     // 1. Update local state immediately for snappy UI
-    const originalOrders = orders;
+    const originalOrders = [...orders];
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
       setSelectedOrder(updatedOrder);
     }
-    
+
     // 2. Persist order status changes to the database
     const { error: orderError } = await supabase
       .from('orders')
@@ -84,7 +83,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           status: updatedOrder.status,
           paid_at: updatedOrder.paidAt,
        })
-      .eq('id', updatedOrder.id)
+      .eq('id', updatedOrder.id);
     
     // 3. Synchronize order items by deleting and re-inserting
     
@@ -94,11 +93,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         .delete()
         .eq('order_id', updatedOrder.id);
 
-    // 3b. Prepare the new items to be inserted, EXCLUDING the comment field for now
+    // 3b. Prepare the new items to be inserted
     const newOrderItems = updatedOrder.items.map(item => ({
         order_id: updatedOrder.id,
         menu_item_id: item.menuItem.id,
         quantity: item.quantity,
+        // comment: item.comment || '' // This column must exist in the DB
     }));
 
     // 3c. Insert the new state of items, but only if there are any
@@ -109,7 +109,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             .insert(newOrderItems);
         itemsError = error;
     }
-
 
     if (orderError || deleteError || itemsError) {
         console.error("Error updating order:", orderError || deleteError || itemsError);
@@ -281,5 +280,3 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     </div>
   );
 }
-
-    
