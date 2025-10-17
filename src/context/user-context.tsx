@@ -33,17 +33,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchUser = async (currentUser: SupabaseUser | null, localUser: User | null) => {
+    const fetchUser = async (currentUser: SupabaseUser | null) => {
         if (!currentUser) {
             setUser(null);
             if (pathname !== '/' && pathname !== '/signup') {
                 router.push('/');
             }
-            return;
-        }
-
-        // Avoid refetching if user data is already present and matches
-        if (localUser && localUser.id === currentUser.id) {
             return;
         }
 
@@ -82,22 +77,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchUser(session?.user || null, user);
+      fetchUser(session?.user || null);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
-        fetchUser(session?.user || null, user);
+        fetchUser(session?.user || null);
       }
     );
 
     return () => {
         authListener?.subscription.unsubscribe();
     };
-  // We should NOT include user, pathname, router, or toast in the dependency array
-  // as they cause re-renders and infinite loops. This effect should only run once.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
