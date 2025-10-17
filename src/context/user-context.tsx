@@ -33,59 +33,40 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
 
   useEffect(() => {
-    setLoading(true);
-    // Get the initial session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('name, role')
-          .eq('id', session.user.id)
-          .single();
-
-        if (profile) {
-          setUser({
-            id: session.user.id,
-            email: session.user.email!,
-            name: profile.name,
-            role: profile.role as UserRole,
-          });
-        }
-      }
-      setLoading(false);
-    });
-
-    // Set up the auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setLoading(true);
+    const handleAuthChange = async (session: Session | null) => {
         if (session) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('name, role')
-            .eq('id', session.user.id)
-            .single();
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('name, role')
+                .eq('id', session.user.id)
+                .single();
 
-          if (profile) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email!,
-              name: profile.name,
-              role: profile.role as UserRole,
-            });
-             if (event === 'SIGNED_IN') {
-              router.push('/dashboard');
+            if (profile) {
+                setUser({
+                    id: session.user.id,
+                    email: session.user.email!,
+                    name: profile.name,
+                    role: profile.role as UserRole,
+                });
+                router.push('/dashboard');
+            } else {
+                 console.error("Critical: User has session but no profile. Signing out.");
+                 await supabase.auth.signOut();
             }
-          } else {
-            // This case should ideally not happen if signup is correct
-            // If it does, sign out to prevent inconsistent state
-            await supabase.auth.signOut();
-            setUser(null);
-          }
         } else {
-          setUser(null);
+            setUser(null);
         }
         setLoading(false);
+    };
+
+    setLoading(true);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+        await handleAuthChange(session);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        await handleAuthChange(session);
       }
     );
 
@@ -141,7 +122,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
             // This requires admin privileges which we don't have on the client, but it's a good practice to try
-            await supabase.auth.admin.deleteUser(signUpData.user.id).catch(() => {});
+            // We can't delete the user from client side. The user will have to be deleted manually from supabase dashboard.
             await supabase.auth.signOut();
         } else {
             toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
@@ -158,8 +139,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     router.push('/');
   };
 
+  const value = { user, login, signup, logout, loading };
+
   return (
-    <UserContext.Provider value={{ user, login, signup, logout, loading }}>
+    <UserContext.Provider value={value}>
       {children}
     </UserContext.Provider>
   );
