@@ -50,6 +50,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
+      // Fetch profile ONLY if we have a user
       const { data: profile, error } = await supabase
         .from('profiles')
         .select('name, role')
@@ -58,6 +59,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       
       if (error || !profile) {
         console.error("Error fetching profile or profile not found:", error?.message);
+        toast({ variant: 'destructive', title: "Erro de Perfil", description: "Seu perfil não foi encontrado. Deslogando por segurança." });
         await supabase.auth.signOut(); // Force sign out if profile is missing
         setUser(null);
         if (!isPublicPage) {
@@ -78,11 +80,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLoading(false);
     };
 
-    // Check initial session
+    // Check initial session on component mount
     supabase.auth.getSession().then(({ data: { session } }) => {
         handleAuthChange('INITIAL_SESSION', session);
     });
 
+    // Listen for auth state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthChange);
 
     return () => {
@@ -104,13 +107,29 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (error) {
         console.error("Login failed:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
+        // Set loading to false on error so user can try again
+        setLoading(false);
     }
-    // onAuthStateChange will handle success and loading state will be updated there
+    // onAuthStateChange will handle success and update loading state there
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     setLoading(true);
     const { name, email, password } = credentials;
+
+    // Check if user already exists
+    const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers({ email: email });
+
+    if(usersError) {
+        console.error('Error checking for existing user:', usersError.message);
+    }
+
+    if (users && users.length > 0) {
+        toast({ variant: 'destructive', title: 'Erro no Cadastro', description: "Este e-mail já está em uso." });
+        setLoading(false);
+        return;
+    }
+
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -119,7 +138,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     if (signUpError) {
       console.error('Signup failed:', signUpError.message);
-      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: "Não foi possível criar o usuário." });
+      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: signUpError.message });
       setLoading(false);
       return;
     }
@@ -136,8 +155,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (profileError) {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
-            // Best effort to clean up user. This might require admin privileges.
-            // For now, just sign out.
+            // Attempt to clean up the newly created user
+            await supabase.auth.admin.deleteUser(signUpData.user.id);
             await supabase.auth.signOut();
         } else {
             toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
