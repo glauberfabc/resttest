@@ -22,7 +22,7 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
-import { supabase, getMenuItems, getCurrentUser } from "@/lib/supabase";
+import { supabase, getMenuItems } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface MenuPageClientProps {

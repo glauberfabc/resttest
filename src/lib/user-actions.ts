@@ -1,7 +1,7 @@
 
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import type { User } from '@/lib/types';
+import type { User, UserRole } from '@/lib/types';
 import { redirect } from 'next/navigation';
 import { Database } from './database.types';
 
@@ -36,5 +36,3 @@ export async function getCurrentUser(): Promise<User | null> {
         role: profile.role as UserRole,
     };
 }
-
-type UserRole = 'admin' | 'collaborator';

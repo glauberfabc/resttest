@@ -2,9 +2,6 @@
 
 import { createClient } from '@supabase/supabase-js'
 import type { Order, MenuItem, Client, ClientCredit, User } from './types';
-import { redirect } from 'next/navigation';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { cookies } from 'next/headers';
 import { Database } from './database.types';
 
 
@@ -16,7 +13,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
         detectSessionInUrl: true,
         autoRefreshToken: true,
@@ -124,32 +121,4 @@ export async function getClientCredits(): Promise<ClientCredit[]> {
     })) as ClientCredit[];
 }
 
-
-export async function getCurrentUserOnServer(): Promise<User | null> {
-    // This is a server-side only function.
-    const supabaseServer = createServerComponentClient<Database>({ cookies });
-
-    const { data: { session }, } = await supabaseServer.auth.getSession();
-    const supabaseUser = session?.user;
-
-    if (!supabaseUser) {
-        return null;
-    }
-
-    const { data: profile } = await supabaseServer
-        .from('profiles')
-        .select('name, role')
-        .eq('id', supabaseUser.id)
-        .single();
-    
-    if (!profile) {
-       return null;
-    }
-
-    return {
-        id: supabaseUser.id,
-        email: supabaseUser.email!,
-        name: profile.name,
-        role: profile.role as 'admin' | 'collaborator',
-    };
-}
+// NOTE: getCurrentUserOnServer has been moved to src/lib/user-actions.ts to avoid server-only imports in this file.
