@@ -122,7 +122,7 @@ export async function getOrders(user: User): Promise<Order[]> {
 
     let query = supabase
         .from('orders')
-        .select(\`
+        .select(`
             *,
             items:order_items (
                 id,
@@ -133,7 +133,7 @@ export async function getOrders(user: User): Promise<Order[]> {
                 )
             ),
             payments:order_payments (*)
-        \`);
+        `);
     
     // In a real app, you'd filter by user ID or role
     // if (user.role === 'collaborator') {
