@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState, cloneElement, ReactElement } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -25,27 +25,22 @@ import {
 } from "@/components/ui/avatar";
 import { SnookerBarLogo } from "@/components/icons";
 import { BookMarked, LogOut, Archive, LayoutGrid, Home, Users } from "lucide-react";
-import { useUser } from "@/hooks/use-user";
+import { supabase } from "@/lib/supabase";
+import type { User } from "@/lib/types";
+
 
 export default function DashboardLayoutClient({
   children,
+  user
 }: {
   children: React.ReactNode;
+  user: User;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, loading } = useUser();
-
-  useEffect(() => {
-    // If loading is finished and there's no user, redirect to login page.
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
-
-
-  const handleLogout = () => {
-    logout();
+  
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
     router.push("/");
   };
 
@@ -77,16 +72,10 @@ export default function DashboardLayoutClient({
     },
   ];
 
-  // While loading or if no user, show a blank screen or a loader
-  if (loading || !user) {
-    return (
-        <div className="flex h-screen w-full items-center justify-center">
-            {/* You can add a spinner here */}
-        </div>
-    );
-  }
-
   const userNameInitial = user?.name?.charAt(0)?.toUpperCase() || '';
+
+  // Pass user prop to children
+  const childrenWithProps = cloneElement(children as ReactElement, { user });
 
   return (
     <SidebarProvider>
@@ -139,7 +128,7 @@ export default function DashboardLayoutClient({
             </h1>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6">{childrenWithProps}</main>
       </SidebarInset>
     </SidebarProvider>
   );

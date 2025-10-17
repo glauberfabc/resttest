@@ -21,7 +21,6 @@ import {
 } from "@/components/ui/popover";
 import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/context/user-context";
 import { SalesChart } from "./sales-chart";
 import { getOrders, getMenuItems } from "@/lib/supabase";
 
@@ -29,10 +28,10 @@ import { getOrders, getMenuItems } from "@/lib/supabase";
 interface AnalyticsPageClientProps {
   orders: Order[];
   menuItems: MenuItem[];
+  user: User;
 }
 
-export default function AnalyticsPageClient({ orders: initialOrders, menuItems: initialMenuItems }: AnalyticsPageClientProps) {
-  const { user } = useUser();
+export default function AnalyticsPageClient({ orders: initialOrders, menuItems: initialMenuItems, user }: AnalyticsPageClientProps) {
   const isAdmin = user?.role === 'admin';
 
   const [orders, setOrders] = useState<Order[]>(initialOrders);

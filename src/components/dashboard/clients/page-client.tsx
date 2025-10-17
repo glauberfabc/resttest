@@ -24,16 +24,15 @@ import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign } from "lucide-r
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
 import { AddCreditDialog } from "@/components/dashboard/clients/add-credit-dialog";
 import { supabase, getClients, getOrders, getClientCredits } from "@/lib/supabase";
-import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 
 interface ClientsPageClientProps {
   initialClients: Client[];
   initialOrders: Order[];
+  user: User;
 }
 
-export default function ClientsPageClient({ initialClients: initialClientsProp, initialOrders: initialOrdersProp }: ClientsPageClientProps) {
-  const { user } = useUser();
+export default function ClientsPageClient({ initialClients: initialClientsProp, initialOrders: initialOrdersProp, user }: ClientsPageClientProps) {
   const { toast } = useToast();
   const router = useRouter();
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
@@ -297,6 +296,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
             onOpenChange={setIsFormOpen}
             onSave={handleSaveClient}
             client={selectedClient}
+            user={user}
         />
       )}
       {isCreditFormOpen && selectedClient && (
@@ -305,10 +305,9 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
             onOpenChange={setIsCreditFormOpen}
             onSave={handleAddCredit}
             client={selectedClient}
+            user={user}
         />
       )}
     </div>
   );
 }
-
-    

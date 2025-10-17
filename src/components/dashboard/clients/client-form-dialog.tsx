@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { Client } from "@/lib/types";
+import type { Client, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,7 @@ interface ClientFormDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onSave: (clientData: Omit<Client, 'id' | 'user_id'>) => void;
   client: Client | null;
+  user: User;
 }
 
 export function ClientFormDialog({ isOpen, onOpenChange, onSave, client }: ClientFormDialogProps) {

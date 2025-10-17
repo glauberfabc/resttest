@@ -16,24 +16,56 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
-import { useUser } from "@/hooks/use-user";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 export function SignupPage() {
   const router = useRouter();
-  const { signup } = useUser();
+  const { toast } = useToast();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      alert("As senhas não coincidem.");
+      toast({ variant: 'destructive', title: "Erro", description: "As senhas não coincidem." });
       return;
     }
-    await signup({ name, email, password });
-    router.push("/");
+    setLoading(true);
+
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (signUpError) {
+      toast({ variant: 'destructive', title: 'Erro no Cadastro', description: signUpError.message });
+      setLoading(false);
+      return;
+    }
+    
+    if (signUpData.user) {
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+                id: signUpData.user.id,
+                name: name,
+                role: 'collaborator' // Default role
+            });
+
+        if (profileError) {
+            toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
+            // Optionally, delete the user if profile creation fails
+            await supabase.auth.signOut(); 
+        } else {
+            toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
+            router.push("/");
+        }
+    }
+    setLoading(false);
   };
 
   return (
@@ -63,6 +95,7 @@ export function SignupPage() {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
@@ -74,6 +107,7 @@ export function SignupPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
@@ -85,6 +119,7 @@ export function SignupPage() {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
@@ -95,12 +130,13 @@ export function SignupPage() {
                 required 
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
+                disabled={loading}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">
-              Cadastrar
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Cadastrando...' : 'Cadastrar'}
             </Button>
             <div className="text-center text-sm">
                 Já tem uma conta?{" "}

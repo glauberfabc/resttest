@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import type { MenuItem } from "@/lib/types";
+import type { MenuItem, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -22,16 +22,15 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
-import { supabase, getMenuItems } from "@/lib/supabase";
+import { supabase, getMenuItems, getCurrentUser } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
-import { useUser } from "@/context/user-context";
 
 interface MenuPageClientProps {
   initialMenuItems: MenuItem[];
 }
 
 export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp }: MenuPageClientProps) {
-  const { user } = useUser();
+  const [user, setUser] = useState<User | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItemsProp);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
@@ -41,6 +40,14 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     const fetchData = async () => {
         const menuItemsData = await getMenuItems();
         setMenuItems(menuItemsData);
+        // Supabase on the client doesn't have getCurrentUser()
+        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+        if (supabaseUser) {
+           const { data: profile } = await supabase.from('profiles').select('name, role').eq('id', supabaseUser.id).single();
+           if(profile) {
+             setUser({ id: supabaseUser.id, email: supabaseUser.email!, name: profile.name, role: profile.role });
+           }
+        }
     };
 
     fetchData();
@@ -204,12 +211,13 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
         </Table>
       </div>
       
-      {isFormOpen && (
+      {isFormOpen && user && (
         <MenuFormDialog
             isOpen={isFormOpen}
             onOpenChange={setIsFormOpen}
             onSave={handleSaveItem}
             item={selectedItem}
+            user={user}
         />
       )}
     </div>

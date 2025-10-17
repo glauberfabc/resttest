@@ -11,7 +11,6 @@ import { PlusCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { supabase, getOrders, getMenuItems, getClients, getClientCredits } from "@/lib/supabase";
-import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday } from 'date-fns';
 
@@ -21,10 +20,10 @@ interface DashboardPageClientProps {
   initialOrders: Order[];
   menuItems: MenuItem[];
   initialClients: Client[];
+  user: User;
 }
 
-export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp }: DashboardPageClientProps) {
-  const { user } = useUser();
+export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp, user }: DashboardPageClientProps) {
   const { toast } = useToast();
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
@@ -449,6 +448,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         onOpenChange={setIsNewOrderDialogOpen}
         onCreateOrder={handleCreateOrder}
         clients={clients}
+        user={user}
       />
     </div>
   );

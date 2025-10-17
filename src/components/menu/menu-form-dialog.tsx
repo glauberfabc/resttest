@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import type { MenuItem, MenuItemCategory } from "@/lib/types";
+import type { MenuItem, MenuItemCategory, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,21 +25,20 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { useUser } from "@/context/user-context";
 
 interface MenuFormDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onSave: (item: MenuItem) => void;
   item: MenuItem | null;
+  user: User;
 }
 
 const categories: MenuItemCategory[] = [
   "Lanches", "Adicional", "Porções", "Salgados", "Pratos Quentes", "Saladas", "Bebidas", "Sucos", "Bebidas Quentes", "Cervejas", "Caipirinhas", "Destilados", "Doces"
 ];
 
-export function MenuFormDialog({ isOpen, onOpenChange, onSave, item }: MenuFormDialogProps) {
-  const { user } = useUser();
+export function MenuFormDialog({ isOpen, onOpenChange, onSave, item, user }: MenuFormDialogProps) {
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');

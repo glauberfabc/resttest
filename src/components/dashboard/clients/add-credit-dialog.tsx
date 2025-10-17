@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Client } from "@/lib/types";
+import type { Client, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -30,6 +30,7 @@ interface AddCreditDialogProps {
   onOpenChange: (isOpen: boolean) => void;
   onSave: (clientId: string, amount: number, method: string) => void;
   client: Client;
+  user: User;
 }
 
 const paymentMethods = [

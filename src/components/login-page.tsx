@@ -16,20 +16,27 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
-import { useUser } from "@/hooks/use-user";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 export function LoginPage() {
   const router = useRouter();
-  const { login } = useUser();
+  const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const success = await login({ email, password });
-    if (success) {
-      router.push("/dashboard");
+    setLoading(true);
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+        toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
+    } else {
+        router.push("/dashboard");
     }
+    setLoading(false);
   };
 
   return (
@@ -59,6 +66,7 @@ export function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
               />
             </div>
             <div className="grid gap-2">
@@ -69,12 +77,13 @@ export function LoginPage() {
                 required 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? 'Entrando...' : 'Entrar'}
             </Button>
           </CardFooter>
         </form>

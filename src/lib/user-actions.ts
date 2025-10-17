@@ -36,6 +36,7 @@ export async function getCurrentUser(): Promise<User | null> {
     if (!profile) {
         // Handle case where profile doesn't exist for a logged in user
         // This might happen if profile creation fails
+        await supabase.auth.signOut();
         redirect('/');
     }
 

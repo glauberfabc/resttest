@@ -25,13 +25,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Client } from "@/lib/types";
+import type { Client, User } from "@/lib/types";
 
 interface NewOrderDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onCreateOrder: (type: 'table' | 'name', identifier: string | number, phone?: string) => void;
   clients: Client[];
+  user: User;
 }
 
 export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }: NewOrderDialogProps) {
