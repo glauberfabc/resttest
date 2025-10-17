@@ -31,10 +31,12 @@ export function LoginPage() {
 
     if (error) {
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
+        setLoading(false);
     } else {
+        // router.refresh() is the key to make sure the server component re-renders
+        router.refresh();
         router.push("/dashboard");
     }
-    setLoading(false);
   };
 
   return (
