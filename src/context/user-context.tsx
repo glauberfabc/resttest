@@ -90,7 +90,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener?.subscription.unsubscribe();
     };
-  }, [pathname, router, toast]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, router]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
