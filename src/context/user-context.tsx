@@ -35,15 +35,18 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const handleAuthChange = async (event: AuthChangeEvent, session: Session | null) => {
+      setLoading(true);
       const supabaseUser = session?.user;
+      
+      const publicPages = ['/', '/signup'];
+      const isPublicPage = publicPages.includes(pathname);
 
       if (!supabaseUser) {
         setUser(null);
-        setLoading(false);
-        const isPublicPage = pathname === '/' || pathname === '/signup';
         if (!isPublicPage) {
           router.push('/');
         }
+        setLoading(false);
         return;
       }
 
@@ -55,8 +58,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       
       if (error || !profile) {
         console.error("Error fetching profile or profile not found:", error?.message);
+        await supabase.auth.signOut(); // Force sign out if profile is missing
         setUser(null);
-        await supabase.auth.signOut();
+        if (!isPublicPage) {
+          router.push('/');
+        }
       } else {
         const userData: User = {
           id: supabaseUser.id,
@@ -65,8 +71,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
           role: profile.role as UserRole,
         };
         setUser(userData);
-        const isAuthPage = pathname === '/' || pathname === '/signup';
-        if (isAuthPage) {
+        if (isPublicPage) {
             router.push('/dashboard');
         }
       }
@@ -75,11 +80,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
     // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session) {
-            handleAuthChange('INITIAL_SESSION', session);
-        } else {
-            setLoading(false);
-        }
+        handleAuthChange('INITIAL_SESSION', session);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthChange);
@@ -103,9 +104,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (error) {
         console.error("Login failed:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
-        setLoading(false);
     }
-    // onAuthStateChange will handle success and loading state
+    // onAuthStateChange will handle success and loading state will be updated there
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
@@ -136,7 +136,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (profileError) {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
-            // Best effort to clean up user, might need admin privileges for this.
+            // Best effort to clean up user. This might require admin privileges.
+            // For now, just sign out.
             await supabase.auth.signOut();
         } else {
             toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
@@ -148,11 +149,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 
   const logout = async () => {
-    setLoading(true);
     await supabase.auth.signOut();
-    setUser(null);
-    router.push('/');
-    setLoading(false);
+    // onAuthStateChange will handle setting user to null and redirection
   };
 
   return (
