@@ -2,14 +2,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -81,11 +79,17 @@ export function LoginPage() {
               />
             </div>
           </CardContent>
-          <CardFooter className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 p-6 pt-0">
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </Button>
-          </CardFooter>
+             <div className="text-center text-sm">
+                Não tem uma conta?{" "}
+                <a href="/signup" className="underline">
+                    Cadastre-se
+                </a>
+            </div>
+          </div>
         </form>
       </Card>
     </div>
