@@ -10,7 +10,7 @@ import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
 import { PlusCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday } from 'date-fns';
 
@@ -25,6 +25,7 @@ interface DashboardPageClientProps {
 
 export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp, user }: DashboardPageClientProps) {
   const { toast } = useToast();
+  const supabase = createClient();
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
@@ -42,7 +43,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
     
-    // In a client component, we fetch directly using the supabase client instance
     const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
@@ -81,7 +81,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
     if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (user) {
@@ -94,8 +94,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (!user) return;
 
     const handleRealtimeUpdate = (payload: any) => {
-      fetchData(user); // Refetch all data for simplicity and consistency
-      // Optionally, you can implement more granular updates based on payload
+      fetchData(user);
     };
 
     const channel = supabase
@@ -113,7 +112,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchData]);
+  }, [user, fetchData, supabase]);
 
 
   const handleSelectOrder = (order: Order) => {
@@ -124,7 +123,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const originalOrders = [...orders];
     const originalOrder = originalOrders.find(o => o.id === updatedOrder.id);
   
-    // Optimistically update local state for a responsive UI
     const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
     setOrders(newOrders);
     if (selectedOrder?.id === updatedOrder.id) {
@@ -223,12 +221,23 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         return;
     }
     
-    // The realtime subscription will handle adding the new order to the state
     setIsNewOrderDialogOpen(false);
-    // Let's select it after a small delay to allow the state to update
     setTimeout(async () => {
         if (!user) return;
-        const allOrders = await getOrders(user);
+        const { data: ordersData } = await supabase.from('orders').select('*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)').order('created_at', { ascending: false });
+        if(!ordersData) return;
+        const allOrders = ordersData.map(order => ({
+            ...order,
+            items: order.items.map((item: any) => ({
+                id: item.id || crypto.randomUUID(),
+                quantity: item.quantity,
+                comment: item.comment || '',
+                menuItem: { ...item.menu_item, id: item.menu_item.id || crypto.randomUUID(), imageUrl: item.menu_item.image_url, lowStockThreshold: item.menu_item.low_stock_threshold }
+            })),
+            created_at: new Date(order.created_at),
+            paid_at: order.paid_at ? new Date(order.paid_at) : undefined
+        })) as unknown as Order[];
+
         const newOrder = allOrders.find(o => o.id === data.id);
         if (newOrder) setSelectedOrder(newOrder);
     }, 500);
@@ -317,7 +326,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToDelete = orders.find(o => o.id === orderId);
     if (!orderToDelete) return;
 
-    // Prevent deletion if there are items or payments
     if (orderToDelete.items.length > 0 || (orderToDelete.payments && orderToDelete.payments.length > 0)) {
         toast({ 
             variant: 'destructive', 

@@ -1,8 +1,7 @@
+'use server';
 
-"use server";
-
-import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
+import { createClient } from '@/utils/supabase/server';
 import type { User, UserRole, Order, MenuItem, Client, ClientCredit } from '@/lib/types';
 import { redirect } from 'next/navigation';
 

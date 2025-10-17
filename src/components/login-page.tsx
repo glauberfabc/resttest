@@ -15,11 +15,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 
 export function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -36,7 +37,6 @@ export function LoginPage() {
         setLoading(false);
     } else {
         console.log("[LOGIN_PAGE] Login com Supabase bem-sucedido. Redirecionando para /dashboard...");
-        // router.refresh() is the key to make sure the server component re-renders
         router.push("/dashboard");
         router.refresh();
     }

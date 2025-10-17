@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Pencil } from "lucide-react";
 import { StockEditDialog } from "./stock-edit-dialog";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface InventoryPageClientProps {
@@ -27,6 +27,7 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -38,7 +39,7 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
     };
 
     fetchData();
-  }, []);
+  }, [supabase]);
 
   const getStockStatus = (item: MenuItem): { text: string; variant: "default" | "destructive" | "secondary" | "outline" } => {
     if (item.stock === undefined || (item.stock === 0 && (item.lowStockThreshold === undefined || item.lowStockThreshold === 0))) {

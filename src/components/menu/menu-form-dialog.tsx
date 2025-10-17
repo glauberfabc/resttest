@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 
 interface MenuFormDialogProps {
   isOpen: boolean;
@@ -50,6 +50,7 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item, user }: Men
   const [unit, setUnit] = useState('');
 
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     if (item) {

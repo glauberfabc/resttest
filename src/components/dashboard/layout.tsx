@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/avatar";
 import { SnookerBarLogo } from "@/components/icons";
 import { BookMarked, LogOut, Archive, LayoutGrid, Home, Users } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import type { User } from "@/lib/types";
 
 
@@ -36,6 +36,7 @@ export default function DashboardLayoutClient({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const supabase = createClient();
   
   const handleLogout = async () => {
     await supabase.auth.signOut();

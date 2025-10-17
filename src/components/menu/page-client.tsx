@@ -22,7 +22,7 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface MenuPageClientProps {
@@ -35,6 +35,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { toast } = useToast();
+  const supabase = createClient();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -44,7 +45,6 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
           setMenuItems(formattedItems);
         }
 
-        // Supabase on the client doesn't have getCurrentUser()
         const { data: { user: supabaseUser } } = await supabase.auth.getUser();
         if (supabaseUser) {
            const { data: profile } = await supabase.from('profiles').select('name, role').eq('id', supabaseUser.id).single();
@@ -55,7 +55,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     };
 
     fetchData();
-  }, []);
+  }, [supabase]);
 
   const handleSaveItem = async (item: MenuItem) => {
     
@@ -65,7 +65,6 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     }
 
     if (selectedItem) { // Editing existing item
-      // Map frontend camelCase to backend snake_case for update
       const itemForDbUpdate = {
           name: item.name,
           code: item.code,
@@ -76,7 +75,6 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
           stock: item.stock,
           low_stock_threshold: item.lowStockThreshold,
           unit: item.unit,
-          // DO NOT include user_id here to avoid RLS policy issues on update
       };
 
       const { data, error } = await supabase

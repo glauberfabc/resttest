@@ -23,7 +23,7 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
 import { AddCreditDialog } from "@/components/dashboard/clients/add-credit-dialog";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface ClientsPageClientProps {
@@ -35,6 +35,7 @@ interface ClientsPageClientProps {
 export default function ClientsPageClient({ initialClients: initialClientsProp, initialOrders: initialOrdersProp, user }: ClientsPageClientProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const supabase = createClient();
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [credits, setCredits] = useState<ClientCredit[]>([]);
@@ -77,7 +78,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         })) as unknown as Order[];
         setOrders(formattedOrders);
     }
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if(user) {

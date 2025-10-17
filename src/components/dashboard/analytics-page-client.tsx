@@ -22,7 +22,7 @@ import {
 import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SalesChart } from "./sales-chart";
-import { supabase } from "@/lib/supabase"; // Note: not using server actions here for simplicity in a client component
+import { createClient } from "@/utils/supabase/client";
 
 
 interface AnalyticsPageClientProps {
@@ -33,14 +33,13 @@ interface AnalyticsPageClientProps {
 
 export default function AnalyticsPageClient({ orders: initialOrders, menuItems: initialMenuItems, user }: AnalyticsPageClientProps) {
   const isAdmin = user?.role === 'admin';
-
+  const supabase = createClient();
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
     
-    // We are in a client component, so we use the client `supabase` instance
     const { data: menuItemsData, error: menuItemsError } = await supabase.from('menu_items').select('*');
     if (menuItemsData) {
       const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[]
@@ -74,7 +73,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
       setOrders(formattedOrders);
     }
 
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     if (user) {
