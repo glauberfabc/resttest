@@ -1,7 +1,6 @@
 
 import ClientsPageClient from "@/components/dashboard/clients/page-client";
-import { getClients, getOrders } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/user-actions";
+import { getClients, getOrders, getCurrentUser } from "@/lib/user-actions";
 
 export default async function ClientsPage() {
   const user = await getCurrentUser();

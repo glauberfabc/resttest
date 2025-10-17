@@ -22,7 +22,7 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
-import { supabase, getMenuItems } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface MenuPageClientProps {
@@ -38,8 +38,12 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
 
   useEffect(() => {
     const fetchData = async () => {
-        const menuItemsData = await getMenuItems();
-        setMenuItems(menuItemsData);
+        const { data, error } = await supabase.from('menu_items').select('*');
+        if (data) {
+          const formattedItems = data.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+          setMenuItems(formattedItems);
+        }
+
         // Supabase on the client doesn't have getCurrentUser()
         const { data: { user: supabaseUser } } = await supabase.auth.getUser();
         if (supabaseUser) {

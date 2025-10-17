@@ -10,7 +10,7 @@ import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
 import { PlusCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { supabase, getOrders, getMenuItems, getClients, getClientCredits } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday } from 'date-fns';
 
@@ -41,16 +41,46 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
-    const [ordersData, menuItemsData, clientsData, creditsData] = await Promise.all([
-      getOrders(currentUser),
-      getMenuItems(),
-      getClients(),
-      getClientCredits()
-    ]);
-    setOrders(ordersData);
-    setMenuItems(menuItemsData);
-    setClients(clientsData);
-    setCredits(creditsData);
+    
+    // In a client component, we fetch directly using the supabase client instance
+    const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .order('created_at', { ascending: false });
+
+    if (ordersData) {
+        const formattedOrders = ordersData.map(order => ({
+            ...order,
+            items: order.items.map((item: any) => ({
+                id: item.id || crypto.randomUUID(),
+                quantity: item.quantity,
+                comment: item.comment || '',
+                menuItem: {
+                    ...item.menu_item,
+                    id: item.menu_item.id || crypto.randomUUID(),
+                    imageUrl: item.menu_item.image_url,
+                    lowStockThreshold: item.menu_item.low_stock_threshold,
+                }
+            })),
+            created_at: new Date(order.created_at),
+            paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
+            createdAt: new Date(order.created_at),
+            paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
+        })) as unknown as Order[];
+        setOrders(formattedOrders);
+    }
+    
+    const { data: menuItemsData } = await supabase.from('menu_items').select('*');
+    if (menuItemsData) {
+        const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+        setMenuItems(formattedItems);
+    }
+
+    const { data: clientsData } = await supabase.from('clients').select('*');
+    if (clientsData) setClients(clientsData as Client[]);
+
+    const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
+    if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
   }, []);
 
   useEffect(() => {

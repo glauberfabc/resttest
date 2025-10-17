@@ -1,7 +1,6 @@
 
 import DashboardPageClient from "@/components/dashboard/page-client";
-import { getOrders, getMenuItems, getClients } from "@/lib/supabase";
-import { getCurrentUser } from "@/lib/user-actions";
+import { getOrders, getMenuItems, getClients, getCurrentUser } from "@/lib/user-actions";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();

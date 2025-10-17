@@ -23,7 +23,7 @@ import {
 import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
 import { AddCreditDialog } from "@/components/dashboard/clients/add-credit-dialog";
-import { supabase, getClients, getOrders, getClientCredits } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface ClientsPageClientProps {
@@ -44,14 +44,39 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
-    const [clientsData, ordersData, creditsData] = await Promise.all([
-      getClients(),
-      getOrders(currentUser),
-      getClientCredits()
-    ]);
-    setClients(clientsData);
-    setOrders(ordersData);
-    setCredits(creditsData);
+    
+    const { data: clientsData } = await supabase.from('clients').select('*');
+    if (clientsData) setClients(clientsData as Client[]);
+
+    const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
+    if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
+
+    const { data: ordersData } = await supabase
+      .from('orders')
+      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+      .order('created_at', { ascending: false });
+
+    if (ordersData) {
+        const formattedOrders = ordersData.map(order => ({
+            ...order,
+            items: order.items.map((item: any) => ({
+                id: item.id || crypto.randomUUID(),
+                quantity: item.quantity,
+                comment: item.comment || '',
+                menuItem: {
+                    ...item.menu_item,
+                    id: item.menu_item.id || crypto.randomUUID(),
+                    imageUrl: item.menu_item.image_url,
+                    lowStockThreshold: item.menu_item.low_stock_threshold,
+                }
+            })),
+            created_at: new Date(order.created_at),
+            paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
+            createdAt: new Date(order.created_at),
+            paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
+        })) as unknown as Order[];
+        setOrders(formattedOrders);
+    }
   }, []);
 
   useEffect(() => {

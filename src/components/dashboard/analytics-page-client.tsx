@@ -22,7 +22,7 @@ import {
 import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SalesChart } from "./sales-chart";
-import { getOrders, getMenuItems } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase"; // Note: not using server actions here for simplicity in a client component
 
 
 interface AnalyticsPageClientProps {
@@ -39,12 +39,41 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
-    const [ordersData, menuItemsData] = await Promise.all([
-        getOrders(currentUser),
-        getMenuItems()
-    ]);
-    setOrders(ordersData);
-    setMenuItems(menuItemsData);
+    
+    // We are in a client component, so we use the client `supabase` instance
+    const { data: menuItemsData, error: menuItemsError } = await supabase.from('menu_items').select('*');
+    if (menuItemsData) {
+      const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[]
+      setMenuItems(formattedItems);
+    }
+    
+    const { data: ordersData, error: ordersError } = await supabase
+      .from('orders')
+      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+      .order('created_at', { ascending: false });
+
+    if (ordersData) {
+      const formattedOrders = ordersData.map(order => ({
+        ...order,
+        items: order.items.map((item: any) => ({
+            id: item.id || crypto.randomUUID(),
+            quantity: item.quantity,
+            comment: item.comment || '',
+            menuItem: {
+                ...item.menu_item,
+                id: item.menu_item.id || crypto.randomUUID(),
+                imageUrl: item.menu_item.image_url,
+                lowStockThreshold: item.menu_item.low_stock_threshold,
+            }
+        })),
+        created_at: new Date(order.created_at),
+        paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
+        createdAt: new Date(order.created_at),
+        paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
+    })) as unknown as Order[];
+      setOrders(formattedOrders);
+    }
+
   }, []);
 
   useEffect(() => {
