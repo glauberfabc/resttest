@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -33,7 +32,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchUser = async (currentUser: SupabaseUser | null) => {
+    const fetchAndSetUser = async (currentUser: SupabaseUser | null) => {
         if (!currentUser) {
             setUser(null);
             if (pathname !== '/' && pathname !== '/signup') {
@@ -62,7 +61,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                 role: profile.role as UserRole,
             };
             setUser(userData);
-            if ((pathname === '/' || pathname === '/signup') && !pathname.startsWith('/dashboard')) {
+            if (pathname === '/' || pathname === '/signup') {
                 router.push('/dashboard');
             }
         } else {
@@ -78,12 +77,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     };
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      fetchUser(session?.user || null);
+        fetchAndSetUser(session?.user ?? null);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event: AuthChangeEvent, session: Session | null) => {
-        fetchUser(session?.user || null);
+        fetchAndSetUser(session?.user ?? null);
       }
     );
 
@@ -91,7 +90,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         authListener?.subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, router]);
+  }, []);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
