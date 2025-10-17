@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import type { Client, Order, ClientCredit } from "@/lib/types";
+import type { Client, Order, ClientCredit, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -43,10 +43,11 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const [isCreditFormOpen, setIsCreditFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (currentUser: User | null) => {
+    if (!currentUser) return;
     const [clientsData, ordersData, creditsData] = await Promise.all([
       getClients(),
-      getOrders(),
+      getOrders(currentUser),
       getClientCredits()
     ]);
     setClients(clientsData);
@@ -55,8 +56,10 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if(user) {
+      fetchData(user);
+    }
+  }, [user, fetchData]);
 
   const clientBalances = useMemo(() => {
     const balanceMap = new Map<string, number>();

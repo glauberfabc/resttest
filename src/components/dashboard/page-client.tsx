@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import type { Order, MenuItem, Client, OrderItem, ClientCredit } from "@/lib/types";
+import type { Order, MenuItem, Client, OrderItem, ClientCredit, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
@@ -40,9 +40,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     fechadas: { currentPage: 1 },
   });
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (currentUser: User | null) => {
+    if (!currentUser) return;
     const [ordersData, menuItemsData, clientsData, creditsData] = await Promise.all([
-      getOrders(),
+      getOrders(currentUser),
       getMenuItems(),
       getClients(),
       getClientCredits()
@@ -54,13 +55,17 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (user) {
+      fetchData(user);
+    }
+  }, [user, fetchData]);
 
 
   useEffect(() => {
+    if (!user) return;
+
     const handleRealtimeUpdate = (payload: any) => {
-      fetchData(); // Refetch all data for simplicity and consistency
+      fetchData(user); // Refetch all data for simplicity and consistency
       // Optionally, you can implement more granular updates based on payload
     };
 
@@ -79,7 +84,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [fetchData]);
+  }, [user, fetchData]);
 
 
   const handleSelectOrder = (order: Order) => {
@@ -192,17 +197,17 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     // The realtime subscription will handle adding the new order to the state
     setIsNewOrderDialogOpen(false);
     // Let's select it after a small delay to allow the state to update
-    setTimeout(() => {
-        getOrders().then(allOrders => {
-            const newOrder = allOrders.find(o => o.id === data.id);
-            if (newOrder) setSelectedOrder(newOrder);
-        });
+    setTimeout(async () => {
+        if (!user) return;
+        const allOrders = await getOrders(user);
+        const newOrder = allOrders.find(o => o.id === data.id);
+        if (newOrder) setSelectedOrder(newOrder);
     }, 500);
   };
   
   const handleProcessPayment = async (orderId: string, amount: number, method: string) => {
     const orderToPay = orders.find((o) => o.id === orderId);
-    if (!orderToPay) return;
+    if (!orderToPay || !user) return;
     
     if (method === "Saldo Cliente") {
         const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
@@ -217,7 +222,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                 client_id: client.id,
                 amount: -amount, // Use negative amount for debit
                 method: `Pagamento Comanda #${orderToPay.id.substring(0, 4)}`,
-                user_id: user!.id,
+                user_id: user.id,
             })
             .select()
             .single();

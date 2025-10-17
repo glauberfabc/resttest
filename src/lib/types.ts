@@ -1,5 +1,6 @@
 
 
+
 export type MenuItemCategory = "Lanches" | "Adicional" | "Porções" | "Salgados" | "Pratos Quentes" | "Saladas" | "Bebidas" | "Sucos" | "Bebidas Quentes" | "Cervejas" | "Caipirinhas" | "Destilados" | "Doces";
 
 export interface MenuItem {
@@ -61,5 +62,14 @@ export interface ClientCredit {
   method: string;
   created_at: Date;
   user_id: string;
+}
+
+export type UserRole = 'admin' | 'collaborator';
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
 }
     

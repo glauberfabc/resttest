@@ -1,9 +1,9 @@
 
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import type { Order, MenuItem } from "@/lib/types";
+import type { Order, MenuItem, User } from "@/lib/types";
 import { addDays, format, startOfDay, endOfDay, eachDayOfInterval } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
@@ -38,18 +38,21 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
   const [orders, setOrders] = useState<Order[]>(initialOrders);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItems);
 
-  useEffect(() => {
-    const fetchData = async () => {
-        const [ordersData, menuItemsData] = await Promise.all([
-            getOrders(),
-            getMenuItems()
-        ]);
-        setOrders(ordersData);
-        setMenuItems(menuItemsData);
-    };
-
-    fetchData();
+  const fetchData = useCallback(async (currentUser: User | null) => {
+    if (!currentUser) return;
+    const [ordersData, menuItemsData] = await Promise.all([
+        getOrders(currentUser),
+        getMenuItems()
+    ]);
+    setOrders(ordersData);
+    setMenuItems(menuItemsData);
   }, []);
+
+  useEffect(() => {
+    if (user) {
+        fetchData(user);
+    }
+  }, [user, fetchData]);
 
   const [date, setDate] = useState<DateRange | undefined>(
     isAdmin

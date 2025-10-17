@@ -1,7 +1,7 @@
 
 
 import { createClient } from '@supabase/supabase-js'
-import type { Order, MenuItem, Client, ClientCredit } from './types';
+import type { Order, MenuItem, Client, ClientCredit, User } from './types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -49,8 +49,10 @@ export async function getClients(): Promise<Client[]> {
     return data as Client[];
 }
 
-export async function getOrders(): Promise<Order[]> {
-    const { data, error } = await supabase
+export async function getOrders(user: User | null): Promise<Order[]> {
+    if (!user) return [];
+
+    let query = supabase
         .from('orders')
         .select(`
             *,
@@ -64,8 +66,14 @@ export async function getOrders(): Promise<Order[]> {
                 )
             ),
             payments:order_payments (*)
-        `)
-        .order('created_at', { ascending: false });
+        `);
+    
+    // Admins can see all orders, collaborators only see their own
+    if (user.role === 'collaborator') {
+        query = query.eq('user_id', user.id);
+    }
+    
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
         console.error('Error fetching orders:', error.message);
@@ -110,4 +118,5 @@ export async function getClientCredits(): Promise<ClientCredit[]> {
         created_at: new Date(credit.created_at)
     })) as ClientCredit[];
 }
+
 
