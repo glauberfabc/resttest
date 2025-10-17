@@ -15,7 +15,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-        detectSessionInUrl: true,
+        detectSessionInUrl: false, // Alterado para false para evitar problemas de validação
         autoRefreshToken: true,
     },
      db: {
