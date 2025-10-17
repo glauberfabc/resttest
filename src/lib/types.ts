@@ -1,6 +1,6 @@
 
 
-export type MenuItemCategory = "Lanches" | "Porções" | "Bebidas" | "Sucos" | "Salgados" | "Pratos Quentes" | "Saladas" | "Destilados" | "Caipirinhas" | "Bebidas Quentes" | "Adicional" | "Água - Refrigerante" | "Cervejas";
+export type MenuItemCategory = "Lanches" | "Porções" | "Bebidas" | "Sucos" | "Salgados" | "Pratos Quentes" | "Saladas" | "Destilados" | "Caipirinhas" | "Bebidas Quentes" | "Adicional" | "Cervejas";
 
 export interface MenuItem {
   id: string;
