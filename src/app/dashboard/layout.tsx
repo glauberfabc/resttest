@@ -4,6 +4,7 @@
 import DashboardLayoutClient from "@/components/dashboard/layout";
 import { getCurrentUser } from "@/lib/user-actions";
 import { redirect } from 'next/navigation';
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export default async function DashboardLayout({
   children,
@@ -16,5 +17,9 @@ export default async function DashboardLayout({
     redirect('/');
   }
 
-  return <DashboardLayoutClient user={user}>{children}</DashboardLayoutClient>;
+  return (
+    <SidebarProvider>
+      <DashboardLayoutClient user={user}>{children}</DashboardLayoutClient>
+    </SidebarProvider>
+  );
 }

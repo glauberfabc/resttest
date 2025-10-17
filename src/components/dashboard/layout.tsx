@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Sidebar,
-  SidebarProvider,
   SidebarContent,
   SidebarHeader,
   SidebarMenu,
@@ -77,7 +76,7 @@ export default function DashboardLayoutClient({
   const userNameInitial = user?.name?.charAt(0)?.toUpperCase() || '';
 
   return (
-    <SidebarProvider>
+    <>
       <Sidebar>
         <SidebarContent>
           <SidebarHeader>
@@ -93,8 +92,9 @@ export default function DashboardLayoutClient({
                   asChild
                   isActive={pathname === item.href}
                   icon={<item.icon />}
+                  onClick={() => setOpenMobile(false)}
                 >
-                  <Link href={item.href} onClick={() => setOpenMobile(false)}>
+                  <Link href={item.href}>
                     {item.label}
                   </Link>
                 </SidebarMenuButton>
@@ -129,6 +129,6 @@ export default function DashboardLayoutClient({
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </SidebarInset>
-    </SidebarProvider>
+    </>
   );
 }
