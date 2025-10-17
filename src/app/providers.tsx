@@ -1,7 +1,6 @@
-
 "use client";
 
-import { UserProvider } from "@/context/user-context";
+import { UserProvider } from "@/hooks/use-user";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (

@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
-import { useUser } from "@/context/user-context";
+import { useUser } from "@/hooks/use-user";
 
 export function SignupPage() {
   const router = useRouter();
@@ -33,7 +33,7 @@ export function SignupPage() {
       return;
     }
     await signup({ name, email, password });
-    // The redirect is handled by the UserProvider
+    router.push("/");
   };
 
   return (

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/avatar";
 import { SnookerBarLogo } from "@/components/icons";
 import { BookMarked, LogOut, Archive, LayoutGrid, Home, Users } from "lucide-react";
-import { useUser } from "@/context/user-context";
+import { useUser } from "@/hooks/use-user";
 
 export default function DashboardLayoutClient({
   children,

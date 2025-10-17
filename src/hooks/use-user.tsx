@@ -2,23 +2,15 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { AuthChangeEvent, Session, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
+import type { Session, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
+import type { User } from '@/lib/types';
 
-type UserRole = 'admin' | 'collaborator';
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  role: UserRole;
-}
 
 interface UserContextType {
   user: User | null;
-  login: (credentials: { email: string; password?: string }) => Promise<void>;
+  login: (credentials: { email: string; password?: string }) => Promise<boolean>;
   signup: (credentials: SignUpWithPasswordCredentials & { name: string }) => Promise<void>;
   logout: () => Promise<void>;
   loading: boolean;
@@ -30,10 +22,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const router = useRouter();
 
   useEffect(() => {
     const handleAuthChange = async (session: Session | null) => {
+        setLoading(true);
         if (session) {
             const { data: profile } = await supabase
                 .from('profiles')
@@ -46,12 +38,13 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
                     id: session.user.id,
                     email: session.user.email!,
                     name: profile.name,
-                    role: profile.role as UserRole,
+                    role: profile.role as User['role'],
                 });
-                router.push('/dashboard');
             } else {
                  console.error("Critical: User has session but no profile. Signing out.");
+                 toast({ variant: 'destructive', title: 'Erro de Perfil', description: 'Seu perfil não foi encontrado. Deslogando.' });
                  await supabase.auth.signOut();
+                 setUser(null);
             }
         } else {
             setUser(null);
@@ -59,9 +52,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
     };
 
-    setLoading(true);
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-        await handleAuthChange(session);
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        handleAuthChange(session);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -73,7 +66,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [router]);
+  }, [toast]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     setLoading(true);
@@ -81,16 +74,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (!password) {
        toast({ variant: 'destructive', title: "Login falhou", description: "A senha é obrigatória." });
        setLoading(false);
-       return;
+       return false;
     }
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
         console.error("Login failed:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
+        setLoading(false);
+        return false;
     }
-    // onAuthStateChange will handle success and navigation.
-    setLoading(false);
+    // onAuthStateChange will handle success.
+    // setLoading(false) is called in the listener
+    return true;
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
@@ -121,12 +117,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (profileError) {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
-            // This requires admin privileges which we don't have on the client, but it's a good practice to try
-            // We can't delete the user from client side. The user will have to be deleted manually from supabase dashboard.
             await supabase.auth.signOut();
         } else {
             toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
-            router.push('/');
         }
     }
     setLoading(false);
@@ -136,7 +129,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
-    router.push('/');
   };
 
   const value = { user, login, signup, logout, loading };

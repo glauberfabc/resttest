@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
-import { useUser } from "@/context/user-context";
+import { useUser } from "@/hooks/use-user";
 
 export function LoginPage() {
   const router = useRouter();
@@ -26,8 +26,10 @@ export function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    await login({ email, password });
-    // The redirect is now handled by the UserProvider's onAuthStateChange
+    const success = await login({ email, password });
+    if (success) {
+      router.push("/dashboard");
+    }
   };
 
   return (
