@@ -1,46 +1,15 @@
 
 "use server";
 
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createClient } from '@/utils/supabase/server';
 import { cookies } from 'next/headers';
 import type { User, UserRole, Order, MenuItem, Client, ClientCredit } from '@/lib/types';
 import { redirect } from 'next/navigation';
-import { Database } from './database.types';
 
 export async function getCurrentUser(): Promise<User | null> {
     console.log("[USER_ACTIONS] getCurrentUser: Iniciando verificação de usuário no servidor...");
-    const cookieStore = cookies();
-
-    const supabase = createServerClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name: string) {
-                    return cookieStore.get(name)?.value;
-                },
-                set(name: string, value: string, options: CookieOptions) {
-                    try {
-                        cookieStore.set({ name, value, ...options });
-                    } catch (error) {
-                        // The `set` method was called from a Server Component.
-                        // This can be ignored if you have middleware refreshing
-                        // user sessions.
-                    }
-                },
-                remove(name: string, options: CookieOptions) {
-                    try {
-                        cookieStore.set({ name, value: '', ...options });
-                    } catch (error) {
-                        // The `delete` method was called from a Server Component.
-                        // This can be ignored if you have middleware refreshing
-                        // user sessions.
-                    }
-                },
-            },
-        }
-    );
-
+    const supabase = createClient();
+    
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
@@ -59,8 +28,6 @@ export async function getCurrentUser(): Promise<User | null> {
     
     if (!profile) {
         console.error("[USER_ACTIONS] getCurrentUser: Erro crítico! Usuário tem sessão mas não tem perfil. Deslogando.");
-        // This case should ideally not happen if profile is created on signup
-        // But as a fallback, we sign out and redirect.
         await supabase.auth.signOut();
         redirect('/');
     }
@@ -75,26 +42,8 @@ export async function getCurrentUser(): Promise<User | null> {
     };
 }
 
-
-// Server-side data fetching functions
-const createSupabaseServerClient = () => {
-    const cookieStore = cookies();
-    return createServerClient<Database>(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name: string) {
-                    return cookieStore.get(name)?.value;
-                },
-            },
-        }
-    );
-};
-
-
 export async function getMenuItems(): Promise<MenuItem[]> {
-    const supabase = createSupabaseServerClient();
+    const supabase = createClient();
     const { data, error } = await supabase
         .from('menu_items')
         .select('*');
@@ -107,7 +56,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function getClients(): Promise<Client[]> {
-    const supabase = createSupabaseServerClient();
+    const supabase = createClient();
     const { data, error } = await supabase
         .from('clients')
         .select('*');
@@ -120,7 +69,7 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export async function getOrders(user: User): Promise<Order[]> {
-    const supabase = createSupabaseServerClient();
+    const supabase = createClient();
 
     let query = supabase
         .from('orders')
@@ -136,11 +85,6 @@ export async function getOrders(user: User): Promise<Order[]> {
             ),
             payments:order_payments (*)
         `);
-    
-    // In a real app, you'd filter by user ID or role
-    // if (user.role === 'collaborator') {
-    //     query = query.eq('user_id', user.id);
-    // }
     
     const { data, error } = await query.order('created_at', { ascending: false });
 
@@ -171,7 +115,7 @@ export async function getOrders(user: User): Promise<Order[]> {
 
 
 export async function getClientCredits(): Promise<ClientCredit[]> {
-    const supabase = createSupabaseServerClient();
+    const supabase = createClient();
     const { data, error } = await supabase
         .from('client_credits')
         .select('*')
