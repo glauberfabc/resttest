@@ -346,8 +346,9 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         <p className="text-muted-foreground">Nenhum item na comanda.</p>
                         <div className="flex gap-2">
                            <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
-                           <Button variant="destructive" size="icon" onClick={() => onDeleteOrder(order.id)}>
-                             <Trash2 className="h-4 w-4"/>
+                           <Button variant="destructive" size="sm" onClick={() => onDeleteOrder(order.id)}>
+                             <Trash2 className="h-4 w-4 mr-2"/>
+                             Excluir Comanda
                            </Button>
                         </div>
                     </div>
@@ -458,5 +459,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    

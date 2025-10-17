@@ -280,6 +280,19 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   };
 
   const handleDeleteOrder = async (orderId: string) => {
+    const orderToDelete = orders.find(o => o.id === orderId);
+    if (!orderToDelete) return;
+
+    // Prevent deletion if there are items or payments
+    if (orderToDelete.items.length > 0 || (orderToDelete.payments && orderToDelete.payments.length > 0)) {
+        toast({ 
+            variant: 'destructive', 
+            title: "Ação não permitida", 
+            description: "Não é possível excluir comandas que já possuem itens ou pagamentos." 
+        });
+        return;
+    }
+
     const originalOrders = [...orders];
     setOrders(orders.filter(o => o.id !== orderId));
     setSelectedOrder(null); 
@@ -312,8 +325,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   const todayStart = startOfToday();
 
   const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
-  const openOrdersToday = openOrders.filter(o => o.created_at >= todayStart);
-  const notebookOrders = openOrders.filter(o => o.created_at < todayStart && o.items.length > 0);
+  const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
+  const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart && o.items.length > 0);
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
 
   const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
