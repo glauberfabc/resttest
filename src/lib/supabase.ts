@@ -3,6 +3,10 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Order, MenuItem, Client, ClientCredit, User } from './types';
 import { redirect } from 'next/navigation';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { Database } from './database.types';
+
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -123,25 +127,7 @@ export async function getClientCredits(): Promise<ClientCredit[]> {
 
 export async function getCurrentUserOnServer(): Promise<User | null> {
     // This is a server-side only function.
-    // We need to use a server-side client to get the user.
-    // The regular `supabase.auth.getUser()` does not work on the server.
-    // For that we need to use the `@supabase/ssr` package.
-    const { createServerClient } = await import('@supabase/ssr');
-    const { cookies } = await import('next/headers');
-
-    const cookieStore = cookies();
-
-    const supabaseServer = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        {
-            cookies: {
-                get(name: string) {
-                    return cookieStore.get(name)?.value
-                },
-            },
-        }
-    );
+    const supabaseServer = createServerComponentClient<Database>({ cookies });
 
     const { data: { session }, } = await supabaseServer.auth.getSession();
     const supabaseUser = session?.user;
@@ -164,6 +150,6 @@ export async function getCurrentUserOnServer(): Promise<User | null> {
         id: supabaseUser.id,
         email: supabaseUser.email!,
         name: profile.name,
-        role: profile.role,
+        role: profile.role as 'admin' | 'collaborator',
     };
 }
