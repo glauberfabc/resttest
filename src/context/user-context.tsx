@@ -70,7 +70,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              toast({
               variant: 'destructive',
               title: 'Perfil não encontrado',
-              description: 'Seu perfil de usuário não foi encontrado. Por favor, deslogue e logue novamente.'
+              description: 'Seu perfil de usuário não foi encontrado. Por favor, deslogue e logue novamente ou crie uma nova conta.'
             });
             await supabase.auth.signOut();
             setUser(null);
@@ -90,8 +90,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return () => {
         authListener?.subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pathname, router, toast]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
@@ -110,14 +109,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     const { name, email, password } = credentials;
 
+    // First, sign up the user
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: {
-        data: {
-            name: name
-        }
-      }
     });
 
     if (signUpError) {
@@ -127,6 +122,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     if (signUpData.user) {
+        // Now, create the profile for the new user
+        const { error: profileError } = await supabase
+            .from('profiles')
+            .insert({
+                id: signUpData.user.id,
+                name: name,
+                role: 'collaborator' // Default role for new signups
+            });
+
+        if (profileError) {
+            console.error('Error creating profile:', profileError.message);
+            toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
+            
+            // Optional: try to delete the newly created user for consistency
+            // This requires admin privileges, which we don't have on the client-side.
+            // await supabase.auth.admin.deleteUser(signUpData.user.id)
+            
+            return;
+        }
+
         toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo! Faça o login para continuar.' });
         router.push('/');
     }

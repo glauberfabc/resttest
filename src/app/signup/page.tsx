@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { SignupPage } from "@/components/signup-page";
 
-export default function SignupRedirectPage() {
-  redirect('/');
+export default function Signup() {
+  return <SignupPage />;
 }
