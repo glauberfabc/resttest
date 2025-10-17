@@ -14,6 +14,7 @@ import {
   SidebarFooter,
   SidebarInset,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,7 @@ export default function DashboardLayoutClient({
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const { setOpenMobile } = useSidebar();
   
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -92,7 +94,7 @@ export default function DashboardLayoutClient({
                   isActive={pathname === item.href}
                   icon={<item.icon />}
                 >
-                  <Link href={item.href}>
+                  <Link href={item.href} onClick={() => setOpenMobile(false)}>
                     {item.label}
                   </Link>
                 </SidebarMenuButton>
