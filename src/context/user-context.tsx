@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
@@ -32,64 +33,68 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchAndSetUser = async (currentUser: SupabaseUser | null) => {
-        if (!currentUser) {
-            setUser(null);
-            if (pathname !== '/' && pathname !== '/signup') {
-                router.push('/');
-            }
-            return;
-        }
+    const handleAuthChange = async (event: AuthChangeEvent, session: Session | null) => {
+      const supabaseUser = session?.user;
 
-        const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('id, name, role')
-            .eq('id', currentUser.id)
-            .limit(1)
-            .maybeSingle();
-
-        if (profileError) {
-            console.error("Error fetching profile:", profileError.message);
-            toast({ variant: 'destructive', title: "Erro ao buscar perfil", description: profileError.message });
-            await supabase.auth.signOut();
-            setUser(null);
-        } else if (profile) {
-            const userData: User = {
-                id: currentUser.id,
-                email: currentUser.email!,
-                name: profile.name,
-                role: profile.role as UserRole,
-            };
-            setUser(userData);
-            if (pathname === '/' || pathname === '/signup') {
-                router.push('/dashboard');
-            }
-        } else {
-             console.error("Profile not found for user:", currentUser.id);
-             toast({
-              variant: 'destructive',
-              title: 'Perfil não encontrado',
-              description: 'Seu perfil de usuário não foi encontrado. Por favor, deslogue e logue novamente ou crie uma nova conta.'
-            });
-            await supabase.auth.signOut();
-            setUser(null);
+      if (!supabaseUser) {
+        setUser(null);
+        if (pathname !== '/' && pathname !== '/signup') {
+          router.push('/');
         }
+        return;
+      }
+
+      // Check if user is already set to avoid unnecessary fetches
+      if (user?.id === supabaseUser.id) {
+        return;
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, name, role')
+        .eq('id', supabaseUser.id)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError.message);
+        toast({ variant: 'destructive', title: "Erro de Perfil", description: "Não foi possível carregar seu perfil." });
+        await supabase.auth.signOut();
+        setUser(null);
+        router.push('/');
+      } else if (profile) {
+        const userData: User = {
+          id: supabaseUser.id,
+          email: supabaseUser.email!,
+          name: profile.name,
+          role: profile.role as UserRole,
+        };
+        setUser(userData);
+        if (pathname === '/' || pathname === '/signup') {
+          router.push('/dashboard');
+        }
+      } else {
+        console.error("Profile not found for user:", supabaseUser.id);
+        toast({ variant: 'destructive', title: 'Perfil não encontrado', description: 'Seu perfil não foi encontrado. Tente fazer login novamente.' });
+        await supabase.auth.signOut();
+        setUser(null);
+        router.push('/');
+      }
     };
-
+    
+    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-        fetchAndSetUser(session?.user ?? null);
+        if (session) {
+            handleAuthChange('INITIAL_SESSION', session);
+        }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event: AuthChangeEvent, session: Session | null) => {
-        fetchAndSetUser(session?.user ?? null);
-      }
-    );
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthChange);
 
     return () => {
-        authListener?.subscription.unsubscribe();
+      authListener.subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (credentials: { email: string; password?: string }) => {
@@ -104,6 +109,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         console.error("Login failed:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
     }
+    // The onAuthStateChange listener will handle the redirect and state update
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
@@ -133,30 +139,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
             
-            // Attempt to clean up the user if profile creation fails.
-            // This requires admin privileges and is best handled server-side,
-            // but for client-side only, this is a best-effort approach.
-            // Note: This delete might fail due to RLS policies.
-            await supabase.auth.signOut(); // Sign out the partially created user.
-            
+            // Clean up the user if profile creation fails.
+            // This requires admin privileges and is best handled server-side.
+            // We sign out the user as a safety measure.
+            await supabase.auth.signOut();
             return;
         }
 
-        toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo! Faça o login para continuar.' });
+        toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
         router.push('/');
     }
   };
 
 
   const logout = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error && error.message !== 'Auth session missing!') {
-       console.error("Logout failed:", error.message);
-       toast({ variant: 'destructive', title: "Erro ao sair", description: error.message });
-    } else {
-      setUser(null);
-      router.push('/');
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    router.push('/');
   };
 
   return (
