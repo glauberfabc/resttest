@@ -7,42 +7,42 @@ import { redirect } from 'next/navigation';
 
 export async function getCurrentUser(): Promise<User | null> {
     console.log("[USER_ACTIONS] getCurrentUser: Iniciando verificação de usuário no servidor...");
-    const supabase = createClient();
+    const supabase = await createClient();
     
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user } } = await supabase.auth.getUser();
     
-    if (!session) {
+    if (!user) {
         console.log("[USER_ACTIONS] getCurrentUser: Nenhuma sessão encontrada. Redirecionando para a página de login.");
-        redirect('/');
+        return null;
     }
     
-    console.log("[USER_ACTIONS] getCurrentUser: Sessão encontrada para o usuário ID:", session.user.id);
-    const supabaseUser = session.user;
+    console.log("[USER_ACTIONS] getCurrentUser: Sessão encontrada para o usuário ID:", user.id);
 
     const { data: profile } = await supabase
         .from('profiles')
         .select('name, role')
-        .eq('id', supabaseUser.id)
+        .eq('id', user.id)
         .single();
     
     if (!profile) {
         console.error("[USER_ACTIONS] getCurrentUser: Erro crítico! Usuário tem sessão mas não tem perfil. Deslogando.");
-        await supabase.auth.signOut();
-        redirect('/');
+        // In a real app, you might want to handle this more gracefully
+        // For now, we'll prevent login.
+        return null;
     }
 
     console.log("[USER_ACTIONS] getCurrentUser: Perfil do usuário encontrado:", profile);
 
     return {
-        id: supabaseUser.id,
-        email: supabaseUser.email!,
+        id: user.id,
+        email: user.email!,
         name: profile.name,
         role: profile.role as UserRole,
     };
 }
 
 export async function getMenuItems(): Promise<MenuItem[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('menu_items')
         .select('*');
@@ -55,7 +55,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
 }
 
 export async function getClients(): Promise<Client[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('clients')
         .select('*');
@@ -68,7 +68,7 @@ export async function getClients(): Promise<Client[]> {
 }
 
 export async function getOrders(user: User): Promise<Order[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
 
     let query = supabase
         .from('orders')
@@ -114,7 +114,7 @@ export async function getOrders(user: User): Promise<Order[]> {
 
 
 export async function getClientCredits(): Promise<ClientCredit[]> {
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase
         .from('client_credits')
         .select('*')
