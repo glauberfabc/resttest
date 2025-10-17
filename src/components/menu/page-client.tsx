@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import type { MenuItem, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Pencil, Trash2 } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 import { MenuFormDialog } from "@/components/menu/menu-form-dialog";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/utils/supabase/client";
@@ -29,6 +29,8 @@ interface MenuPageClientProps {
   initialMenuItems: MenuItem[];
 }
 
+type SortKey = 'name' | 'code';
+
 export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp }: MenuPageClientProps) {
   const [user, setUser] = useState<User | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(initialMenuItemsProp);
@@ -36,6 +38,8 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
   const [selectedItem, setSelectedItem] = useState<MenuItem | null>(null);
   const { toast } = useToast();
   const supabase = createClient();
+  const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: 'asc' | 'desc' }>({ key: 'name', direction: 'asc' });
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -49,13 +53,47 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
         if (supabaseUser) {
            const { data: profile } = await supabase.from('profiles').select('name, role').eq('id', supabaseUser.id).single();
            if(profile) {
-             setUser({ id: supabaseUser.id, email: supabaseUser.email!, name: profile.name, role: profile.role });
+             const { data: { user: supaUser } } = await supabase.auth.getUser();
+              if(!supaUser) return;
+             setUser({ id: supaUser.id, email: supaUser.email!, name: profile.name, role: profile.role });
            }
         }
     };
 
     fetchData();
   }, [supabase]);
+
+  const sortedMenuItems = useMemo(() => {
+    const sortableItems = [...menuItems];
+    if (sortConfig !== null) {
+        sortableItems.sort((a, b) => {
+            const aValue = a[sortConfig.key as keyof MenuItem] || '';
+            const bValue = b[sortConfig.key as keyof MenuItem] || '';
+
+            // Ensure consistent type for comparison, especially for 'code' which can be null
+            const valA = String(aValue).toLowerCase();
+            const valB = String(bValue).toLowerCase();
+
+            if (valA < valB) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (valA > valB) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    }
+    return sortableItems;
+  }, [menuItems, sortConfig]);
+
+  const requestSort = (key: SortKey) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+        direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
 
   const handleSaveItem = async (item: MenuItem) => {
     
@@ -146,6 +184,11 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     }
   };
 
+  const renderSortArrow = (key: SortKey) => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -161,15 +204,25 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
           <TableHeader>
             <TableRow>
               <TableHead className="w-[80px]">Imagem</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Código</TableHead>
+              <TableHead>
+                <Button variant="ghost" onClick={() => requestSort('name')} className="px-0 hover:bg-transparent">
+                  Nome
+                  {renderSortArrow('name')}
+                </Button>
+              </TableHead>
+              <TableHead>
+                 <Button variant="ghost" onClick={() => requestSort('code')} className="px-0 hover:bg-transparent">
+                  Código
+                  {renderSortArrow('code')}
+                </Button>
+              </TableHead>
               <TableHead>Categoria</TableHead>
               <TableHead>Preço</TableHead>
               <TableHead className="w-[50px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {menuItems.map((item) => (
+            {sortedMenuItems.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
                   <Image
