@@ -1,21 +1,19 @@
 
 "use client";
 
-import { useEffect, useState, cloneElement, ReactElement } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarProvider,
-  SidebarItem,
-  SidebarTrigger,
   SidebarContent,
+  SidebarHeader,
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
-  SidebarHeader,
   SidebarInset,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,6 +39,7 @@ export default function DashboardLayoutClient({
   
   const handleLogout = async () => {
     await supabase.auth.signOut();
+    router.refresh(); // Garante que o estado do servidor seja atualizado
     router.push("/");
   };
 
@@ -73,9 +72,6 @@ export default function DashboardLayoutClient({
   ];
 
   const userNameInitial = user?.name?.charAt(0)?.toUpperCase() || '';
-
-  // Pass user prop to children
-  const childrenWithProps = cloneElement(children as ReactElement, { user });
 
   return (
     <SidebarProvider>
@@ -128,7 +124,7 @@ export default function DashboardLayoutClient({
             </h1>
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-4 md:p-6">{childrenWithProps}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </SidebarInset>
     </SidebarProvider>
   );

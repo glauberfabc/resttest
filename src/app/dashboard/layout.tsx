@@ -1,5 +1,7 @@
+
 import DashboardLayoutClient from "@/components/dashboard/layout";
 import { getCurrentUser } from "@/lib/user-actions";
+import { redirect } from 'next/navigation';
 
 export default async function DashboardLayout({
   children,
@@ -9,9 +11,8 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
 
   if (!user) {
-    // This case should be handled by getCurrentUser redirecting,
-    // but as a fallback, we can return null or a loading indicator.
-    return null;
+    // A função getCurrentUser já tem um redirect, mas esta é uma segurança adicional.
+    redirect('/');
   }
 
   return <DashboardLayoutClient user={user}>{children}</DashboardLayoutClient>;

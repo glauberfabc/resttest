@@ -1,3 +1,4 @@
+
 import AnalyticsPageClient from "@/components/dashboard/analytics-page-client";
 import { getOrders, getMenuItems } from "@/lib/supabase";
 import { getCurrentUser } from "@/lib/user-actions";
