@@ -20,7 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign, ArrowUp, ArrowDown } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
 import { AddCreditDialog } from "@/components/dashboard/clients/add-credit-dialog";
 import { createClient } from "@/utils/supabase/client";
@@ -42,11 +42,13 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCreditFormOpen, setIsCreditFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
     
-    const { data: clientsData } = await supabase.from('clients').select('*').order('name', { ascending: true });
+    const { data: clientsData } = await supabase.from('clients').select('*');
     if (clientsData) setClients(clientsData as Client[]);
 
     const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
@@ -85,6 +87,20 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
       fetchData(user);
     }
   }, [user, fetchData]);
+  
+  const sortedClients = useMemo(() => {
+    return [...clients].sort((a, b) => {
+        if (sortOrder === 'asc') {
+            return a.name.localeCompare(b.name);
+        } else {
+            return b.name.localeCompare(a.name);
+        }
+    });
+  }, [clients, sortOrder]);
+
+  const toggleSortOrder = () => {
+    setSortOrder(currentOrder => (currentOrder === 'asc' ? 'desc' : 'asc'));
+  };
 
   const clientBalances = useMemo(() => {
     const balanceMap = new Map<string, number>();
@@ -138,7 +154,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o cliente." });
         return;
       }
-      setClients(clients.map(c => c.id === data.id ? { ...data, user_id: data.user_id } : c).sort((a, b) => a.name.localeCompare(b.name)));
+      setClients(clients.map(c => c.id === data.id ? { ...data, user_id: data.user_id } : c));
 
     } else { // Adding new client
       const { data, error } = await supabase
@@ -152,7 +168,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o cliente." });
         return;
       }
-      setClients([...clients, { ...data, user_id: data.user_id }].sort((a, b) => a.name.localeCompare(b.name)));
+      setClients([...clients, { ...data, user_id: data.user_id }]);
     }
     
     setSelectedClient(null);
@@ -262,14 +278,19 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
+              <TableHead>
+                 <Button variant="ghost" onClick={toggleSortOrder} className="px-0 hover:bg-transparent">
+                    Nome
+                    {sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />}
+                 </Button>
+              </TableHead>
               <TableHead>Contato (Telefone/Documento)</TableHead>
               <TableHead className="w-[150px] text-right">Saldo</TableHead>
               <TableHead className="w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clients.map((client) => {
+            {sortedClients.map((client) => {
                 const balance = clientBalances.get(client.id) || 0;
                 const balanceColor = balance > 0 ? "text-green-600" : balance < 0 ? "text-red-600" : "";
                 return (
@@ -337,3 +358,5 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
+
+    
