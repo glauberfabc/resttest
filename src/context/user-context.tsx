@@ -2,9 +2,9 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import type { AuthChangeEvent, Session, SignUpWithPasswordCredentials, User as SupabaseUser } from '@supabase/supabase-js';
+import type { AuthChangeEvent, Session, SignUpWithPasswordCredentials } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
 
 type UserRole = 'admin' | 'collaborator';
@@ -20,7 +20,7 @@ interface UserContextType {
   user: User | null;
   login: (credentials: { email: string; password?: string }) => Promise<void>;
   signup: (credentials: SignUpWithPasswordCredentials & { name: string }) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   loading: boolean;
 }
 
@@ -29,67 +29,70 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
-  const pathname = usePathname();
   const { toast } = useToast();
+  const router = useRouter();
 
   useEffect(() => {
-    const handleAuthChange = async (event: AuthChangeEvent, session: Session | null) => {
-      setLoading(true);
-      const supabaseUser = session?.user;
-      
-      const publicPages = ['/', '/signup'];
-      const isPublicPage = publicPages.includes(pathname);
+    setLoading(true);
+    // Get the initial session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('name, role')
+          .eq('id', session.user.id)
+          .single();
 
-      if (!supabaseUser) {
-        setUser(null);
-        if (!isPublicPage) {
-          router.push('/');
-        }
-        setLoading(false);
-        return;
-      }
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('name, role')
-        .eq('id', supabaseUser.id)
-        .single();
-      
-      if (error || !profile) {
-        console.error("Error fetching profile or profile not found:", error?.message);
-        toast({ variant: 'destructive', title: "Erro de Perfil", description: "Seu perfil não foi encontrado. Deslogando por segurança." });
-        await supabase.auth.signOut();
-        setUser(null);
-        if (!isPublicPage) {
-          router.push('/');
-        }
-      } else {
-        const userData: User = {
-          id: supabaseUser.id,
-          email: supabaseUser.email!,
-          name: profile.name,
-          role: profile.role as UserRole,
-        };
-        setUser(userData);
-        if (isPublicPage) {
-            router.push('/dashboard');
+        if (profile) {
+          setUser({
+            id: session.user.id,
+            email: session.user.email!,
+            name: profile.name,
+            role: profile.role as UserRole,
+          });
         }
       }
       setLoading(false);
-    };
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        handleAuthChange('INITIAL_SESSION', session);
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthChange);
+    // Set up the auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        setLoading(true);
+        if (session) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('name, role')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profile) {
+            setUser({
+              id: session.user.id,
+              email: session.user.email!,
+              name: profile.name,
+              role: profile.role as UserRole,
+            });
+             if (event === 'SIGNED_IN') {
+              router.push('/dashboard');
+            }
+          } else {
+            // This case should ideally not happen if signup is correct
+            // If it does, sign out to prevent inconsistent state
+            await supabase.auth.signOut();
+            setUser(null);
+          }
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+      }
+    );
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [router]);
 
   const login = async (credentials: { email: string; password?: string }) => {
     setLoading(true);
@@ -106,25 +109,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
     }
     // onAuthStateChange will handle success and navigation.
-    // We set loading to false here on error to allow retries.
     setLoading(false);
   };
 
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     setLoading(true);
     const { name, email, password } = credentials;
-
-    const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers({ email: email });
-
-    if(usersError) {
-        console.error('Error checking for existing user:', usersError.message);
-    }
-
-    if (users && users.length > 0) {
-        toast({ variant: 'destructive', title: 'Erro no Cadastro', description: "Este e-mail já está em uso." });
-        setLoading(false);
-        return;
-    }
 
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
@@ -150,8 +140,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         if (profileError) {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
-            // This requires admin privileges which we don't have on the client.
-            // await supabase.auth.admin.deleteUser(signUpData.user.id);
+            // This requires admin privileges which we don't have on the client, but it's a good practice to try
+            await supabase.auth.admin.deleteUser(signUpData.user.id).catch(() => {});
             await supabase.auth.signOut();
         } else {
             toast({ title: 'Cadastro realizado!', description: 'Faça o login para continuar.' });
@@ -164,6 +154,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    setUser(null);
+    router.push('/');
   };
 
   return (

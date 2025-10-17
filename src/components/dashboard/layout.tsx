@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -33,7 +34,15 @@ export default function DashboardLayoutClient({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useUser();
+  const { user, logout, loading } = useUser();
+
+  useEffect(() => {
+    // If loading is finished and there's no user, redirect to login page.
+    if (!loading && !user) {
+      router.push("/");
+    }
+  }, [user, loading, router]);
+
 
   const handleLogout = () => {
     logout();
@@ -68,9 +77,13 @@ export default function DashboardLayoutClient({
     },
   ];
 
-  if (!user) {
-    // Or a loading spinner
-    return null;
+  // While loading or if no user, show a blank screen or a loader
+  if (loading || !user) {
+    return (
+        <div className="flex h-screen w-full items-center justify-center">
+            {/* You can add a spinner here */}
+        </div>
+    );
   }
 
   const userNameInitial = user?.name?.charAt(0)?.toUpperCase() || '';
