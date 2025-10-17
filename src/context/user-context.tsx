@@ -109,7 +109,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const signup = async (credentials: SignUpWithPasswordCredentials & { name: string }) => {
     const { name, email, password } = credentials;
 
-    // First, sign up the user
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
@@ -122,22 +121,23 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     }
     
     if (signUpData.user) {
-        // Now, create the profile for the new user
         const { error: profileError } = await supabase
             .from('profiles')
             .insert({
                 id: signUpData.user.id,
                 name: name,
-                role: 'collaborator' // Default role for new signups
+                role: 'collaborator' // Default role
             });
 
         if (profileError) {
             console.error('Error creating profile:', profileError.message);
             toast({ variant: 'destructive', title: 'Erro Crítico', description: 'A conta foi criada, mas o perfil não. Contate o suporte.' });
             
-            // Optional: try to delete the newly created user for consistency
-            // This requires admin privileges, which we don't have on the client-side.
-            // await supabase.auth.admin.deleteUser(signUpData.user.id)
+            // Attempt to clean up the user if profile creation fails.
+            // This requires admin privileges and is best handled server-side,
+            // but for client-side only, this is a best-effort approach.
+            // Note: This delete might fail due to RLS policies.
+            await supabase.auth.signOut(); // Sign out the partially created user.
             
             return;
         }
