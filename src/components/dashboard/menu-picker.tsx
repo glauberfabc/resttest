@@ -32,7 +32,7 @@ interface MenuPickerProps {
 }
 
 const categories: MenuItemCategory[] = [
-  "Lanches", "Porções", "Bebidas", "Sucos", "Cervejas", "Salgados", "Pratos Quentes", "Saladas", "Destilados", "Caipirinhas", "Bebidas Quentes", "Adicional"
+  "Lanches", "Adicional", "Porções", "Salgados", "Pratos Quentes", "Saladas", "Bebidas", "Sucos", "Bebidas Quentes", "Cervejas", "Caipirinhas", "Destilados", "Doces"
 ];
 
 export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuPickerProps) {
