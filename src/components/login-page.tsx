@@ -83,12 +83,6 @@ export function LoginPage() {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Entrando...' : 'Entrar'}
             </Button>
-             <div className="text-center text-sm">
-                Não tem uma conta?{" "}
-                <a href="/signup" className="underline">
-                    Cadastre-se
-                </a>
-            </div>
           </div>
         </form>
       </Card>
