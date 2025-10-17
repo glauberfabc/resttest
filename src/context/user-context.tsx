@@ -33,7 +33,20 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const { toast } = useToast();
 
   useEffect(() => {
-    const fetchUser = async (currentUser: SupabaseUser) => {
+    const fetchUser = async (currentUser: SupabaseUser | null, localUser: User | null) => {
+        if (!currentUser) {
+            setUser(null);
+            if (pathname !== '/' && pathname !== '/signup') {
+                router.push('/');
+            }
+            return;
+        }
+
+        // Avoid refetching if user data is already present and matches
+        if (localUser && localUser.id === currentUser.id) {
+            return;
+        }
+
         const { data: profile, error: profileError } = await supabase
             .from('profiles')
             .select('id, name, role')
@@ -42,9 +55,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             .maybeSingle();
 
         if (profileError) {
-            console.error("Error fetching profile after login:", profileError.message);
+            console.error("Error fetching profile:", profileError.message);
             toast({ variant: 'destructive', title: "Erro ao buscar perfil", description: profileError.message });
             await supabase.auth.signOut();
+            setUser(null);
         } else if (profile) {
             const userData: User = {
                 id: currentUser.id,
@@ -61,45 +75,31 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
              toast({
               variant: 'destructive',
               title: 'Perfil não encontrado',
-              description: 'Seu perfil de usuário não foi encontrado. Por favor, tente deslogar e logar novamente.'
+              description: 'Seu perfil de usuário não foi encontrado. Por favor, deslogue e logue novamente.'
             });
             await supabase.auth.signOut();
             setUser(null);
         }
-    }
+    };
 
-
+    // Check initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        // Fetch user only if user state is not already set
-        if (!user) {
-          fetchUser(session.user);
-        }
-      }
+      fetchUser(session?.user || null, user);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, session: Session | null) => {
-        const currentUser = session?.user;
-        
-        if (event === 'SIGNED_OUT') {
-            setUser(null);
-            if (pathname !== '/' && pathname !== '/signup') {
-                router.push('/');
-            }
-        } else if (currentUser && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED')) {
-            // Check if the user state is already set to avoid redundant fetches
-            if (!user || user.id !== currentUser.id) {
-                fetchUser(currentUser);
-            }
-        }
-    });
+      (event: AuthChangeEvent, session: Session | null) => {
+        fetchUser(session?.user || null, user);
+      }
+    );
 
     return () => {
-        authListener.subscription.unsubscribe();
+        authListener?.subscription.unsubscribe();
     };
+  // We should NOT include user, pathname, router, or toast in the dependency array
+  // as they cause re-renders and infinite loops. This effect should only run once.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router, toast, pathname]);
+  }, []);
 
   const login = async (credentials: { email: string; password?: string }) => {
     const { email, password } = credentials;
@@ -134,8 +134,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
-    // The profile is now created by the database trigger, so we don't need to do it here.
-    
     if (signUpData.user) {
         toast({ title: 'Cadastro realizado com sucesso!', description: 'Bem-vindo! Faça o login para continuar.' });
         router.push('/');
@@ -148,6 +146,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     if (error && error.message !== 'Auth session missing!') {
        console.error("Logout failed:", error.message);
        toast({ variant: 'destructive', title: "Erro ao sair", description: error.message });
+    } else {
+      setUser(null);
+      router.push('/');
     }
   };
 
