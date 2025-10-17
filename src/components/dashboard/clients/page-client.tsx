@@ -46,7 +46,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
     
-    const { data: clientsData } = await supabase.from('clients').select('*');
+    const { data: clientsData } = await supabase.from('clients').select('*').order('name', { ascending: true });
     if (clientsData) setClients(clientsData as Client[]);
 
     const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
@@ -138,7 +138,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o cliente." });
         return;
       }
-      setClients(clients.map(c => c.id === data.id ? { ...data, user_id: data.user_id } : c));
+      setClients(clients.map(c => c.id === data.id ? { ...data, user_id: data.user_id } : c).sort((a, b) => a.name.localeCompare(b.name)));
 
     } else { // Adding new client
       const { data, error } = await supabase
@@ -152,7 +152,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o cliente." });
         return;
       }
-      setClients([ { ...data, user_id: data.user_id }, ...clients]);
+      setClients([...clients, { ...data, user_id: data.user_id }].sort((a, b) => a.name.localeCompare(b.name)));
     }
     
     setSelectedClient(null);
