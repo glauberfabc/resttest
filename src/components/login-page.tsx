@@ -27,12 +27,15 @@ export function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    console.log("[LOGIN_PAGE] Tentando fazer login com o email:", email);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
+        console.error("[LOGIN_PAGE] Erro no login do Supabase:", error.message);
         toast({ variant: 'destructive', title: "Erro no Login", description: "Credenciais inválidas. Verifique seu e-mail e senha." });
         setLoading(false);
     } else {
+        console.log("[LOGIN_PAGE] Login com Supabase bem-sucedido. Redirecionando para /dashboard...");
         // router.refresh() is the key to make sure the server component re-renders
         router.push("/dashboard");
         router.refresh();

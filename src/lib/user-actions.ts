@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { Database } from './database.types';
 
 export async function getCurrentUser(): Promise<User | null> {
+    console.log("[USER_ACTIONS] getCurrentUser: Iniciando verificação de usuário no servidor...");
     const cookieStore = cookies();
 
     const supabase = createServerClient<Database>(
@@ -41,9 +42,11 @@ export async function getCurrentUser(): Promise<User | null> {
     const { data: { session } } = await supabase.auth.getSession();
     
     if (!session) {
+        console.log("[USER_ACTIONS] getCurrentUser: Nenhuma sessão encontrada. Redirecionando para a página de login.");
         redirect('/');
     }
     
+    console.log("[USER_ACTIONS] getCurrentUser: Sessão encontrada para o usuário ID:", session.user.id);
     const supabaseUser = session.user;
 
     const { data: profile } = await supabase
@@ -53,11 +56,14 @@ export async function getCurrentUser(): Promise<User | null> {
         .single();
     
     if (!profile) {
+        console.error("[USER_ACTIONS] getCurrentUser: Erro crítico! Usuário tem sessão mas não tem perfil. Deslogando.");
         // This case should ideally not happen if profile is created on signup
         // But as a fallback, we sign out and redirect.
         await supabase.auth.signOut();
         redirect('/');
     }
+
+    console.log("[USER_ACTIONS] getCurrentUser: Perfil do usuário encontrado:", profile);
 
     return {
         id: supabaseUser.id,
@@ -69,7 +75,6 @@ export async function getCurrentUser(): Promise<User | null> {
 
 
 // Server-side data fetching functions
-
 const createSupabaseServerClient = () => {
     const cookieStore = cookies();
     return createServerClient<Database>(
@@ -117,7 +122,7 @@ export async function getOrders(user: User): Promise<Order[]> {
 
     let query = supabase
         .from('orders')
-        .select(`
+        .select(\`
             *,
             items:order_items (
                 id,
@@ -128,7 +133,7 @@ export async function getOrders(user: User): Promise<Order[]> {
                 )
             ),
             payments:order_payments (*)
-        `);
+        \`);
     
     // In a real app, you'd filter by user ID or role
     // if (user.role === 'collaborator') {
