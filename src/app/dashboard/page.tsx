@@ -5,7 +5,6 @@ import { getCurrentUser } from "@/lib/user-actions";
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
-  // O layout já protege a rota, mas a verificação garante que 'user' não é nulo.
   if (!user) return null;
 
   const orders = await getOrders(user);

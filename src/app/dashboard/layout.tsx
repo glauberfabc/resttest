@@ -11,7 +11,6 @@ export default async function DashboardLayout({
   const user = await getCurrentUser();
 
   if (!user) {
-    // A função getCurrentUser já tem um redirect, mas esta é uma segurança adicional.
     redirect('/');
   }
 

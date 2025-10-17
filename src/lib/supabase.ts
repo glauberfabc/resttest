@@ -1,5 +1,4 @@
 
-
 import { createClient } from '@supabase/supabase-js'
 import type { Order, MenuItem, Client, ClientCredit, User } from './types';
 import { Database } from './database.types';
@@ -13,15 +12,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        detectSessionInUrl: false, // Alterado para false para evitar problemas de validação
-        autoRefreshToken: true,
-    },
-     db: {
-        schema: 'public',
-    }
-});
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 
 // Service functions to fetch data
@@ -62,7 +53,6 @@ export async function getOrders(user: User | null): Promise<Order[]> {
                 id,
                 quantity,
                 comment,
-                menu_item_id,
                 menu_item:menu_items (
                     *
                 )
@@ -120,5 +110,3 @@ export async function getClientCredits(): Promise<ClientCredit[]> {
         created_at: new Date(credit.created_at)
     })) as ClientCredit[];
 }
-
-// NOTE: getCurrentUserOnServer has been moved to src/lib/user-actions.ts to avoid server-only imports in this file.

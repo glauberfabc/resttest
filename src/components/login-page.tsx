@@ -34,8 +34,8 @@ export function LoginPage() {
         setLoading(false);
     } else {
         // router.refresh() is the key to make sure the server component re-renders
-        router.refresh();
         router.push("/dashboard");
+        router.refresh();
     }
   };
 
