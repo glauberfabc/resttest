@@ -189,22 +189,22 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
 
         if (!clientExists) {
-            const { data: newClient, error: clientError } = await supabase
+            const { data: newClientData, error: clientError } = await supabase
                 .from('clients')
                 .insert({ name: clientName, phone: phone || null, user_id: user.id })
                 .select()
                 .single();
             
-            if (clientError || !newClient) {
+            if (clientError || !newClientData) {
                 console.error("Error creating new client:", clientError);
                 toast({ variant: 'destructive', title: "Erro ao criar cliente", description: "Não foi possível salvar o novo cliente." });
                 return;
             }
-            setClients(prev => [newClient, ...prev]);
+            setClients(prev => [...prev, newClientData as Client]);
         }
     }
 
-    const { data, error } = await supabase
+    const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({ 
         type, 
@@ -215,32 +215,23 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       .select()
       .single();
 
-    if (error || !data) {
-        console.error("Error creating order:", error);
+    if (orderError || !orderData) {
+        console.error("Error creating order:", orderError);
         toast({ variant: 'destructive', title: "Erro ao criar comanda", description: "Tente novamente." });
         return;
     }
-    
-    setIsNewOrderDialogOpen(false);
-    setTimeout(async () => {
-        if (!user) return;
-        const { data: ordersData } = await supabase.from('orders').select('*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)').order('created_at', { ascending: false });
-        if(!ordersData) return;
-        const allOrders = ordersData.map(order => ({
-            ...order,
-            items: order.items.map((item: any) => ({
-                id: item.id || crypto.randomUUID(),
-                quantity: item.quantity,
-                comment: item.comment || '',
-                menuItem: { ...item.menu_item, id: item.menu_item.id || crypto.randomUUID(), imageUrl: item.menu_item.image_url, lowStockThreshold: item.menu_item.low_stock_threshold }
-            })),
-            created_at: new Date(order.created_at),
-            paid_at: order.paid_at ? new Date(order.paid_at) : undefined
-        })) as unknown as Order[];
 
-        const newOrder = allOrders.find(o => o.id === data.id);
-        if (newOrder) setSelectedOrder(newOrder);
-    }, 500);
+    const newOrder: Order = {
+        ...(orderData as any),
+        items: [],
+        payments: [],
+        created_at: new Date(orderData.created_at),
+        createdAt: new Date(orderData.created_at),
+    };
+    
+    setOrders(prevOrders => [newOrder, ...prevOrders]);
+    setSelectedOrder(newOrder);
+    setIsNewOrderDialogOpen(false);
   };
   
   const handleProcessPayment = async (orderId: string, amount: number, method: string) => {
@@ -491,3 +482,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
