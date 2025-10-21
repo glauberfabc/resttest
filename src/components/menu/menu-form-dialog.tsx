@@ -35,7 +35,7 @@ interface MenuFormDialogProps {
 }
 
 const categories: MenuItemCategory[] = [
-  "Adicional", "Bebidas", "Bebidas Quentes", "Caipirinhas", "Cervejas", "Destilados", "Doces", "Lanches", "Porções", "Pratos Quentes", "Saladas", "Salgados", "Sopas", "Sucos"
+  "Adicional", "Bebidas", "Bebidas Quentes", "Caipirinhas", "Caldos", "Cervejas", "Destilados", "Doces", "Lanches", "Porções", "Pratos Quentes", "Saladas", "Salgados", "Sucos"
 ].sort((a, b) => a.localeCompare(b)) as MenuItemCategory[];
 
 
