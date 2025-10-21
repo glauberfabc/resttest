@@ -193,11 +193,12 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         .single();
     
     if (error || !data) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o crédito." });
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o crédito/débito." });
     } else {
         const newCredit = { ...data, created_at: new Date(data.created_at) } as ClientCredit;
         setCredits(prev => [newCredit, ...prev]);
-        toast({ title: "Sucesso!", description: `Crédito de R$ ${amount.toFixed(2)} adicionado.` });
+        const action = amount > 0 ? 'adicionado' : 'debitado';
+        toast({ title: "Sucesso!", description: `Valor de R$ ${Math.abs(amount).toFixed(2)} ${action}.` });
     }
 
     setIsCreditFormOpen(false);
@@ -316,7 +317,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
                                 <DropdownMenuContent align="end">
                                 <DropdownMenuItem onClick={() => handleOpenCreditDialog(client)}>
                                     <DollarSign className="mr-2 h-4 w-4" />
-                                    Adicionar Crédito
+                                    Adicionar Crédito/Débito
                                 </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => handleEdit(client)}>
                                     <Pencil className="mr-2 h-4 w-4" />
@@ -358,5 +359,3 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
-
-    

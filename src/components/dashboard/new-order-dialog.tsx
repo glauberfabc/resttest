@@ -63,12 +63,15 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   };
   
   const filteredClients = useMemo(() => {
-    const lowercasedFilter = customerName.toLowerCase();
+    const lowercasedFilter = customerName.toLowerCase().trim();
     if (!lowercasedFilter) {
       return [];
     }
     return clients
-      .filter(client => client.name.toLowerCase().includes(lowercasedFilter))
+      .filter(client => 
+        client.name.toLowerCase().includes(lowercasedFilter) ||
+        (client.phone && client.phone.replace(/\D/g, '').includes(lowercasedFilter))
+      )
       .slice(0, 5);
   }, [clients, customerName]);
 
