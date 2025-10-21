@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { SnookerBarLogo } from "@/components/icons";
 import { useToast } from "@/hooks/use-toast";
 import { createClient } from "@/utils/supabase/client";
+import { cn } from "@/lib/utils";
 
 export function LoginPage() {
   const router = useRouter();
