@@ -4,16 +4,18 @@
 import type { Order } from "@/lib/types";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { User, Table2 } from "lucide-react";
+import { User, Table2, Trash2 } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
+import { Button } from "@/components/ui/button";
 
 
 interface OrderCardProps {
   order: Order;
   onSelectOrder: (order: Order) => void;
+  onDeleteOrder: (orderId: string) => void;
 }
 
-export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
+export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProps) {
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
   const remainingAmount = total - paidAmount;
@@ -37,11 +39,16 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
     }
   };
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Impede que o onSelectOrder seja chamado
+    onDeleteOrder(order.id);
+  };
+
   const displayAmount = isPaid ? total : remainingAmount;
 
   return (
     <Card 
-        className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-200 flex flex-col"
+        className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-200 flex flex-col group"
         onClick={() => onSelectOrder(order)}
     >
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
@@ -73,7 +80,7 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
             </div>
         )}
       </CardContent>
-      <CardFooter>
+      <CardFooter className="relative">
         <div className="flex flex-col w-full">
             {(isPartiallyPaid || order.status === 'open' || order.status === 'paying') && !isPaid && <p className="text-xs text-muted-foreground">Restante</p>}
             {isPaid && <p className="text-xs text-muted-foreground">Total Pago</p>}
@@ -81,6 +88,16 @@ export function OrderCard({ order, onSelectOrder }: OrderCardProps) {
               R$ {displayAmount.toFixed(2).replace('.', ',')}
             </div>
         </div>
+         {isPaid && (
+            <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-2 bottom-2 h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={handleDeleteClick}
+            >
+                <Trash2 className="h-4 w-4" />
+            </Button>
+        )}
       </CardFooter>
     </Card>
   );

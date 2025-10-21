@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -6,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, Trash2 } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -403,7 +404,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         {paginatedItems.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {paginatedItems.map((order) => (
-              <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} />
+              <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} onDeleteOrder={handleDeleteOrder} />
             ))}
           </div>
         ) : (

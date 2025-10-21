@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -12,6 +13,17 @@ import {
   SheetDescription,
   SheetFooter,
 } from "@/components/ui/sheet";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MenuPicker } from "@/components/dashboard/menu-picker";
@@ -292,10 +304,26 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir Comprovante
                     </Button>
-                    <Button variant="destructive" className="w-full" onClick={() => onDeleteOrder(order.id)}>
-                        <Trash2 className="mr-2 h-4 w-4" />
-                        Excluir Comprovante
-                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive" className="w-full">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir Comprovante
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                 </SheetFooter>
             </>
           ) : (
@@ -349,10 +377,26 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                         <p className="text-muted-foreground">Nenhum item na comanda.</p>
                         <div className="flex gap-2">
                            <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
-                           <Button variant="destructive" size="sm" onClick={() => onDeleteOrder(order.id)}>
-                             <Trash2 className="h-4 w-4 mr-2"/>
-                             Excluir Comanda
-                           </Button>
+                           <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm">
+                                        <Trash2 className="h-4 w-4 mr-2"/>
+                                        Excluir Comanda
+                                    </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Essa ação não pode ser desfeita. A comanda será excluída permanentemente.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </div>
                     </div>
                 )}
