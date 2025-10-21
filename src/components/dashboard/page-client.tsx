@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday } from 'date-fns';
+import { cn } from "@/lib/utils";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -495,5 +496,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
