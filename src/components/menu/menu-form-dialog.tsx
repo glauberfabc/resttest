@@ -35,8 +35,9 @@ interface MenuFormDialogProps {
 }
 
 const categories: MenuItemCategory[] = [
-  "Lanches", "Adicional", "Porções", "Salgados", "Pratos Quentes", "Saladas", "Bebidas", "Sucos", "Bebidas Quentes", "Cervejas", "Caipirinhas", "Destilados", "Doces"
-];
+  "Adicional", "Bebidas", "Bebidas Quentes", "Caipirinhas", "Cervejas", "Destilados", "Doces", "Lanches", "Porções", "Pratos Quentes", "Saladas", "Salgados", "Sopas", "Sucos"
+].sort((a, b) => a.localeCompare(b)) as MenuItemCategory[];
+
 
 export function MenuFormDialog({ isOpen, onOpenChange, onSave, item, user }: MenuFormDialogProps) {
   const [name, setName] = useState('');
