@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -33,6 +33,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isFetching, setIsFetching] = useState(false);
+
 
   const [pagination, setPagination] = useState({
     abertas: { currentPage: 1 },
@@ -42,6 +44,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
+    setIsFetching(true);
     
     const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
@@ -81,11 +84,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
     if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
-  }, [supabase]);
+
+    setIsFetching(false);
+    toast({ title: 'Dados atualizados!', description: 'As comandas foram sincronizadas.'});
+  }, [supabase, toast]);
 
   useEffect(() => {
     if (user) {
-      fetchData(user);
+      // Initial fetch is done via props, so no need to call fetchData here on mount
     }
   }, [user, fetchData]);
 
@@ -94,6 +100,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (!user) return;
 
     const handleRealtimeUpdate = (payload: any) => {
+      // A bit aggressive, but ensures data consistency.
+      // A more granular approach would be to inspect the payload.
       fetchData(user);
     };
 
@@ -425,12 +433,17 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Comandas</h2>
-        <Button onClick={() => setIsNewOrderDialogOpen(true)}>
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Nova Comanda
-        </Button>
+        <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon" onClick={() => fetchData(user)} disabled={isFetching}>
+                <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
+            </Button>
+            <Button onClick={() => setIsNewOrderDialogOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nova Comanda
+            </Button>
+        </div>
       </div>
 
       <div className="relative">
