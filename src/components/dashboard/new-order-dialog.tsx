@@ -150,6 +150,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           key={client.id}
                           value={client.name}
                           onSelect={() => handleSelectClient(client.name)}
+                          onClick={() => handleSelectClient(client.name)}
                           className="cursor-pointer"
                         >
                           <Check
