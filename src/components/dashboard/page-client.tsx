@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
@@ -7,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -326,11 +325,15 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToDelete = orders.find(o => o.id === orderId);
     if (!orderToDelete) return;
 
-    if (orderToDelete.items.length > 0 || (orderToDelete.payments && orderToDelete.payments.length > 0)) {
+    const isPaid = orderToDelete.status === 'paid';
+    const hasItemsOrPayments = orderToDelete.items.length > 0 || (orderToDelete.payments && orderToDelete.payments.length > 0);
+
+    // Allow deleting empty orders OR paid orders.
+    if (!isPaid && hasItemsOrPayments) {
         toast({ 
             variant: 'destructive', 
             title: "Ação não permitida", 
-            description: "Não é possível excluir comandas que já possuem itens ou pagamentos." 
+            description: "Apenas comandas pagas ou vazias podem ser excluídas." 
         });
         return;
     }
@@ -339,6 +342,11 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     setOrders(orders.filter(o => o.id !== orderId));
     setSelectedOrder(null); 
 
+    // Cascade delete: payments and items first
+    await supabase.from('order_payments').delete().eq('order_id', orderId);
+    await supabase.from('order_items').delete().eq('order_id', orderId);
+
+    // Then delete the order itself
     const { error } = await supabase
       .from('orders')
       .delete()
@@ -349,7 +357,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       toast({ variant: 'destructive', title: "Erro ao excluir comanda", description: "Não foi possível remover a comanda." });
       setOrders(originalOrders);
     } else {
-      toast({ title: "Comanda excluída", description: "A comanda vazia foi removida." });
+      toast({ title: "Comanda excluída", description: "A comanda foi removida com sucesso." });
     }
   };
 

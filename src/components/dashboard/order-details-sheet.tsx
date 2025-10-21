@@ -287,10 +287,14 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                 <div className="flex-1 my-4 p-4 border rounded-md bg-white text-black overflow-y-auto font-mono">
                     <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} className="!block !relative !w-full !p-0 !text-black !bg-white !shadow-none !border-none !text-sm" />
                 </div>
-                <SheetFooter className="mt-auto">
+                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2">
                     <Button variant="outline" className="w-full" onClick={() => window.print()}>
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir Comprovante
+                    </Button>
+                    <Button variant="destructive" className="w-full" onClick={() => onDeleteOrder(order.id)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir Comprovante
                     </Button>
                 </SheetFooter>
             </>
