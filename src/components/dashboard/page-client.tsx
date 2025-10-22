@@ -103,8 +103,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (!user) return;
 
     const handleRealtimeUpdate = (payload: any) => {
-      // A bit aggressive, but ensures data consistency.
-      // A more granular approach would be to inspect the payload.
       fetchData(user);
     };
 
@@ -118,8 +116,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           console.log('Conectado ao canal de atualizações em tempo real.');
         }
         if (status === 'CHANNEL_ERROR') {
-          console.error('Erro no canal de tempo real:', err);
-          toast({ variant: 'destructive', title: "Erro de Conexão", description: "Não foi possível sincronizar em tempo real." });
+          console.error('Erro no canal de tempo real. Pode ser devido à inatividade. O erro foi:', err);
+          toast({ variant: 'destructive', title: "Erro de Conexão", description: "A sincronização em tempo real foi perdida. Atualize a página se necessário." });
         }
       });
 
@@ -390,39 +388,44 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   const notebookOrders = useMemo(() => {
     const clientOrderMap = new Map<string, Order>();
 
+    // This process merges multiple old orders for the same client into one "virtual" order for display.
     rawNotebookOrders.forEach(order => {
-        if (order.type === 'table') {
-            // Keep table orders separate
-            clientOrderMap.set(order.id, order);
-            return;
-        }
+        // Only merge 'name' type orders. Table orders from previous days are kept separate.
+        if (order.type === 'name') {
+            const clientName = (order.identifier) as string;
+            const existingOrder = clientOrderMap.get(clientName);
 
-        const clientName = (order.customer_name || order.identifier) as string;
-        const existingOrder = clientOrderMap.get(clientName);
-
-        if (existingOrder) {
-            // Merge items
-            existingOrder.items.push(...order.items);
-            // Merge payments
-            if (order.payments) {
-                existingOrder.payments = [...(existingOrder.payments || []), ...order.payments];
-            }
-            // Keep the oldest creation date
-            if (order.created_at < existingOrder.created_at) {
-                existingOrder.created_at = order.created_at;
-                existingOrder.createdAt = order.created_at;
+            if (existingOrder) {
+                // If an order for this client already exists in the map, merge items and payments.
+                existingOrder.items.push(...order.items);
+                if (order.payments) {
+                    existingOrder.payments = [...(existingOrder.payments || []), ...order.payments];
+                }
+                // Keep the oldest creation date as the primary one for the merged group.
+                if (order.created_at < existingOrder.created_at) {
+                    existingOrder.created_at = order.created_at;
+                    existingOrder.createdAt = order.created_at;
+                }
+                // Important: Keep the original ID of the *first* order encountered to act as the key.
+            } else {
+                // This is the first order for this client, create a deep copy to avoid mutation issues.
+                const newMergedOrder = JSON.parse(JSON.stringify(order));
+                 newMergedOrder.created_at = new Date(newMergedOrder.created_at);
+                if(newMergedOrder.paid_at) newMergedOrder.paid_at = new Date(newMergedOrder.paid_at);
+                newMergedOrder.createdAt = newMergedOrder.created_at;
+                if(newMergedOrder.paidAt) newMergedOrder.paidAt = new Date(newMergedOrder.paidAt);
+                
+                clientOrderMap.set(clientName, newMergedOrder);
             }
         } else {
-            // This is the first order for this client, create a deep copy
-            const newOrder = JSON.parse(JSON.stringify(order));
-            newOrder.created_at = new Date(newOrder.created_at);
-            if(newOrder.paid_at) newOrder.paid_at = new Date(newOrder.paid_at);
-            clientOrderMap.set(clientName, newOrder);
+            // Keep old table orders separate. Use their own ID as the key.
+            clientOrderMap.set(order.id, order);
         }
     });
 
     return Array.from(clientOrderMap.values());
-  }, [rawNotebookOrders]);
+}, [rawNotebookOrders]);
+
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
