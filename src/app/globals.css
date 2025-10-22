@@ -107,10 +107,11 @@ body {
     top: 0;
     width: 280px;
     font-family: 'Courier New', Courier, monospace;
-    font-size: 12px;
+    font-size: 14px;
     color: black;
     background: white;
     padding: 0;
+    font-weight: 700;
   }
   .print-hide {
     display: none;
