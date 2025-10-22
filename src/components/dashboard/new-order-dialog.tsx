@@ -2,9 +2,8 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Check, Search } from "lucide-react"
-
-import { cn } from "@/lib/utils"
+import { Check, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Client, User } from "@/lib/types";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 interface NewOrderDialogProps {
   isOpen: boolean;
@@ -50,7 +50,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   }, [isOpen]);
 
   const handleSelectClient = (client: Client) => {
-    setCustomerName(client.name);
+    setCustomerName(client.name.toUpperCase());
     setPhone(client.phone || '');
     setSelectedClient(client);
     setShowResults(false);
@@ -85,10 +85,9 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     }
   }
   
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+  const handleInputChange = (value: string) => {
     setCustomerName(value);
-    setSelectedClient(null); // Clear selected client when typing
+    setSelectedClient(null);
     if (value.length > 0) {
       setShowResults(true);
     } else {
@@ -103,6 +102,12 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     }, 150);
   }
 
+  const handleInputFocus = () => {
+    if (customerName.length > 0) {
+      setShowResults(true);
+    }
+  };
+
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
     return !clients.some(client => client.name.toUpperCase() === customerName.toUpperCase());
@@ -115,7 +120,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement;
           // Prevent closing the dialog when clicking inside the results list
-          if (target.closest('[data-results-list]')) {
+          if (target.closest('[cmdk-list]')) {
             e.preventDefault();
           }
         }}
@@ -153,48 +158,53 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         </TabsContent>
         <TabsContent value="name" className="pt-4">
              <form onSubmit={handleNameOrderSubmit}>
-                <div className="space-y-2">
-                    <Label htmlFor="customer-name">Nome do Cliente</Label>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                          id="customer-name" 
-                          placeholder="Buscar cliente ou digitar novo nome..."
-                          onChange={handleInputChange}
-                          value={customerName}
-                          autoFocus
-                          autoComplete="off"
-                          className="pl-10"
-                          onBlur={handleInputBlur}
-                          onFocus={() => customerName && setShowResults(true)}
-                      />
-                    </div>
-                </div>
+                <div className="relative">
+                  <Command className="overflow-visible bg-transparent">
+                      <Label htmlFor="customer-name">Nome do Cliente</Label>
+                       <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <CommandInput
+                            id="customer-name" 
+                            placeholder="Buscar cliente ou digitar novo nome..."
+                            onValueChange={handleInputChange}
+                            value={customerName}
+                            autoFocus
+                            autoComplete="off"
+                            className="pl-10"
+                            onBlur={handleInputBlur}
+                            onFocus={handleInputFocus}
+                        />
+                      </div>
 
-                {showResults && filteredClients.length > 0 && (
-                  <div data-results-list className="relative">
-                    <div className="absolute top-1 w-full bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto z-[9999]">
-                        {filteredClients.map((client) => (
-                          <div
-                            key={client.id}
-                            onClick={() => handleSelectClient(client)}
-                            className="flex items-center p-2 hover:bg-accent cursor-pointer text-sm"
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <div>
-                              <p className="font-medium">{client.name}</p>
-                              <p className="text-xs text-muted-foreground">{client.phone}</p>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                )}
+                      {showResults && filteredClients.length > 0 && (
+                        <CommandList className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-md border rounded-md max-h-[180px] overflow-y-auto">
+                            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                            <CommandGroup>
+                              {filteredClients.map((client) => (
+                                <CommandItem
+                                  key={client.id}
+                                  value={client.name}
+                                  onSelect={() => handleSelectClient(client)}
+                                  onClick={() => handleSelectClient(client)}
+                                  className="cursor-pointer"
+                                >
+                                  <Check
+                                    className={cn(
+                                      "mr-2 h-4 w-4",
+                                      selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                  />
+                                  <div>
+                                    <p>{client.name}</p>
+                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
+                                  </div>
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                        </CommandList>
+                      )}
+                  </Command>
+                </div>
 
                 {customerName && isNewCustomer && !selectedClient && (
                     <>
