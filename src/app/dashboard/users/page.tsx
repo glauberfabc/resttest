@@ -12,7 +12,7 @@ export default async function UsersPage() {
         redirect('/dashboard');
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data, error } = await supabase.from('profiles').select('*');
 
     if (error) {
