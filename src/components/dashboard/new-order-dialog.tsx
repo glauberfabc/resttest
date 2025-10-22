@@ -39,14 +39,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [activeTab, setActiveTab] = useState<'table' | 'name'>('table');
   const [tableNumber, setTableNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
-  const [selectedClientName, setSelectedClientName] = useState<string | null>(null);
   const [phone, setPhone] = useState('');
-  const [showResults, setShowResults] = useState(true);
-
-  const isNewCustomer = useMemo(() => {
-    if (!customerName) return false;
-    return !clients.some(client => client.name.toUpperCase() === customerName.toUpperCase());
-  }, [customerName, clients]);
   
   useEffect(() => {
     if (!isOpen) {
@@ -55,17 +48,13 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             setTableNumber('');
             setCustomerName('');
             setPhone('');
-            setSelectedClientName(null);
-            setShowResults(true);
             setActiveTab('table');
         }, 200);
     }
   }, [isOpen]);
 
   const handleSelectClient = (client: Client) => {
-    setCustomerName(client.name);
-    setSelectedClientName(client.name);
-    setShowResults(false);
+    onCreateOrder('name', client.name.toUpperCase());
   };
   
   const filteredClients = useMemo(() => {
@@ -90,18 +79,19 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
 
   const handleNameOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedClientName) {
-        onCreateOrder('name', selectedClientName.toUpperCase());
-    } else if (customerName && isNewCustomer) {
+    if (customerName) {
         onCreateOrder('name', customerName.toUpperCase(), phone);
     }
   }
   
   const handleInputChange = (value: string) => {
     setCustomerName(value);
-    setSelectedClientName(null); // Clear selection when user types
-    setShowResults(true); // Show results again
   }
+
+  const isNewCustomer = useMemo(() => {
+    if (!customerName) return false;
+    return !clients.some(client => client.name.toUpperCase() === customerName.toUpperCase());
+  }, [customerName, clients]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -151,16 +141,16 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                         <Label htmlFor="customer-name">Nome do Cliente</Label>
                         <CommandInput
                             id="customer-name" 
-                            placeholder="Buscar ou criar cliente..."
+                            placeholder="Buscar cliente ou digitar novo nome..."
                             onValueChange={handleInputChange}
                             value={customerName}
                             autoFocus
                         />
                     </div>
-                    {showResults && filteredClients.length > 0 && (
+                    {filteredClients.length > 0 && (
                         <CommandList className="mt-2 max-h-[180px] overflow-y-auto rounded-md border absolute z-10 bg-background w-full">
                             <CommandEmpty>
-                            {customerName && isNewCustomer ? 'Nenhum cliente encontrado. Continue para criar um novo.' : 'Nenhum cliente encontrado.'}
+                                Nenhum cliente encontrado.
                             </CommandEmpty>
                             <CommandGroup>
                             {filteredClients.map((client) => (
@@ -173,8 +163,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 >
                                 <Check
                                     className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedClientName === client.name ? "opacity-100" : "opacity-0"
+                                    "mr-2 h-4 w-4 opacity-0"
                                     )}
                                 />
                                 <div>
@@ -188,24 +177,37 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                     )}
                 </Command>
 
-                {customerName && isNewCustomer && !selectedClientName && (
-                    <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
-                        <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
-                        <Input
-                            id="phone"
-                            placeholder="Telefone para contato (opcional)"
-                            value={phone}
-                            onChange={(e) => setPhone(e.target.value)}
-                        />
-                    </div>
+                {customerName && isNewCustomer && (
+                    <>
+                        <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
+                            <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
+                            <Input
+                                id="phone"
+                                placeholder="Telefone para contato (opcional)"
+                                value={phone}
+                                onChange={(e) => setPhone(e.target.value)}
+                            />
+                        </div>
+                        <DialogFooter className="mt-4">
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                            <Button type="submit" disabled={!customerName}>
+                                Criar Cliente e Abrir
+                            </Button>
+                        </DialogFooter>
+                    </>
                 )}
-                
-                <DialogFooter className="mt-4">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button type="submit" disabled={!customerName}>
-                        {isNewCustomer ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
-                    </Button>
-                </DialogFooter>
+
+                {!isNewCustomer && customerName && (
+                    <DialogFooter className="mt-4">
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    </DialogFooter>
+                )}
+
+                 {!customerName && (
+                     <DialogFooter className="mt-4">
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    </DialogFooter>
+                 )}
             </form>
         </TabsContent>
         </Tabs>
@@ -213,3 +215,4 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     </Dialog>
   );
 }
+
