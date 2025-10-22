@@ -106,7 +106,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     // We delay hiding the results to allow the click event on an item to register
     setTimeout(() => {
       setShowResults(false);
-    }, 150);
+    }, 300);
   };
 
   const handleInputFocus = () => {
@@ -181,7 +181,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           />
                       </div>
                       {showResults && filteredClients.length > 0 && (
-                          <CommandList className="absolute top-full w-full z-[51] mt-1 bg-background shadow-md border rounded-md max-h-[180px] overflow-y-auto">
+                          <CommandList className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-md border rounded-md max-h-[180px] overflow-y-auto">
                               <CommandEmpty>
                                   Nenhum cliente encontrado.
                               </CommandEmpty>
