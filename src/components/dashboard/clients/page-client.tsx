@@ -361,6 +361,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
             onSave={handleSaveClient}
             client={selectedClient}
             user={user}
+            existingClients={clients}
         />
       )}
       {isCreditFormOpen && selectedClient && (
