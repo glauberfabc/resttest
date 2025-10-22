@@ -676,6 +676,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         onOpenChange={setIsNewOrderDialogOpen}
         onCreateOrder={handleCreateOrder}
         clients={clients}
+        orders={orders}
+        credits={credits}
         user={user}
       />
     </div>

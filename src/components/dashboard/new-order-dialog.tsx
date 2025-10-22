@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Search } from "lucide-react";
+import { Search, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,7 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { Client, User } from "@/lib/types";
+import type { Client, User, Order, ClientCredit } from "@/lib/types";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface NewOrderDialogProps {
   isOpen: boolean;
@@ -23,9 +24,11 @@ interface NewOrderDialogProps {
   onCreateOrder: (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => void;
   clients: Client[];
   user: User;
+  orders: Order[];
+  credits: ClientCredit[];
 }
 
-export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }: NewOrderDialogProps) {
+export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, orders, credits }: NewOrderDialogProps) {
   const [activeTab, setActiveTab] = useState<'table' | 'name'>('table');
   const [tableNumber, setTableNumber] = useState('');
   const [tableCustomerName, setTableCustomerName] = useState('');
@@ -33,6 +36,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [phone, setPhone] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [clientDebt, setClientDebt] = useState<number>(0);
   
   useEffect(() => {
     if (!isOpen) {
@@ -45,15 +49,43 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             setActiveTab('table');
             setShowResults(false);
             setSelectedClient(null);
+            setClientDebt(0);
         }, 200);
     }
   }, [isOpen]);
+
+  const clientBalances = useMemo(() => {
+    const balanceMap = new Map<string, number>();
+
+    clients.forEach(client => {
+      balanceMap.set(client.id, 0);
+    });
+
+    credits.forEach(credit => {
+      balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
+    });
+
+    const openNameOrders = orders.filter(o => o.type === 'name' && o.status !== 'paid');
+    openNameOrders.forEach(order => {
+      const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
+      if (client) {
+        const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+        const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+        const remainingDebt = orderTotal - paidAmount;
+        balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebt);
+      }
+    });
+
+    return balanceMap;
+  }, [orders, clients, credits]);
 
   const handleSelectClient = (client: Client) => {
     setCustomerName(client.name.toUpperCase());
     setPhone(client.phone || '');
     setSelectedClient(client);
     setShowResults(false);
+    const balance = clientBalances.get(client.id) || 0;
+    setClientDebt(balance < 0 ? balance : 0);
   };
   
   const filteredClients = useMemo(() => {
@@ -92,6 +124,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     const value = e.target.value;
     setCustomerName(value);
     setSelectedClient(null);
+    setClientDebt(0);
     if (value.length > 0) {
       setShowResults(true);
     } else {
@@ -210,6 +243,16 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                     </div>
                   )}
                 </div>
+
+                {clientDebt < 0 && (
+                  <Alert variant="destructive" className="mt-4">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      Este cliente possui uma dívida de <span className="font-bold">R$ {Math.abs(clientDebt).toFixed(2).replace('.', ',')}</span>.
+                    </AlertDescription>
+                  </Alert>
+                )}
+
 
                 {customerName && isNewCustomer && !selectedClient && (
                     <>
