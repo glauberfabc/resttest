@@ -88,6 +88,11 @@ body {
   }
 }
 
+@page {
+  size: auto;
+  margin: 0mm;
+}
+
 @media print {
   body, .print-area {
     background: white;
@@ -139,3 +144,4 @@ body {
 }
 
     
+
