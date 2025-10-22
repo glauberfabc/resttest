@@ -2,18 +2,10 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Check } from "lucide-react"
+import { Check, Search } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
 import {
   Dialog,
   DialogContent,
@@ -93,7 +85,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     }
   }
   
-  const handleInputChange = (value: string) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
     setCustomerName(value);
     setSelectedClient(null); // Clear selected client when typing
     if (value.length > 0) {
@@ -110,7 +103,16 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent 
+        className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement;
+          // Prevent closing the dialog when clicking inside the results list
+          if (target.closest('[data-results-list]')) {
+            e.preventDefault();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
           <DialogDescription>
@@ -144,47 +146,47 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         </TabsContent>
         <TabsContent value="name" className="pt-4">
              <form onSubmit={handleNameOrderSubmit}>
-                <Command shouldFilter={false} className="overflow-visible bg-transparent">
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-name">Nome do Cliente</Label>
-                        <CommandInput
-                            id="customer-name" 
-                            placeholder="Buscar cliente ou digitar novo nome..."
-                            onValueChange={handleInputChange}
-                            value={customerName}
-                            autoFocus
-                        />
+                <div className="space-y-2">
+                    <Label htmlFor="customer-name">Nome do Cliente</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                          id="customer-name" 
+                          placeholder="Buscar cliente ou digitar novo nome..."
+                          onChange={handleInputChange}
+                          value={customerName}
+                          autoFocus
+                          className="pl-10"
+                          onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                          onFocus={() => customerName && setShowResults(true)}
+                      />
                     </div>
-                    {showResults && filteredClients.length > 0 && (
-                        <CommandList className="mt-2 max-h-[180px] overflow-y-auto">
-                            <CommandEmpty>
-                                Nenhum cliente encontrado.
-                            </CommandEmpty>
-                            <CommandGroup>
-                            {filteredClients.map((client) => (
-                                <CommandItem
-                                  key={client.id}
-                                  value={client.name}
-                                  onSelect={() => handleSelectClient(client)}
-                                  onClick={() => handleSelectClient(client)}
-                                  className="cursor-pointer"
-                                >
-                                <Check
-                                    className={cn(
-                                    "mr-2 h-4 w-4",
-                                    selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                />
-                                <div>
-                                    <p>{client.name}</p>
-                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
-                                </div>
-                                </CommandItem>
-                            ))}
-                            </CommandGroup>
-                        </CommandList>
-                    )}
-                </Command>
+                </div>
+
+                {showResults && filteredClients.length > 0 && (
+                  <div data-results-list className="relative">
+                    <div className="absolute top-1 w-full bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
+                        {filteredClients.map((client) => (
+                          <div
+                            key={client.id}
+                            onClick={() => handleSelectClient(client)}
+                            className="flex items-center p-2 hover:bg-accent cursor-pointer text-sm"
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 h-4 w-4",
+                                selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
+                              )}
+                            />
+                            <div>
+                              <p className="font-medium">{client.name}</p>
+                              <p className="text-xs text-muted-foreground">{client.phone}</p>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+                )}
 
                 {customerName && isNewCustomer && !selectedClient && (
                     <>
