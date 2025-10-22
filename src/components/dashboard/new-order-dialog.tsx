@@ -59,11 +59,13 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     if (!lowercasedFilter) {
       return [];
     }
+    const numericFilter = lowercasedFilter.replace(/\D/g, '');
     return clients
-      .filter(client => 
-        client.name.toLowerCase().includes(lowercasedFilter) ||
-        (client.phone && client.phone.replace(/\D/g, '').includes(lowercasedFilter.replace(/\D/g, '')))
-      )
+      .filter(client => {
+        const nameMatch = client.name.toLowerCase().includes(lowercasedFilter);
+        const phoneMatch = client.phone && numericFilter.length > 0 && client.phone.replace(/\D/g, '').includes(numericFilter);
+        return nameMatch || phoneMatch;
+      })
       .slice(0, 5);
   }, [clients, customerName]);
 
