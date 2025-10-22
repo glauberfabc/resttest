@@ -40,6 +40,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [tableNumber, setTableNumber] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [showResults, setShowResults] = useState(false);
   
   useEffect(() => {
     if (!isOpen) {
@@ -49,12 +50,15 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             setCustomerName('');
             setPhone('');
             setActiveTab('table');
+            setShowResults(false);
         }, 200);
     }
   }, [isOpen]);
 
   const handleSelectClient = (client: Client) => {
-    onCreateOrder('name', client.name.toUpperCase());
+    setCustomerName(client.name.toUpperCase());
+    setPhone(client.phone || '');
+    setShowResults(false);
   };
   
   const filteredClients = useMemo(() => {
@@ -86,6 +90,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   
   const handleInputChange = (value: string) => {
     setCustomerName(value);
+    if (value.length > 0) {
+      setShowResults(true);
+    } else {
+      setShowResults(false);
+    }
   }
 
   const isNewCustomer = useMemo(() => {
@@ -96,7 +105,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-md"
+        className="sm:max-w-md overflow-visible"
         onPointerDownOutside={(e) => {
             if ((e.target as HTMLElement).closest('[cmdk-list]')) {
                 e.preventDefault();
@@ -134,7 +143,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 </DialogFooter>
             </form>
         </TabsContent>
-        <TabsContent value="name" className="pt-4">
+        <TabsContent value="name" className="pt-4 overflow-visible">
             <form onSubmit={handleNameOrderSubmit}>
                 <Command shouldFilter={false} className="overflow-visible bg-transparent">
                     <div className="space-y-2">
@@ -145,10 +154,12 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                             onValueChange={handleInputChange}
                             value={customerName}
                             autoFocus
+                            onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                            onFocus={() => customerName.length > 0 && setShowResults(true)}
                         />
                     </div>
-                    {filteredClients.length > 0 && (
-                        <CommandList className="mt-2 max-h-[180px] overflow-y-auto rounded-md border absolute z-10 bg-background w-full">
+                    {showResults && filteredClients.length > 0 && (
+                        <CommandList className="mt-2 max-h-[180px] overflow-y-auto rounded-md border absolute z-10 bg-background w-[calc(100%-2rem)]">
                             <CommandEmpty>
                                 Nenhum cliente encontrado.
                             </CommandEmpty>
@@ -163,7 +174,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 >
                                 <Check
                                     className={cn(
-                                    "mr-2 h-4 w-4 opacity-0"
+                                    "mr-2 h-4 w-4",
+                                    customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
                                     )}
                                 />
                                 <div>
@@ -188,26 +200,16 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                 onChange={(e) => setPhone(e.target.value)}
                             />
                         </div>
-                        <DialogFooter className="mt-4">
-                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                            <Button type="submit" disabled={!customerName}>
-                                Criar Cliente e Abrir
-                            </Button>
-                        </DialogFooter>
                     </>
                 )}
 
-                {!isNewCustomer && customerName && (
-                    <DialogFooter className="mt-4">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    </DialogFooter>
-                )}
-
-                 {!customerName && (
-                     <DialogFooter className="mt-4">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    </DialogFooter>
-                 )}
+                <DialogFooter className="mt-4">
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                    <Button type="submit" disabled={!customerName}>
+                        {isNewCustomer ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
+                    </Button>
+                </DialogFooter>
+                 
             </form>
         </TabsContent>
         </Tabs>
@@ -215,4 +217,3 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     </Dialog>
   );
 }
-
