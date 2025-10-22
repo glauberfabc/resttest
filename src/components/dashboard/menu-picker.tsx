@@ -109,7 +109,7 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
         <ScrollArea className="flex-1 px-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
                 {filteredItems.map(item => (
-                <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleAddItem(item)}>
+                <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow">
                     <div className="w-full h-32 flex items-center justify-center bg-muted/30 rounded-md">
                         <Image
                         src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
@@ -127,7 +127,7 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
                     </div>
                     <div className="flex justify-between items-center w-full mt-auto pt-2">
                         <p className="font-bold text-primary">R$ {item.price.toFixed(2).replace('.', ',')}</p>
-                        <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); handleAddItem(item); }}>Adicionar</Button>
+                        <Button size="sm" variant="secondary" onClick={() => handleAddItem(item)}>Adicionar</Button>
                     </div>
                 </div>
                 ))}
