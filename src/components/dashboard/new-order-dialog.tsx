@@ -165,7 +165,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           />
                       </div>
                       {showResults && filteredClients.length > 0 && (
-                          <CommandList className="absolute top-full mt-2 w-full max-h-[180px] overflow-y-auto rounded-md border z-[51] bg-background shadow-md">
+                          <CommandList className="mt-2 max-h-[180px] overflow-y-auto">
                               <CommandEmpty>
                                   Nenhum cliente encontrado.
                               </CommandEmpty>
