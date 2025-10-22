@@ -130,48 +130,34 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
-    const updatedItems = [...order.items];
-    const itemIndex = updatedItems.findIndex(i => i.id === itemToUpdate.id);
-  
-    if (itemIndex === -1) return; // Should not happen
-  
+    let updatedItems = [...order.items];
+    const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
+
     if (delta === 0) { // Remove all with same menu item id and comment
-      const newItems = order.items.filter(i => !(i.menuItem.id === itemToUpdate.menuItem.id && i.comment === itemToUpdate.comment));
-       onUpdateOrder({ ...order, items: newItems });
-       return;
-    }
-  
-    const currentItem = updatedItems[itemIndex];
-    const newQuantity = currentItem.quantity + delta;
-  
-    if (newQuantity > 0) {
-      updatedItems[itemIndex] = { ...currentItem, quantity: newQuantity };
+      updatedItems = order.items.filter(i => {
+        const itemKey = `${i.menuItem.id}-${i.comment || ''}`;
+        return itemKey !== keyToUpdate;
+      });
     } else {
-      updatedItems.splice(itemIndex, 1);
+        const newItem: OrderItem = {
+            id: crypto.randomUUID(),
+            menuItem: itemToUpdate.menuItem,
+            quantity: delta,
+            comment: itemToUpdate.comment,
+        };
+        updatedItems.push(newItem);
     }
-    onUpdateOrder({ ...order, items: updatedItems });
+     onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const addItemToOrder = useCallback((menuItem: MenuItem) => {
-    const existingItem = order.items.find(
-      (item) => item.menuItem.id === menuItem.id && (item.comment === '' || item.comment === null)
-    );
-  
-    let updatedItems;
-  
-    if (existingItem) {
-      updatedItems = order.items.map((item) =>
-        item.id === existingItem.id ? { ...item, quantity: item.quantity + 1 } : item
-      );
-    } else {
-      const newItem: OrderItem = {
-        id: crypto.randomUUID(), // Use crypto for unique ID
+    const newItem: OrderItem = {
+        id: crypto.randomUUID(),
         menuItem,
         quantity: 1,
         comment: '',
-      };
-      updatedItems = [...order.items, newItem];
-    }
+    };
+    const updatedItems = [...order.items, newItem];
     onUpdateOrder({ ...order, items: updatedItems });
   },[order, onUpdateOrder]);
   
@@ -377,7 +363,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)} disabled={item.quantity <= 1}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -item.quantity)} disabled={item.quantity <= 1}>
                               <Minus className="h-4 w-4" />
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
