@@ -43,7 +43,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     fechadas: { currentPage: 1 },
   });
 
-  const fetchData = useCallback(async (currentUser: User | null) => {
+  const fetchData = useCallback(async (currentUser: User | null, showToast: boolean = false) => {
     if (!currentUser) return;
     setIsFetching(true);
     
@@ -87,7 +87,9 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
 
     setIsFetching(false);
-    toast({ title: 'Dados atualizados!', description: 'As comandas foram sincronizadas.'});
+    if (showToast) {
+        toast({ title: 'Dados atualizados!', description: 'As comandas foram sincronizadas.'});
+    }
   }, [supabase, toast]);
 
   useEffect(() => {
@@ -108,20 +110,23 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const channel = supabase
       .channel('public-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public' }, handleRealtimeUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtimeUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, handleRealtimeUpdate)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_payments' }, handleRealtimeUpdate)
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
           console.log('Conectado ao canal de atualizações em tempo real.');
         }
         if (status === 'CHANNEL_ERROR') {
           console.error('Erro no canal de tempo real:', err);
+          toast({ variant: 'destructive', title: "Erro de Conexão", description: "Não foi possível sincronizar em tempo real." });
         }
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchData, supabase]);
+  }, [user, fetchData, supabase, toast]);
 
 
   const handleSelectOrder = (order: Order) => {
@@ -446,7 +451,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Comandas</h2>
         <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => fetchData(user)} disabled={isFetching}>
+            <Button variant="outline" size="icon" onClick={() => fetchData(user, true)} disabled={isFetching}>
                 <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             </Button>
             <Button onClick={() => setIsNewOrderDialogOpen(true)}>
