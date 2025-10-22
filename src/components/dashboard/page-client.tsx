@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, BadgeEuro } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -25,6 +25,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 const ITEMS_PER_PAGE = 20;
+
+type SortKey = 'identifier' | 'date';
+type SortDirection = 'asc' | 'desc';
 
 interface DashboardPageClientProps {
   initialOrders: Order[];
@@ -45,6 +48,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [searchTerm, setSearchTerm] = useState("");
   const [isFetching, setIsFetching] = useState(false);
 
+  const [sortConfig, setSortConfig] = useState({
+    caderneta: { key: 'identifier' as SortKey, direction: 'asc' as SortDirection },
+    fechadas: { key: 'date' as SortKey, direction: 'desc' as SortDirection },
+  });
 
   const [pagination, setPagination] = useState({
     abertas: { currentPage: 1 },
@@ -435,8 +442,34 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 }, [rawNotebookOrders]);
 
 
-
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
+
+  const sortedNotebookOrders = useMemo(() => {
+    return [...notebookOrders].sort((a, b) => {
+        const key = sortConfig.caderneta.key;
+        const direction = sortConfig.caderneta.direction === 'asc' ? 1 : -1;
+        if (key === 'identifier') {
+            return a.identifier.toString().localeCompare(b.identifier.toString()) * direction;
+        } else { // date
+            return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction;
+        }
+    });
+  }, [notebookOrders, sortConfig.caderneta]);
+
+  const sortedPaidOrders = useMemo(() => {
+    return [...paidOrders].sort((a, b) => {
+        const key = sortConfig.fechadas.key;
+        const direction = sortConfig.fechadas.direction === 'asc' ? 1 : -1;
+        const aDate = a.paid_at || a.created_at;
+        const bDate = b.paid_at || b.created_at;
+        if (key === 'identifier') {
+            return a.identifier.toString().localeCompare(b.identifier.toString()) * direction;
+        } else { // date
+            return (new Date(aDate).getTime() - new Date(bDate).getTime()) * direction;
+        }
+    });
+  }, [paidOrders, sortConfig.fechadas]);
+
 
   const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
     setPagination(prev => ({
@@ -447,6 +480,17 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
           : prev[tab].currentPage - 1,
       },
     }));
+  };
+
+  const handleSortChange = (tab: 'caderneta' | 'fechadas', key: SortKey) => {
+    setSortConfig(prev => {
+        const currentDirection = prev[tab].direction;
+        const newDirection = prev[tab].key === key && currentDirection === 'asc' ? 'desc' : 'asc';
+        return {
+            ...prev,
+            [tab]: { key, direction: newDirection },
+        };
+    });
   };
 
   const renderPaginatedOrders = (orderList: Order[], tab: 'abertas' | 'caderneta' | 'fechadas') => {
@@ -469,13 +513,29 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         return { text: 'Aberto', variant: 'default' as const };
     };
 
-    const renderOrderList = (ordersToRender: Order[]) => (
+    const renderSortArrow = (currentTab: 'caderneta' | 'fechadas', key: SortKey) => {
+        const config = sortConfig[currentTab];
+        if (config.key !== key) return null;
+        return config.direction === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
+    };
+
+    const renderOrderList = (ordersToRender: Order[], tabName: 'caderneta' | 'fechadas') => (
         <div className="border rounded-lg mt-4">
             <Table>
                 <TableHeader>
                     <TableRow>
-                    <TableHead>Comanda</TableHead>
-                    <TableHead>Data</TableHead>
+                    <TableHead>
+                        <Button variant="ghost" onClick={() => handleSortChange(tabName, 'identifier')} className="px-0 hover:bg-transparent">
+                            Comanda
+                            {renderSortArrow(tabName, 'identifier')}
+                        </Button>
+                    </TableHead>
+                    <TableHead>
+                        <Button variant="ghost" onClick={() => handleSortChange(tabName, 'date')} className="px-0 hover:bg-transparent">
+                            Data
+                            {renderSortArrow(tabName, 'date')}
+                        </Button>
+                    </TableHead>
                     <TableHead className="text-center">Itens</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
@@ -521,7 +581,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     ))}
                 </div>
             ) : (
-                renderOrderList(paginatedItems)
+                renderOrderList(paginatedItems, tab)
             )
         ) : (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
@@ -592,10 +652,10 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
            {renderPaginatedOrders(openOrdersToday, 'abertas')}
         </TabsContent>
          <TabsContent value="caderneta" className="mt-4">
-           {renderPaginatedOrders(notebookOrders, 'caderneta')}
+           {renderPaginatedOrders(sortedNotebookOrders, 'caderneta')}
         </TabsContent>
         <TabsContent value="fechadas" className="mt-4">
-            {renderPaginatedOrders(paidOrders, 'fechadas')}
+            {renderPaginatedOrders(sortedPaidOrders, 'fechadas')}
         </TabsContent>
       </Tabs>
 
