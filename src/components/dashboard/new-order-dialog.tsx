@@ -116,6 +116,13 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+          const target = e.target as HTMLElement;
+          // Prevent dialog from closing if clicking on results list
+          if (target.closest('[data-results-list]')) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
@@ -168,7 +175,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                   </div>
 
                   {showResults && filteredClients.length > 0 && (
-                    <div className="absolute top-full w-full z-10 mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
+                    <div data-results-list className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
                         {filteredClients.map((client) => (
                           <button
                             type="button"
