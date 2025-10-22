@@ -112,7 +112,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       <DialogContent 
         className="sm:max-w-md"
         onPointerDownOutside={(e) => {
-            // This is a workaround to prevent the dialog from closing when clicking on the command list
+            // This is the crucial fix: It prevents the dialog from closing when clicking on the command list
             if ((e.target as HTMLElement).closest('[cmdk-list]')) {
                 e.preventDefault();
             }
@@ -176,7 +176,6 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                     key={client.id}
                                     value={client.name}
                                     onSelect={() => handleSelectClient(client)}
-                                    onClick={() => handleSelectClient(client)}
                                     className="cursor-pointer"
                                   >
                                   <Check
