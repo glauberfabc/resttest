@@ -144,50 +144,52 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             </form>
         </TabsContent>
         <TabsContent value="name" className="pt-4 overflow-visible">
-            <form onSubmit={handleNameOrderSubmit}>
-                <Command shouldFilter={false} className="overflow-visible bg-transparent">
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-name">Nome do Cliente</Label>
-                        <CommandInput
-                            id="customer-name" 
-                            placeholder="Buscar cliente ou digitar novo nome..."
-                            onValueChange={handleInputChange}
-                            value={customerName}
-                            autoFocus
-                            onBlur={() => setTimeout(() => setShowResults(false), 150)}
-                            onFocus={() => customerName.length > 0 && setShowResults(true)}
-                        />
-                    </div>
-                    {showResults && filteredClients.length > 0 && (
-                        <CommandList className="mt-2 max-h-[180px] overflow-y-auto rounded-md border absolute z-10 bg-background w-[calc(100%-2rem)]">
-                            <CommandEmpty>
-                                Nenhum cliente encontrado.
-                            </CommandEmpty>
-                            <CommandGroup>
-                            {filteredClients.map((client) => (
-                                <CommandItem
-                                key={client.id}
-                                value={client.name}
-                                onSelect={() => handleSelectClient(client)}
-                                onClick={() => handleSelectClient(client)}
-                                className="cursor-pointer"
-                                >
-                                <Check
-                                    className={cn(
-                                    "mr-2 h-4 w-4",
-                                    customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
-                                    )}
-                                />
-                                <div>
-                                    <p>{client.name}</p>
-                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
-                                </div>
-                                </CommandItem>
-                            ))}
-                            </CommandGroup>
-                        </CommandList>
-                    )}
-                </Command>
+             <form onSubmit={handleNameOrderSubmit}>
+                <div className="relative">
+                  <Command shouldFilter={false} className="overflow-visible bg-transparent">
+                      <div className="space-y-2">
+                          <Label htmlFor="customer-name">Nome do Cliente</Label>
+                          <CommandInput
+                              id="customer-name" 
+                              placeholder="Buscar cliente ou digitar novo nome..."
+                              onValueChange={handleInputChange}
+                              value={customerName}
+                              autoFocus
+                              onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                              onFocus={() => customerName.length > 0 && setShowResults(true)}
+                          />
+                      </div>
+                      {showResults && filteredClients.length > 0 && (
+                          <CommandList className="absolute top-full mt-2 w-full max-h-[180px] overflow-y-auto rounded-md border z-50 bg-background shadow-md">
+                              <CommandEmpty>
+                                  Nenhum cliente encontrado.
+                              </CommandEmpty>
+                              <CommandGroup>
+                              {filteredClients.map((client) => (
+                                  <CommandItem
+                                  key={client.id}
+                                  value={client.name}
+                                  onSelect={() => handleSelectClient(client)}
+                                  onClick={() => handleSelectClient(client)}
+                                  className="cursor-pointer"
+                                  >
+                                  <Check
+                                      className={cn(
+                                      "mr-2 h-4 w-4",
+                                      customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
+                                      )}
+                                  />
+                                  <div>
+                                      <p>{client.name}</p>
+                                      <p className="text-xs text-muted-foreground">{client.phone}</p>
+                                  </div>
+                                  </CommandItem>
+                              ))}
+                              </CommandGroup>
+                          </CommandList>
+                      )}
+                  </Command>
+                </div>
 
                 {customerName && isNewCustomer && (
                     <>
