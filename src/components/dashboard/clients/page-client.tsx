@@ -20,11 +20,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign, ArrowUp, ArrowDown } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign, ArrowUp, ArrowDown, Search } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
 import { AddCreditDialog } from "@/components/dashboard/clients/add-credit-dialog";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 interface ClientsPageClientProps {
   initialClients: Client[];
@@ -43,6 +44,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const [isCreditFormOpen, setIsCreditFormOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [searchTerm, setSearchTerm] = useState("");
 
 
   const fetchData = useCallback(async (currentUser: User | null) => {
@@ -89,14 +91,18 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   }, [user, fetchData]);
   
   const sortedClients = useMemo(() => {
-    return [...clients].sort((a, b) => {
+    const filteredClients = clients.filter(client =>
+        client.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return filteredClients.sort((a, b) => {
         if (sortOrder === 'asc') {
             return a.name.localeCompare(b.name);
         } else {
             return b.name.localeCompare(a.name);
         }
     });
-  }, [clients, sortOrder]);
+  }, [clients, searchTerm, sortOrder]);
 
   const toggleSortOrder = () => {
     setSortOrder(currentOrder => (currentOrder === 'asc' ? 'desc' : 'asc'));
@@ -273,6 +279,16 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
           <PlusCircle className="mr-2 h-4 w-4" />
           Adicionar Cliente
         </Button>
+      </div>
+
+      <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+              placeholder="Buscar cliente por nome..."
+              className="pl-10"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+          />
       </div>
 
        <div className="border rounded-lg">
