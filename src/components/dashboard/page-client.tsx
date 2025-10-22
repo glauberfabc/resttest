@@ -96,15 +96,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (user) {
       // Initial fetch is done via props, so no need to call fetchData here on mount
     }
-  }, [user, fetchData]);
+  }, [user]);
 
+  const handleRealtimeUpdate = useCallback(() => {
+    fetchData(user, false);
+  }, [user, fetchData]);
 
   useEffect(() => {
     if (!user) return;
-
-    const handleRealtimeUpdate = (payload: any) => {
-      fetchData(user);
-    };
 
     const channel = supabase
       .channel('public-db-changes')
@@ -124,7 +123,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchData, supabase, toast]);
+  }, [user, supabase, toast, handleRealtimeUpdate]);
 
 
   const handleSelectOrder = (order: Order) => {
@@ -555,5 +554,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
 
     
