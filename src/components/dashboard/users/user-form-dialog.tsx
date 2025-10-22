@@ -44,6 +44,7 @@ export function UserFormDialog({ isOpen, onOpenChange, onSave, user }: UserFormD
       setName(user.name);
       setEmail(user.email);
       setRole(user.role);
+      setPassword(''); // Clear password field when editing
     } else {
       setName('');
       setEmail('');
@@ -58,8 +59,8 @@ export function UserFormDialog({ isOpen, onOpenChange, onSave, user }: UserFormD
         toast({ variant: 'destructive', title: "Campos obrigatórios", description: "Preencha todos os campos." });
         return;
     };
-    if (!user && !password) {
-        toast({ variant: 'destructive', title: "Senha obrigatória", description: "A senha é obrigatória para novos usuários." });
+    if (!user && (!password || password.length < 6)) {
+        toast({ variant: 'destructive', title: "Senha inválida", description: "A senha é obrigatória para novos usuários e deve ter no mínimo 6 caracteres." });
         return;
     }
     onSave({ name, email, role }, password);
@@ -86,7 +87,7 @@ export function UserFormDialog({ isOpen, onOpenChange, onSave, user }: UserFormD
           {!user && (
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="password" className="text-right">Senha</Label>
-                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="col-span-3" required />
+                <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="col-span-3" required minLength={6} />
             </div>
           )}
           <div className="grid grid-cols-4 items-center gap-4">

@@ -36,15 +36,9 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
   const { toast } = useToast();
   const supabase = createClient();
 
-   useEffect(() => {
-    const fetchUsers = async () => {
-        const { data, error } = await supabase.from('profiles').select('*');
-        if (data) {
-            setUsers(data as User[]);
-        }
-    };
-    fetchUsers();
-  }, [supabase]);
+  useEffect(() => {
+    setUsers(initialUsers);
+  }, [initialUsers]);
 
   const handleSaveUser = async (userData: Partial<User>, password?: string) => {
     if (selectedUser) { // Editing
@@ -82,19 +76,13 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
         }
 
         if (authData.user) {
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .insert({
-                    id: authData.user.id,
-                    name: userData.name!,
-                    role: userData.role!,
-                    email: userData.email,
-                });
-            
+            // The profile is now created by a trigger in Supabase, 
+            // but we'll manually refetch the users to update the UI.
+             const { data: refreshedUsers, error: profileError } = await supabase.from('profiles').select('*');
             if (profileError) {
-                toast({ variant: 'destructive', title: 'Erro de Perfil', description: 'Não foi possível criar o perfil para o novo usuário.' });
+                 toast({ variant: 'destructive', title: 'Erro de Perfil', description: 'Não foi possível buscar o novo usuário.' });
             } else {
-                setUsers([...users, { id: authData.user.id, email: userData.email, name: userData.name!, role: userData.role! }]);
+                setUsers(refreshedUsers as User[]);
                 toast({ title: 'Sucesso!', description: 'Novo usuário criado.' });
             }
         }
@@ -192,5 +180,3 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
     </div>
   );
 }
-
-    
