@@ -111,12 +111,6 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         className="sm:max-w-md"
-        onPointerDownOutside={(e) => {
-            // This is the crucial fix: It prevents the dialog from closing when clicking on the command list
-            if ((e.target as HTMLElement).closest('[cmdk-list]')) {
-                e.preventDefault();
-            }
-        }}
     >
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
@@ -166,7 +160,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           />
                       </div>
                       {showResults && filteredClients.length > 0 && (
-                          <CommandList className="absolute w-full z-[51] mt-2 rounded-md border bg-background shadow-md max-h-[180px] overflow-y-auto">
+                          <CommandList className="mt-2 max-h-[180px] overflow-y-auto">
                               <CommandEmpty>
                                   Nenhum cliente encontrado.
                               </CommandEmpty>
@@ -176,6 +170,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                                     key={client.id}
                                     value={client.name}
                                     onSelect={() => handleSelectClient(client)}
+                                    onClick={() => handleSelectClient(client)}
                                     className="cursor-pointer"
                                   >
                                   <Check
