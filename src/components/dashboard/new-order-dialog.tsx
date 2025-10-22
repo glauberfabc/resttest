@@ -77,6 +77,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       .slice(0, 5);
   }, [clients, customerName]);
 
+
   const handleTableSubmit = (e: React.FormEvent) => {
      e.preventDefault();
      if (tableNumber) {
@@ -101,20 +102,6 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       setShowResults(false);
     }
   }
-  
-  const handleInputBlur = () => {
-    // We delay hiding the results to allow the click event on an item to register
-    setTimeout(() => {
-      setShowResults(false);
-    }, 300);
-  };
-
-  const handleInputFocus = () => {
-    if (customerName.length > 0) {
-      setShowResults(true);
-    }
-  };
-
 
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
@@ -123,16 +110,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent 
-        className="sm:max-w-md"
-        onPointerDownOutside={(e) => {
-            const target = e.target as HTMLElement;
-            // Prevent dialog from closing if clicking inside the command list
-            if (target.closest('[cmdk-list]')) {
-                e.preventDefault();
-            }
-        }}
-    >
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
           <DialogDescription>
@@ -166,51 +144,47 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         </TabsContent>
         <TabsContent value="name" className="pt-4">
              <form onSubmit={handleNameOrderSubmit}>
-                <div className="relative">
-                  <Command shouldFilter={false} className="overflow-visible bg-transparent">
-                      <div className="space-y-2">
-                          <Label htmlFor="customer-name">Nome do Cliente</Label>
-                          <CommandInput
-                              id="customer-name" 
-                              placeholder="Buscar cliente ou digitar novo nome..."
-                              onValueChange={handleInputChange}
-                              value={customerName}
-                              autoFocus
-                              onBlur={handleInputBlur}
-                              onFocus={handleInputFocus}
-                          />
-                      </div>
-                      {showResults && filteredClients.length > 0 && (
-                          <CommandList className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-md border rounded-md max-h-[180px] overflow-y-auto">
-                              <CommandEmpty>
-                                  Nenhum cliente encontrado.
-                              </CommandEmpty>
-                              <CommandGroup>
-                              {filteredClients.map((client) => (
-                                  <CommandItem
-                                    key={client.id}
-                                    value={client.name}
-                                    onSelect={() => handleSelectClient(client)}
-                                    onClick={() => handleSelectClient(client)}
-                                    className="cursor-pointer"
-                                  >
-                                  <Check
-                                      className={cn(
-                                      "mr-2 h-4 w-4",
-                                      selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
-                                      )}
-                                  />
-                                  <div>
-                                      <p>{client.name}</p>
-                                      <p className="text-xs text-muted-foreground">{client.phone}</p>
-                                  </div>
-                                  </CommandItem>
-                              ))}
-                              </CommandGroup>
-                          </CommandList>
-                      )}
-                  </Command>
-                </div>
+                <Command shouldFilter={false} className="overflow-visible bg-transparent">
+                    <div className="space-y-2">
+                        <Label htmlFor="customer-name">Nome do Cliente</Label>
+                        <CommandInput
+                            id="customer-name" 
+                            placeholder="Buscar cliente ou digitar novo nome..."
+                            onValueChange={handleInputChange}
+                            value={customerName}
+                            autoFocus
+                        />
+                    </div>
+                    {showResults && filteredClients.length > 0 && (
+                        <CommandList className="mt-2 max-h-[180px] overflow-y-auto">
+                            <CommandEmpty>
+                                Nenhum cliente encontrado.
+                            </CommandEmpty>
+                            <CommandGroup>
+                            {filteredClients.map((client) => (
+                                <CommandItem
+                                  key={client.id}
+                                  value={client.name}
+                                  onSelect={() => handleSelectClient(client)}
+                                  onClick={() => handleSelectClient(client)}
+                                  className="cursor-pointer"
+                                >
+                                <Check
+                                    className={cn(
+                                    "mr-2 h-4 w-4",
+                                    selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
+                                    )}
+                                />
+                                <div>
+                                    <p>{client.name}</p>
+                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
+                                </div>
+                                </CommandItem>
+                            ))}
+                            </CommandGroup>
+                        </CommandList>
+                    )}
+                </Command>
 
                 {customerName && isNewCustomer && !selectedClient && (
                     <>
