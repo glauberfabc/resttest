@@ -101,6 +101,20 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       setShowResults(false);
     }
   }
+  
+  const handleInputBlur = () => {
+    // We delay hiding the results to allow the click event on an item to register
+    setTimeout(() => {
+      setShowResults(false);
+    }, 150);
+  };
+
+  const handleInputFocus = () => {
+    if (customerName.length > 0) {
+      setShowResults(true);
+    }
+  };
+
 
   const isNewCustomer = useMemo(() => {
     if (!customerName) return false;
@@ -111,6 +125,13 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         className="sm:max-w-md"
+        onPointerDownOutside={(e) => {
+            const target = e.target as HTMLElement;
+            // Prevent dialog from closing if clicking inside the command list
+            if (target.closest('[cmdk-list]')) {
+                e.preventDefault();
+            }
+        }}
     >
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
@@ -155,12 +176,12 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                               onValueChange={handleInputChange}
                               value={customerName}
                               autoFocus
-                              onBlur={() => setTimeout(() => setShowResults(false), 150)}
-                              onFocus={() => customerName.length > 0 && setShowResults(true)}
+                              onBlur={handleInputBlur}
+                              onFocus={handleInputFocus}
                           />
                       </div>
                       {showResults && filteredClients.length > 0 && (
-                          <CommandList className="mt-2 max-h-[180px] overflow-y-auto">
+                          <CommandList className="absolute top-full w-full z-[51] mt-1 bg-background shadow-md border rounded-md max-h-[180px] overflow-y-auto">
                               <CommandEmpty>
                                   Nenhum cliente encontrado.
                               </CommandEmpty>
