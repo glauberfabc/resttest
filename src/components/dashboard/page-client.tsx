@@ -382,7 +382,47 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
   const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
-  const notebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart && o.items.length > 0);
+  
+  const rawNotebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart && o.items.length > 0);
+  
+  const notebookOrders = useMemo(() => {
+    const clientOrderMap = new Map<string, Order>();
+
+    rawNotebookOrders.forEach(order => {
+        if (order.type === 'table') {
+            // Keep table orders separate
+            clientOrderMap.set(order.id, order);
+            return;
+        }
+
+        const clientName = order.identifier as string;
+        const existingOrder = clientOrderMap.get(clientName);
+
+        if (existingOrder) {
+            // Merge items
+            existingOrder.items.push(...order.items);
+            // Merge payments
+            if (order.payments) {
+                existingOrder.payments = [...(existingOrder.payments || []), ...order.payments];
+            }
+            // Keep the oldest creation date
+            if (order.created_at < existingOrder.created_at) {
+                existingOrder.created_at = order.created_at;
+                existingOrder.createdAt = order.created_at;
+            }
+        } else {
+            // This is the first order for this client, create a deep copy
+            const newOrder = JSON.parse(JSON.stringify(order));
+            newOrder.created_at = new Date(newOrder.created_at);
+            if(newOrder.paid_at) newOrder.paid_at = new Date(newOrder.paid_at);
+            clientOrderMap.set(clientName, newOrder);
+        }
+    });
+
+    return Array.from(clientOrderMap.values());
+  }, [rawNotebookOrders]);
+
+
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
 
   const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
@@ -510,3 +550,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
