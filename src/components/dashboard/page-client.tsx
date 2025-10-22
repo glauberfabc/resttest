@@ -7,13 +7,22 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, BadgeEuro } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { startOfToday } from 'date-fns';
+import { startOfToday, format } from 'date-fns';
 import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -447,15 +456,73 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       (currentPage - 1) * ITEMS_PER_PAGE,
       currentPage * ITEMS_PER_PAGE
     );
+    
+    const getPaymentStatus = (order: Order) => {
+        const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+        const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+        const remainingAmount = total - paidAmount;
+        const isPartiallyPaid = paidAmount > 0 && remainingAmount > 0.01;
+
+        if (order.status === 'paid') return { text: 'Pago', variant: 'secondary' as const };
+        if (isPartiallyPaid) return { text: 'Parcial', variant: 'outline' as const };
+        if (order.status === 'paying') return { text: 'Pagando', variant: 'destructive' as const };
+        return { text: 'Aberto', variant: 'default' as const };
+    };
+
+    const renderOrderList = (ordersToRender: Order[]) => (
+        <div className="border rounded-lg mt-4">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                    <TableHead>Comanda</TableHead>
+                    <TableHead>Data</TableHead>
+                    <TableHead className="text-center">Itens</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {ordersToRender.map((order) => {
+                         const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+                         const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                         const remainingAmount = total - paidAmount;
+                         const displayAmount = order.status === 'paid' ? total : remainingAmount;
+                         const paymentStatus = getPaymentStatus(order);
+                         const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
+                         const dateToDisplay = order.status === 'paid' && order.paid_at ? order.paid_at : order.created_at;
+
+                        return (
+                            <TableRow key={order.id} onClick={() => handleSelectOrder(order)} className="cursor-pointer">
+                                <TableCell className="font-medium">
+                                    {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}
+                                    {order.customer_name && <span className="text-xs text-muted-foreground block">{order.customer_name}</span>}
+                                </TableCell>
+                                <TableCell>{format(new Date(dateToDisplay), 'dd/MM/yy HH:mm')}</TableCell>
+                                <TableCell className="text-center">{itemCount}</TableCell>
+                                <TableCell>
+                                    <Badge variant={paymentStatus.variant}>{paymentStatus.text}</Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-medium">R$ {displayAmount.toFixed(2).replace('.', ',')}</TableCell>
+                            </TableRow>
+                        )
+                    })}
+                </TableBody>
+            </Table>
+        </div>
+    );
 
     return (
       <>
         {paginatedItems.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {paginatedItems.map((order) => (
-              <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} onDeleteOrder={handleDeleteOrder} />
-            ))}
-          </div>
+            tab === 'abertas' ? (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 mt-4">
+                    {paginatedItems.map((order) => (
+                    <OrderCard key={order.id} order={order} onSelectOrder={handleSelectOrder} onDeleteOrder={handleDeleteOrder} />
+                    ))}
+                </div>
+            ) : (
+                renderOrderList(paginatedItems)
+            )
         ) : (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
             <h3 className="text-lg font-semibold text-muted-foreground">Nenhuma comanda encontrada</h3>
@@ -554,7 +621,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
-
-    
