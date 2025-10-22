@@ -2,8 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { Check, Search } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +16,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Client, User } from "@/lib/types";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 interface NewOrderDialogProps {
   isOpen: boolean;
@@ -85,7 +83,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     }
   }
   
-  const handleInputChange = (value: string) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
     setCustomerName(value);
     setSelectedClient(null);
     if (value.length > 0) {
@@ -103,7 +102,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   }
 
   const handleInputFocus = () => {
-    if (customerName.length > 0) {
+    if (customerName.length > 0 && filteredClients.length > 0) {
       setShowResults(true);
     }
   };
@@ -117,13 +116,6 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
         className="sm:max-w-md"
-        onPointerDownOutside={(e) => {
-          const target = e.target as HTMLElement;
-          // Prevent closing the dialog when clicking inside the results list
-          if (target.closest('[cmdk-list]')) {
-            e.preventDefault();
-          }
-        }}
       >
         <DialogHeader>
           <DialogTitle>Abrir Nova Comanda</DialogTitle>
@@ -159,51 +151,39 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         <TabsContent value="name" className="pt-4">
              <form onSubmit={handleNameOrderSubmit}>
                 <div className="relative">
-                  <Command className="overflow-visible bg-transparent">
-                      <Label htmlFor="customer-name">Nome do Cliente</Label>
-                       <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <CommandInput
-                            id="customer-name" 
-                            placeholder="Buscar cliente ou digitar novo nome..."
-                            onValueChange={handleInputChange}
-                            value={customerName}
-                            autoFocus
-                            autoComplete="off"
-                            className="pl-10"
-                            onBlur={handleInputBlur}
-                            onFocus={handleInputFocus}
-                        />
-                      </div>
+                  <Label htmlFor="customer-name">Nome do Cliente</Label>
+                   <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                        id="customer-name" 
+                        placeholder="Buscar cliente ou digitar novo nome..."
+                        onChange={handleInputChange}
+                        value={customerName}
+                        autoFocus
+                        autoComplete="off"
+                        className="pl-10"
+                        onBlur={handleInputBlur}
+                        onFocus={handleInputFocus}
+                    />
+                  </div>
 
-                      {showResults && filteredClients.length > 0 && (
-                        <CommandList className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-md border rounded-md max-h-[180px] overflow-y-auto">
-                            <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
-                            <CommandGroup>
-                              {filteredClients.map((client) => (
-                                <CommandItem
-                                  key={client.id}
-                                  value={client.name}
-                                  onSelect={() => handleSelectClient(client)}
-                                  onClick={() => handleSelectClient(client)}
-                                  className="cursor-pointer"
-                                >
-                                  <Check
-                                    className={cn(
-                                      "mr-2 h-4 w-4",
-                                      selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
-                                    )}
-                                  />
-                                  <div>
-                                    <p>{client.name}</p>
-                                    <p className="text-xs text-muted-foreground">{client.phone}</p>
-                                  </div>
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                        </CommandList>
-                      )}
-                  </Command>
+                  {showResults && filteredClients.length > 0 && (
+                    <div className="absolute top-full w-full z-10 mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
+                        {filteredClients.map((client) => (
+                          <button
+                            type="button"
+                            key={client.id}
+                            onClick={() => handleSelectClient(client)}
+                            className="flex w-full text-left items-center p-2 text-sm hover:bg-accent rounded-md"
+                          >
+                            <div>
+                              <p>{client.name}</p>
+                              <p className="text-xs text-muted-foreground">{client.phone}</p>
+                            </div>
+                          </button>
+                        ))}
+                    </div>
+                  )}
                 </div>
 
                 {customerName && isNewCustomer && !selectedClient && (
