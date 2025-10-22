@@ -20,7 +20,7 @@ import type { Client, User } from "@/lib/types";
 interface NewOrderDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCreateOrder: (type: 'table' | 'name', identifier: string | number, phone?: string) => void;
+  onCreateOrder: (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => void;
   clients: Client[];
   user: User;
 }
@@ -28,6 +28,7 @@ interface NewOrderDialogProps {
 export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }: NewOrderDialogProps) {
   const [activeTab, setActiveTab] = useState<'table' | 'name'>('table');
   const [tableNumber, setTableNumber] = useState('');
+  const [tableCustomerName, setTableCustomerName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [showResults, setShowResults] = useState(false);
@@ -38,6 +39,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         // Reset state when dialog closes
         setTimeout(() => {
             setTableNumber('');
+            setTableCustomerName('');
             setCustomerName('');
             setPhone('');
             setActiveTab('table');
@@ -60,6 +62,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
       return [];
     }
     const numericFilter = lowercasedFilter.replace(/\D/g, '');
+
     return clients
       .filter(client => {
         const nameMatch = client.name.toLowerCase().includes(lowercasedFilter);
@@ -73,7 +76,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const handleTableSubmit = (e: React.FormEvent) => {
      e.preventDefault();
      if (tableNumber) {
-      onCreateOrder('table', parseInt(tableNumber, 10));
+      onCreateOrder('table', parseInt(tableNumber, 10), tableCustomerName);
     }
   }
 
@@ -81,7 +84,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     e.preventDefault();
     if (customerName) {
         const identifier = selectedClient ? selectedClient.name : customerName;
-        onCreateOrder('name', identifier.toUpperCase(), phone);
+        onCreateOrder('name', identifier.toUpperCase(), identifier.toUpperCase(), phone);
     }
   }
   
@@ -140,16 +143,29 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
         </TabsList>
         <TabsContent value="table" className="pt-4">
             <form onSubmit={handleTableSubmit}>
-                <div className="space-y-2">
-                    <Label htmlFor="table-number">Número da Mesa</Label>
-                    <Input
-                        id="table-number"
-                        type="number"
-                        placeholder="Ex: 5"
-                        value={tableNumber}
-                        onChange={(e) => setTableNumber(e.target.value)}
-                        autoFocus
-                    />
+                <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="table-number">Número da Mesa</Label>
+                      <Input
+                          id="table-number"
+                          type="number"
+                          placeholder="Ex: 5"
+                          value={tableNumber}
+                          onChange={(e) => setTableNumber(e.target.value)}
+                          autoFocus
+                          required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="table-customer-name">Nome (Opcional)</Label>
+                      <Input
+                          id="table-customer-name"
+                          type="text"
+                          placeholder="Ex: João da Silva"
+                          value={tableCustomerName}
+                          onChange={(e) => setTableCustomerName(e.target.value)}
+                      />
+                    </div>
                 </div>
                 <DialogFooter className="mt-4">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
@@ -165,7 +181,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                         id="customer-name" 
-                        placeholder="Buscar cliente ou digitar novo nome..."
+                        placeholder="Buscar ou digitar novo nome..."
                         onChange={handleInputChange}
                         value={customerName}
                         autoFocus

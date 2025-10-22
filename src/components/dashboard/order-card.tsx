@@ -46,6 +46,11 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
 
   const displayAmount = isPaid ? total : remainingAmount;
 
+  const cardTitle = order.type === 'table' && order.customer_name
+    ? `${order.identifier} - ${order.customer_name}`
+    : order.identifier;
+
+
   return (
     <Card 
         className="cursor-pointer hover:shadow-lg hover:border-primary transition-all duration-200 flex flex-col group"
@@ -54,7 +59,7 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium flex items-center gap-2">
           {order.type === 'table' ? <Table2 className="h-5 w-5 text-muted-foreground" /> : <User className="h-5 w-5 text-muted-foreground" />}
-          <span className="break-words">{order.identifier}</span>
+          <span className="break-words">{cardTitle}</span>
         </CardTitle>
         <div className="flex flex-col items-end gap-1 text-right">
             {isPaid && <Badge variant="secondary">Pago</Badge>}

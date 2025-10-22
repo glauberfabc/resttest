@@ -3,6 +3,7 @@
 
 
 
+
 export type MenuItemCategory = "Lanches" | "Adicional" | "Porções" | "Salgados" | "Pratos Quentes" | "Saladas" | "Bebidas" | "Sucos" | "Bebidas Quentes" | "Cervejas" | "Caipirinhas" | "Destilados" | "Doces" | "Caldos";
 
 export interface MenuItem {
@@ -38,6 +39,7 @@ export interface Order {
   id: string;
   type: 'table' | 'name';
   identifier: string | number;
+  customer_name?: string | null;
   items: OrderItem[];
   status: 'open' | 'paying' | 'paid';
   created_at: Date;

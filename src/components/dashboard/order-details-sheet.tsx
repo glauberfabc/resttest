@@ -211,7 +211,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
 
   const handleWhatsAppShare = () => {
-    const header = `*Comanda ${order.type === 'table' ? 'Mesa' : ''} ${order.identifier}*\n\n`;
+    const headerIdentifier = order.type === 'table' && order.customer_name
+      ? `Mesa ${order.identifier} (${order.customer_name})`
+      : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
+
+    const header = `*Comanda ${headerIdentifier}*\n\n`;
     const itemsText = groupedItemsForDisplay.map(item => 
       `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
     ).join('\n');
@@ -246,7 +250,11 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
     const line = "--------------------------------\n";
 
-    let text = `Comanda: ${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}\n`;
+    const identifier = order.type === 'table' && order.customer_name
+      ? `Mesa ${order.identifier} (${order.customer_name})`
+      : `${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}`;
+
+    let text = `Comanda: ${identifier}\n`;
     text += `Pedido as: ${formattedTime}\n`;
     text += line;
     itemsToPrint.forEach(item => {
@@ -281,13 +289,21 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     return <Bluetooth className="h-4 w-4" />;
   };
 
+  const sheetTitle = () => {
+    const baseTitle = isPaid ? 'Comprovante' : 'Comanda';
+    const identifier = order.type === 'table' && order.customer_name
+      ? `Mesa ${order.identifier} (${order.customer_name})`
+      : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
+    return `${baseTitle}: ${identifier}`;
+  };
+
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
         <SheetContent className={`sm:max-w-${isPaid ? 'md' : 'lg'} w-full flex flex-col`}>
           <SheetHeader>
             <SheetTitle className="text-2xl">
-              {isPaid ? 'Comprovante' : 'Comanda'}: {order.type === 'table' ? 'Mesa' : ''} {order.identifier}
+              {sheetTitle()}
             </SheetTitle>
             <SheetDescription>
               {isPaid ? getFormattedPaidAt() : 'Visualize, adicione ou remova itens da comanda.'}

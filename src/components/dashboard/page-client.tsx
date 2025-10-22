@@ -190,7 +190,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     } 
   };
   
-const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, phone?: string) => {
+const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
         return;
@@ -222,7 +222,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       .from('orders')
       .insert({ 
         type, 
-        identifier: String(finalIdentifier), 
+        identifier: String(finalIdentifier),
+        customer_name: customerName,
         status: 'open',
         user_id: user.id,
        })
@@ -373,7 +374,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       return orders;
     }
     return orders.filter(order =>
-      String(order.identifier).toLowerCase().includes(searchTerm.toLowerCase())
+      String(order.identifier).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (order.customer_name && String(order.customer_name).toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [orders, searchTerm]);
 
@@ -395,7 +397,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
             return;
         }
 
-        const clientName = order.identifier as string;
+        const clientName = (order.customer_name || order.identifier) as string;
         const existingOrder = clientOrderMap.get(clientName);
 
         if (existingOrder) {
