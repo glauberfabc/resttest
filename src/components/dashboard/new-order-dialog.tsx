@@ -41,6 +41,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   
   useEffect(() => {
     if (!isOpen) {
@@ -51,6 +52,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
             setPhone('');
             setActiveTab('table');
             setShowResults(false);
+            setSelectedClient(null);
         }, 200);
     }
   }, [isOpen]);
@@ -58,6 +60,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const handleSelectClient = (client: Client) => {
     setCustomerName(client.name.toUpperCase());
     setPhone(client.phone || '');
+    setSelectedClient(client);
     setShowResults(false);
   };
   
@@ -69,7 +72,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     return clients
       .filter(client => 
         client.name.toLowerCase().includes(lowercasedFilter) ||
-        (client.phone && client.phone.replace(/\D/g, '').includes(lowercasedFilter))
+        (client.phone && client.phone.replace(/\D/g, '').includes(lowercasedFilter.replace(/\D/g, '')))
       )
       .slice(0, 5);
   }, [clients, customerName]);
@@ -84,12 +87,14 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const handleNameOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (customerName) {
-        onCreateOrder('name', customerName.toUpperCase(), phone);
+        const identifier = selectedClient ? selectedClient.name.toUpperCase() : customerName.toUpperCase();
+        onCreateOrder('name', identifier, phone);
     }
   }
   
   const handleInputChange = (value: string) => {
     setCustomerName(value);
+    setSelectedClient(null); // Clear selected client when typing
     if (value.length > 0) {
       setShowResults(true);
     } else {
@@ -160,23 +165,23 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           />
                       </div>
                       {showResults && filteredClients.length > 0 && (
-                          <CommandList className="absolute top-full mt-2 w-full max-h-[180px] overflow-y-auto rounded-md border z-50 bg-background shadow-md">
+                          <CommandList className="absolute top-full mt-2 w-full max-h-[180px] overflow-y-auto rounded-md border z-[51] bg-background shadow-md">
                               <CommandEmpty>
                                   Nenhum cliente encontrado.
                               </CommandEmpty>
                               <CommandGroup>
                               {filteredClients.map((client) => (
                                   <CommandItem
-                                  key={client.id}
-                                  value={client.name}
-                                  onSelect={() => handleSelectClient(client)}
-                                  onClick={() => handleSelectClient(client)}
-                                  className="cursor-pointer"
+                                    key={client.id}
+                                    value={client.name}
+                                    onSelect={() => handleSelectClient(client)}
+                                    onClick={() => handleSelectClient(client)}
+                                    className="cursor-pointer"
                                   >
                                   <Check
                                       className={cn(
                                       "mr-2 h-4 w-4",
-                                      customerName.toUpperCase() === client.name.toUpperCase() ? "opacity-100" : "opacity-0"
+                                      selectedClient?.id === client.id ? "opacity-100" : "opacity-0"
                                       )}
                                   />
                                   <div>
@@ -191,7 +196,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                   </Command>
                 </div>
 
-                {customerName && isNewCustomer && (
+                {customerName && isNewCustomer && !selectedClient && (
                     <>
                         <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
                             <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
@@ -208,7 +213,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 <DialogFooter className="mt-4">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
                     <Button type="submit" disabled={!customerName}>
-                        {isNewCustomer ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
+                        {isNewCustomer && !selectedClient ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
                     </Button>
                 </DialogFooter>
                  
