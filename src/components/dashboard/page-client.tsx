@@ -211,6 +211,19 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
     const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
 
+    // Check for existing open orders for the same identifier (name or table)
+    const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
+    const existingOrder = openOrders.find(o => 
+        o.type === type && String(o.identifier).toUpperCase() === String(finalIdentifier).toUpperCase()
+    );
+
+    if (existingOrder) {
+        toast({ title: "Comanda já existe", description: `Abrindo a comanda existente para ${identifier}.` });
+        setSelectedOrder(existingOrder);
+        setIsNewOrderDialogOpen(false);
+        return;
+    }
+
     if (type === 'name' && phone !== undefined) {
         const clientName = String(finalIdentifier);
         const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
@@ -683,3 +696,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
