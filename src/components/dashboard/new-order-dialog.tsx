@@ -110,8 +110,9 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-md overflow-visible"
+        className="sm:max-w-md"
         onPointerDownOutside={(e) => {
+            // This is a workaround to prevent the dialog from closing when clicking on the command list
             if ((e.target as HTMLElement).closest('[cmdk-list]')) {
                 e.preventDefault();
             }
@@ -148,7 +149,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                 </DialogFooter>
             </form>
         </TabsContent>
-        <TabsContent value="name" className="pt-4 overflow-visible">
+        <TabsContent value="name" className="pt-4">
              <form onSubmit={handleNameOrderSubmit}>
                 <div className="relative">
                   <Command shouldFilter={false} className="overflow-visible bg-transparent">
@@ -165,7 +166,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           />
                       </div>
                       {showResults && filteredClients.length > 0 && (
-                          <CommandList className="mt-2 max-h-[180px] overflow-y-auto">
+                          <CommandList className="absolute w-full z-[51] mt-2 rounded-md border bg-background shadow-md max-h-[180px] overflow-y-auto">
                               <CommandEmpty>
                                   Nenhum cliente encontrado.
                               </CommandEmpty>
