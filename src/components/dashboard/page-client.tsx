@@ -632,7 +632,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     ))}
                 </div>
             ) : (
-                renderOrderList(paginatedItems, tab)
+                renderOrderList(paginatedItems, tab as 'caderneta' | 'fechadas')
             )
         ) : (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
@@ -734,5 +734,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
