@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -23,6 +23,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const ITEMS_PER_PAGE = 20;
 
@@ -164,6 +175,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     let finalOrderDataForUpdate: Partial<Order> = {
       status: updatedOrder.status,
       paid_at: updatedOrder.paidAt,
+      customer_name: updatedOrder.customer_name,
     };
   
     if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
@@ -359,14 +371,13 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     if (!orderToDelete) return;
 
     const isPaid = orderToDelete.status === 'paid';
-    const hasItemsOrPayments = orderToDelete.items.length > 0 || (orderToDelete.payments && orderToDelete.payments.length > 0);
-
-    // Allow deleting empty orders OR paid orders.
-    if (!isPaid && hasItemsOrPayments) {
+    
+    // Allow deleting only paid orders.
+    if (!isPaid) {
         toast({ 
             variant: 'destructive', 
             title: "Ação não permitida", 
-            description: "Apenas comandas pagas ou vazias podem ser excluídas." 
+            description: "Apenas comandas pagas podem ser excluídas da lista." 
         });
         return;
     }
@@ -552,6 +563,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     <TableHead className="text-center">Itens</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
+                    {tabName === 'fechadas' && <TableHead className="w-[50px]">Ações</TableHead>}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -576,6 +588,31 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                                     <Badge variant={paymentStatus.variant}>{paymentStatus.text}</Badge>
                                 </TableCell>
                                 <TableCell className="text-right font-medium">R$ {displayAmount.toFixed(2).replace('.', ',')}</TableCell>
+                                {tabName === 'fechadas' && (
+                                    <TableCell>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
+                                                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>Excluir Comprovante?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta ação removerá permanentemente o comprovante da lista. A venda já foi registrada e não será afetada.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}>
+                                                        Excluir
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
+                                    </TableCell>
+                                )}
                             </TableRow>
                         )
                     })}

@@ -404,7 +404,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
                                     <AlertDialogHeader>
                                     <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        Essa ação não pode ser desfeita. A comanda será excluída permanentemente.
+                                        Comandas vazias podem ser excluídas. Esta ação não pode ser desfeita.
                                     </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>

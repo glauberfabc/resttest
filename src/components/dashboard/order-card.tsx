@@ -7,6 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { User, Table2, Trash2 } from "lucide-react";
 import { formatInTimeZone } from 'date-fns-tz';
 import { Button } from "@/components/ui/button";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 
 interface OrderCardProps {
@@ -85,7 +96,7 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
             </div>
         )}
       </CardContent>
-      <CardFooter className="relative">
+      <CardFooter className="relative mt-auto">
         <div className="flex flex-col w-full">
             {(isPartiallyPaid || order.status === 'open' || order.status === 'paying') && !isPaid && <p className="text-xs text-muted-foreground">Restante</p>}
             {isPaid && <p className="text-xs text-muted-foreground">Total Pago</p>}
@@ -94,14 +105,29 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
             </div>
         </div>
          {isPaid && (
-            <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-2 bottom-2 h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={handleDeleteClick}
-            >
-                <Trash2 className="h-4 w-4" />
-            </Button>
+            <AlertDialog>
+                <AlertDialogTrigger asChild onClick={(e) => e.stopPropagation()}>
+                     <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 bottom-2 h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        Esta ação removerá o comprovante da lista. Isso não pode ser desfeito.
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteClick}>Excluir</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         )}
       </CardFooter>
     </Card>
