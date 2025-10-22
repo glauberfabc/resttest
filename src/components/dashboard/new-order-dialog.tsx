@@ -50,7 +50,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   }, [isOpen]);
 
   const handleSelectClient = (client: Client) => {
-    setCustomerName(client.name.toUpperCase());
+    setCustomerName(client.name);
     setPhone(client.phone || '');
     setSelectedClient(client);
     setShowResults(false);
@@ -80,8 +80,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
   const handleNameOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (customerName) {
-        const identifier = selectedClient ? selectedClient.name.toUpperCase() : customerName.toUpperCase();
-        onCreateOrder('name', identifier, phone);
+        const identifier = selectedClient ? selectedClient.name : customerName;
+        onCreateOrder('name', identifier.toUpperCase(), phone);
     }
   }
   
@@ -94,6 +94,13 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
     } else {
       setShowResults(false);
     }
+  }
+  
+  const handleInputBlur = () => {
+    // Wait a bit before closing results to allow click event to register
+    setTimeout(() => {
+        setShowResults(false);
+    }, 150);
   }
 
   const isNewCustomer = useMemo(() => {
@@ -156,8 +163,9 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
                           onChange={handleInputChange}
                           value={customerName}
                           autoFocus
+                          autoComplete="off"
                           className="pl-10"
-                          onBlur={() => setTimeout(() => setShowResults(false), 150)}
+                          onBlur={handleInputBlur}
                           onFocus={() => customerName && setShowResults(true)}
                       />
                     </div>
@@ -165,7 +173,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients }:
 
                 {showResults && filteredClients.length > 0 && (
                   <div data-results-list className="relative">
-                    <div className="absolute top-1 w-full bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto z-50">
+                    <div className="absolute top-1 w-full bg-background border rounded-md shadow-lg max-h-60 overflow-y-auto z-[9999]">
                         {filteredClients.map((client) => (
                           <div
                             key={client.id}
