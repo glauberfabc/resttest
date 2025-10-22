@@ -371,22 +371,23 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     if (!orderToDelete) return;
 
     const isPaid = orderToDelete.status === 'paid';
-    
-    // Allow deleting only paid orders.
-    if (!isPaid) {
+    const isEmpty = orderToDelete.items.length === 0;
+
+    // Allow deleting paid orders OR empty open orders.
+    if (!isPaid && !isEmpty) {
         toast({ 
             variant: 'destructive', 
             title: "Ação não permitida", 
-            description: "Apenas comandas pagas podem ser excluídas da lista." 
+            description: "Apenas comandas pagas ou vazias podem ser excluídas." 
         });
         return;
     }
 
     const originalOrders = [...orders];
     setOrders(orders.filter(o => o.id !== orderId));
-    setSelectedOrder(null); 
+    setSelectedOrder(null);
 
-    // Cascade delete: payments and items first
+    // Cascade delete: payments and items first (if they exist)
     await supabase.from('order_payments').delete().eq('order_id', orderId);
     await supabase.from('order_items').delete().eq('order_id', orderId);
 
