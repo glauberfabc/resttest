@@ -1,3 +1,4 @@
+
 'use server';
 
 import { cookies } from 'next/headers';
@@ -6,32 +7,23 @@ import type { User, UserRole, Order, MenuItem, Client, ClientCredit } from '@/li
 import { redirect } from 'next/navigation';
 
 export async function getCurrentUser(): Promise<User | null> {
-    console.log("[USER_ACTIONS] getCurrentUser: Iniciando verificação de usuário no servidor...");
     const supabase = await createClient();
     
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-        console.log("[USER_ACTIONS] getCurrentUser: Nenhuma sessão encontrada. Redirecionando para a página de login.");
         return null;
     }
     
-    console.log("[USER_ACTIONS] getCurrentUser: Sessão encontrada para o usuário ID:", user.id);
-
     const { data: profile } = await supabase
         .from('profiles')
-        .select('name, role')
+        .select('name, role, email')
         .eq('id', user.id)
         .single();
     
     if (!profile) {
-        console.error("[USER_ACTIONS] getCurrentUser: Erro crítico! Usuário tem sessão mas não tem perfil. Deslogando.");
-        // In a real app, you might want to handle this more gracefully
-        // For now, we'll prevent login.
         return null;
     }
-
-    console.log("[USER_ACTIONS] getCurrentUser: Perfil do usuário encontrado:", profile);
 
     return {
         id: user.id,

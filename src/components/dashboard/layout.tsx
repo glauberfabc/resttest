@@ -1,6 +1,7 @@
 
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import {
@@ -17,14 +18,23 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Avatar,
   AvatarFallback,
   AvatarImage,
 } from "@/components/ui/avatar";
 import { SnookerBarLogo } from "@/components/icons";
-import { BookMarked, LogOut, Archive, LayoutGrid, Home, Users } from "lucide-react";
+import { BookMarked, LogOut, Archive, LayoutGrid, Home, Users, UserCog, Lock } from "lucide-react";
 import { createClient } from "@/utils/supabase/client";
 import type { User } from "@/lib/types";
+import { EditProfileDialog } from "@/components/dashboard/profile/edit-profile-dialog";
+import { ChangePasswordDialog } from "@/components/dashboard/profile/change-password-dialog";
 
 
 export default function DashboardLayoutClient({
@@ -39,9 +49,12 @@ export default function DashboardLayoutClient({
   const supabase = createClient();
   const { setOpenMobile } = useSidebar();
   
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    router.refresh(); // Garante que o estado do servidor seja atualizado
+    router.refresh();
     router.push("/");
   };
 
@@ -73,6 +86,14 @@ export default function DashboardLayoutClient({
     },
   ];
 
+  if (user.role === 'admin') {
+    menuItems.push({
+      href: "/dashboard/users",
+      label: "Usuários",
+      icon: UserCog,
+    });
+  }
+
   const userNameInitial = user?.name?.charAt(0)?.toUpperCase() || '';
 
   return (
@@ -103,19 +124,35 @@ export default function DashboardLayoutClient({
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-          <div className="flex items-center gap-2">
-            <Avatar className="size-8">
-              <AvatarImage src={`https://placehold.co/40x40/7C3AED/FFFFFF?text=${userNameInitial}`} alt={user.name || ''} />
-              <AvatarFallback>{userNameInitial}</AvatarFallback>
-            </Avatar>
-            <div className="flex flex-col text-sm">
-              <span className="font-semibold">{user.name}</span>
-              <span className="text-muted-foreground">{user.email}</span>
-            </div>
-            <Button variant="ghost" size="icon" onClick={handleLogout} className="ml-auto">
-                <LogOut className="size-4" />
-            </Button>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+               <Button variant="ghost" className="flex items-center gap-2 w-full justify-start p-2 h-auto">
+                 <Avatar className="size-8">
+                  <AvatarImage src={`https://placehold.co/40x40/7C3AED/FFFFFF?text=${userNameInitial}`} alt={user.name || ''} />
+                  <AvatarFallback>{userNameInitial}</AvatarFallback>
+                </Avatar>
+                <div className="flex flex-col text-sm text-left">
+                  <span className="font-semibold">{user.name}</span>
+                  <span className="text-muted-foreground">{user.email}</span>
+                </div>
+               </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56 mb-2 ml-2">
+              <DropdownMenuItem onClick={() => setIsEditProfileOpen(true)}>
+                <UserCog className="mr-2 h-4 w-4" />
+                <span>Editar Perfil</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setIsChangePasswordOpen(true)}>
+                <Lock className="mr-2 h-4 w-4" />
+                <span>Alterar Senha</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Sair</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
@@ -129,6 +166,20 @@ export default function DashboardLayoutClient({
         </header>
         <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
       </SidebarInset>
+      
+      {isEditProfileOpen && (
+        <EditProfileDialog 
+            isOpen={isEditProfileOpen}
+            onOpenChange={setIsEditProfileOpen}
+            user={user}
+        />
+      )}
+      {isChangePasswordOpen && (
+        <ChangePasswordDialog
+            isOpen={isChangePasswordOpen}
+            onOpenChange={setIsChangePasswordOpen}
+        />
+      )}
     </>
   );
 }
