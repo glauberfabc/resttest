@@ -23,7 +23,7 @@ export function KitchenReceipt({ identifier, type, itemsToPrint }: KitchenReceip
   return (
     <div className="kitchen-receipt uppercase">
         <div className="text-center space-y-1">
-            <h2 className="text-xl font-bold">
+            <h2 className="text-lg font-bold">
                 {type === 'table' ? `Mesa ${identifierText}` : identifierText}
             </h2>
             <p className="text-sm">Pedido às {formattedTime}</p>
@@ -33,13 +33,13 @@ export function KitchenReceipt({ identifier, type, itemsToPrint }: KitchenReceip
         
         <div className="space-y-1 my-1">
             {itemsToPrint.map(({ menuItem, quantity, comment }, index) => (
-                <div key={`${menuItem.id}-${index}`} className="text-xl font-bold">
+                <div key={`${menuItem.id}-${index}`} className="text-base font-bold">
                     <div className="flex justify-between">
                         <span className="pr-2">{quantity}x</span>
                         <span className="text-right">{menuItem.name}</span>
                     </div>
                     {comment && (
-                        <p className="text-base pl-6 font-semibold">
+                        <p className="text-sm pl-6 font-semibold">
                             Obs: {comment}
                         </p>
                     )}

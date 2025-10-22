@@ -40,17 +40,17 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
   return (
     <div className={cn("printable-receipt hidden uppercase", className)}>
         <div className="text-center space-y-1">
-            <h2 className="text-lg">Cupom Fiscal</h2>
-            <p>Snooker Bar</p>
+            <h2 className="text-base">Cupom Fiscal</h2>
+            <p className="text-sm">Snooker Bar</p>
         </div>
         
-        <div className="my-2">
+        <div className="my-2 text-sm">
             <p>Comanda: {order.type === 'table' ? `Mesa ${identifierText}` : identifierText}</p>
             <p>Data: {formattedDate} Hora: {formattedTime}</p>
         </div>
         
         <p className="break-words">{line}</p>
-        <div className="flex justify-between">
+        <div className="flex justify-between text-sm">
             <span>QTD | ITEM</span>
             <span className="text-right">VALOR</span>
         </div>
@@ -59,12 +59,12 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
         <div className="space-y-1 my-1">
             {groupedItems.map(({ menuItem, quantity, comment }, index) => (
                 <div key={`${menuItem.id}-${index}`}>
-                    <div className="flex justify-between text-lg">
+                    <div className="flex justify-between text-base">
                         <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
                         <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
                     </div>
                      {comment && (
-                        <p className="pl-2 text-base">
+                        <p className="pl-2 text-sm">
                             - {comment}
                         </p>
                     )}
@@ -74,7 +74,7 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
 
         <p className="break-words">{line}</p>
         
-        <div className="space-y-1 text-lg">
+        <div className="space-y-1 text-base">
             <div className="flex justify-between">
                 <span>TOTAL</span>
                 <span>{formatCurrency(total)}</span>
@@ -83,7 +83,7 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
             {paidAmount > 0.001 && (
               <>
                 {(order.payments as Payment[]).map((p) => (
-                    <div className="flex justify-between" key={p.id}>
+                    <div className="flex justify-between text-sm" key={p.id}>
                         <span>Pago ({p.method})</span>
                         <span>- {formatCurrency(p.amount)}</span>
                     </div>
@@ -97,7 +97,7 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
               </>
             )}
 
-            <div className="flex justify-between">
+            <div className="flex justify-between text-sm">
                 <span>Forma de Pagamento:</span>
                 <span className="text-right">{paymentMethods}</span>
             </div>
