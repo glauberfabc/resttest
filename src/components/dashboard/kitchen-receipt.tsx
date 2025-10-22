@@ -18,23 +18,25 @@ export function KitchenReceipt({ identifier, type, itemsToPrint }: KitchenReceip
     return null; // Don't render anything if there's nothing new to print
   }
 
+  const identifierText = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
+
   return (
-    <div className="kitchen-receipt">
+    <div className="kitchen-receipt uppercase">
         <div className="text-center space-y-1">
-            <h2 className="text-lg font-bold uppercase">
-                {type === 'table' ? `Mesa ${identifier}` : identifier}
+            <h2 className="text-lg font-bold">
+                {type === 'table' ? `Mesa ${identifierText}` : identifierText}
             </h2>
             <p className="text-xs">Pedido às {formattedTime}</p>
         </div>
         
         <p className="break-words my-2">{line}</p>
         
-        <div className="space-y-1 my-1 text-sm">
+        <div className="space-y-1 my-1">
             {itemsToPrint.map(({ menuItem, quantity, comment }, index) => (
                 <div key={`${menuItem.id}-${index}`} className="text-base">
                     <div className="flex justify-between">
                         <span className="font-bold pr-2">{quantity}x</span>
-                        <span>{menuItem.name}</span>
+                        <span className="text-base">{menuItem.name}</span>
                     </div>
                     {comment && (
                         <p className="text-sm pl-6 font-semibold">

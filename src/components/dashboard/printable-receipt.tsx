@@ -35,15 +35,17 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
     return map;
   }, new Map<string, OrderItem>()).values());
 
+  const identifierText = typeof order.identifier === 'string' ? order.identifier.toUpperCase() : order.identifier;
+
   return (
-    <div className={cn("printable-receipt hidden", className)}>
+    <div className={cn("printable-receipt hidden uppercase", className)}>
         <div className="text-center space-y-1">
-            <h2 className="uppercase">Cupom Fiscal</h2>
+            <h2>Cupom Fiscal</h2>
             <p>Snooker Bar</p>
         </div>
         
         <div className="my-2">
-            <p>Comanda: {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}</p>
+            <p>Comanda: {order.type === 'table' ? `Mesa ${identifierText}` : identifierText}</p>
             <p>Data: {formattedDate} Hora: {formattedTime}</p>
         </div>
         
@@ -57,7 +59,7 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
         <div className="space-y-1 my-1">
             {groupedItems.map(({ menuItem, quantity, comment }, index) => (
                 <div key={`${menuItem.id}-${index}`}>
-                    <div className="flex justify-between">
+                    <div className="flex justify-between text-base">
                         <span className="pr-2 truncate">{quantity}x {menuItem.name}</span>
                         <span className="text-right flex-shrink-0">{formatCurrency(menuItem.price * quantity)}</span>
                     </div>
