@@ -191,33 +191,33 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Gerenciar Cardápio</h2>
-        <Button onClick={handleAddNew}>
+        <Button onClick={handleAddNew} className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" />
           Adicionar Item
         </Button>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[80px]">Imagem</TableHead>
               <TableHead>
-                <Button variant="ghost" onClick={() => requestSort('name')} className="px-0 hover:bg-transparent">
+                <Button variant="ghost" onClick={() => requestSort('name')} className="px-0 hover:bg-transparent whitespace-nowrap">
                   Nome
                   {renderSortArrow('name')}
                 </Button>
               </TableHead>
               <TableHead>
-                 <Button variant="ghost" onClick={() => requestSort('code')} className="px-0 hover:bg-transparent">
+                 <Button variant="ghost" onClick={() => requestSort('code')} className="px-0 hover:bg-transparent whitespace-nowrap">
                   Código
                   {renderSortArrow('code')}
                 </Button>
               </TableHead>
-              <TableHead>Categoria</TableHead>
-              <TableHead>Preço</TableHead>
+              <TableHead className="whitespace-nowrap">Categoria</TableHead>
+              <TableHead className="whitespace-nowrap">Preço</TableHead>
               <TableHead className="w-[50px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -230,16 +230,16 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                     alt={item.name}
                     width={64}
                     height={64}
-                    className="rounded-md"
+                    className="rounded-md object-cover w-16 h-16"
                     data-ai-hint="food drink"
                   />
                 </TableCell>
-                <TableCell className="font-medium">{item.name}</TableCell>
-                <TableCell>{item.code || "-"}</TableCell>
+                <TableCell className="font-medium whitespace-nowrap">{item.name}</TableCell>
+                <TableCell className="whitespace-nowrap">{item.code || "-"}</TableCell>
                 <TableCell>
-                    <Badge variant="secondary">{item.category}</Badge>
+                    <Badge variant="secondary" className="whitespace-nowrap">{item.category}</Badge>
                 </TableCell>
-                <TableCell>R$ {item.price.toFixed(2).replace('.', ',')}</TableCell>
+                <TableCell className="whitespace-nowrap">R$ {item.price.toFixed(2).replace('.', ',')}</TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -278,3 +278,5 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     </div>
   );
 }
+
+    

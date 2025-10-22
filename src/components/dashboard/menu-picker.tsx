@@ -69,7 +69,7 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl w-full h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-4xl w-full h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-2xl">Adicionar Itens ao Pedido</DialogTitle>
           <div className="relative mt-4">
@@ -83,31 +83,34 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
           </div>
         </DialogHeader>
 
-        <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
-          <div className="px-12 py-4">
-            <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
-              <CarouselContent>
-                <CarouselItem className="basis-auto">
-                    <TabsList>
-                      <TabsTrigger value="Todos">Todos</TabsTrigger>
-                    </TabsList>
-                </CarouselItem>
-                {categories.map((cat) => (
-                    <CarouselItem key={cat} className="basis-auto">
-                        <TabsList>
-                            <TabsTrigger value={cat}>{cat}</TabsTrigger>
-                        </TabsList>
-                    </CarouselItem>
-                ))}
-              </CarouselContent>
-              <CarouselPrevious className="-left-8" />
-              <CarouselNext className="-right-8" />
-            </Carousel>
-          </div>
-        </Tabs>
+        <div className="px-6 md:px-12 py-4">
+          <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
+            <CarouselContent>
+              <CarouselItem className="basis-auto">
+                  <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
+                      <TabsList>
+                        <TabsTrigger value="Todos">Todos</TabsTrigger>
+                      </TabsList>
+                  </Tabs>
+              </CarouselItem>
+              {categories.map((cat) => (
+                  <CarouselItem key={cat} className="basis-auto">
+                       <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
+                          <TabsList>
+                              <TabsTrigger value={cat}>{cat}</TabsTrigger>
+                          </TabsList>
+                      </Tabs>
+                  </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="-left-4 md:-left-8" />
+            <CarouselNext className="-right-4 md:-right-8" />
+          </Carousel>
+        </div>
+        
 
         <ScrollArea className="flex-1 px-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
                 {filteredItems.map(item => (
                 <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow">
                     <div className="w-full h-32 flex items-center justify-center bg-muted/30 rounded-md">
@@ -137,3 +140,5 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
     </Dialog>
   );
 }
+
+    

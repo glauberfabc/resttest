@@ -273,9 +273,9 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Gerenciar Clientes</h2>
-        <Button onClick={handleAddNew}>
+        <Button onClick={handleAddNew} className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" />
           Adicionar Cliente
         </Button>
@@ -291,18 +291,18 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
           />
       </div>
 
-       <div className="border rounded-lg">
+       <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>
+              <TableHead className="whitespace-nowrap">
                  <Button variant="ghost" onClick={toggleSortOrder} className="px-0 hover:bg-transparent">
                     Nome
                     {sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />}
                  </Button>
               </TableHead>
-              <TableHead>Contato (Telefone/Documento)</TableHead>
-              <TableHead className="w-[150px] text-right">Saldo</TableHead>
+              <TableHead className="whitespace-nowrap">Contato (Telefone/Documento)</TableHead>
+              <TableHead className="w-[150px] text-right whitespace-nowrap">Saldo</TableHead>
               <TableHead className="w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -313,13 +313,13 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
                 return (
                     <TableRow key={client.id} className={balance < 0 ? "bg-destructive/10" : ""}>
                         <TableCell 
-                            className="font-medium cursor-pointer hover:underline"
+                            className="font-medium cursor-pointer hover:underline whitespace-nowrap"
                             onClick={() => handleCreateOrderForClient(client.name)}
                         >
                             {client.name}
                         </TableCell>
-                        <TableCell>{client.phone || client.document || "-"}</TableCell>
-                        <TableCell className={`text-right font-mono font-semibold ${balanceColor}`}>
+                        <TableCell className="whitespace-nowrap">{client.phone || client.document || "-"}</TableCell>
+                        <TableCell className={`text-right font-mono font-semibold whitespace-nowrap ${balanceColor}`}>
                             {balance !== 0 ? `R$ ${balance.toFixed(2).replace('.', ',')}` : "-"}
                         </TableCell>
                         <TableCell>
@@ -376,3 +376,5 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
+
+    

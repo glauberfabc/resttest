@@ -88,14 +88,14 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
         <h2 className="text-2xl font-bold tracking-tight">Controle de Estoque</h2>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Item</TableHead>
-              <TableHead className="w-[150px] text-right">Qtd. em Estoque</TableHead>
-              <TableHead className="w-[100px]">Unidade</TableHead>
-              <TableHead className="w-[150px]">Status</TableHead>
+              <TableHead className="whitespace-nowrap">Item</TableHead>
+              <TableHead className="w-[150px] text-right whitespace-nowrap">Qtd. em Estoque</TableHead>
+              <TableHead className="w-[100px] whitespace-nowrap">Unidade</TableHead>
+              <TableHead className="w-[150px] whitespace-nowrap">Status</TableHead>
               <TableHead className="w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -104,11 +104,11 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
               const status = getStockStatus(item);
               return (
                 <TableRow key={item.id}>
-                  <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="font-medium whitespace-nowrap">{item.name}</TableCell>
+                  <TableCell className="text-right whitespace-nowrap">
                     {item.stock !== undefined && status.variant !== 'secondary' ? item.stock : "-"}
                   </TableCell>
-                  <TableCell>{item.unit || "-"}</TableCell>
+                  <TableCell className="whitespace-nowrap">{item.unit || "-"}</TableCell>
                   <TableCell>
                     <Badge variant={status.variant}>{status.text}</Badge>
                   </TableCell>
@@ -135,3 +135,5 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
     </div>
   );
 }
+
+    

@@ -127,29 +127,29 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Gerenciar Usuários</h2>
-        <Button onClick={handleAddNew}>
+        <Button onClick={handleAddNew} className="w-full sm:w-auto">
           <PlusCircle className="mr-2 h-4 w-4" />
           Adicionar Usuário
         </Button>
       </div>
 
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Nome</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Função</TableHead>
+              <TableHead className="whitespace-nowrap">Nome</TableHead>
+              <TableHead className="whitespace-nowrap">Email</TableHead>
+              <TableHead className="whitespace-nowrap">Função</TableHead>
               <TableHead className="w-[80px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {users.map((user) => (
               <TableRow key={user.id}>
-                <TableCell className="font-medium">{user.name}</TableCell>
-                <TableCell>{user.email}</TableCell>
+                <TableCell className="font-medium whitespace-nowrap">{user.name}</TableCell>
+                <TableCell className="whitespace-nowrap">{user.email}</TableCell>
                 <TableCell>
                   <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                     {user.role}
@@ -192,3 +192,5 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
     </div>
   );
 }
+
+    

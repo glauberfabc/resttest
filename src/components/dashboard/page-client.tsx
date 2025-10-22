@@ -373,7 +373,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const isPaid = orderToDelete.status === 'paid';
     const isEmpty = orderToDelete.items.length === 0;
 
-    // Allow deleting paid orders OR empty open orders.
     if (!isPaid && !isEmpty) {
         toast({ 
             variant: 'destructive', 
@@ -545,25 +544,25 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     };
 
     const renderOrderList = (ordersToRender: Order[], tabName: 'caderneta' | 'fechadas') => (
-        <div className="border rounded-lg mt-4">
+        <div className="border rounded-lg mt-4 overflow-x-auto">
             <Table>
                 <TableHeader>
                     <TableRow>
-                    <TableHead>
+                    <TableHead className="whitespace-nowrap">
                         <Button variant="ghost" onClick={() => handleSortChange(tabName, 'identifier')} className="px-0 hover:bg-transparent">
                             Comanda
                             {renderSortArrow(tabName, 'identifier')}
                         </Button>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="whitespace-nowrap">
                         <Button variant="ghost" onClick={() => handleSortChange(tabName, 'date')} className="px-0 hover:bg-transparent">
                             Data
                             {renderSortArrow(tabName, 'date')}
                         </Button>
                     </TableHead>
-                    <TableHead className="text-center">Itens</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-center whitespace-nowrap">Itens</TableHead>
+                    <TableHead className="whitespace-nowrap">Status</TableHead>
+                    <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
                     {tabName === 'fechadas' && <TableHead className="w-[50px]">Ações</TableHead>}
                     </TableRow>
                 </TableHeader>
@@ -579,16 +578,16 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
                         return (
                             <TableRow key={order.id} onClick={() => handleSelectOrder(order)} className="cursor-pointer">
-                                <TableCell className="font-medium">
+                                <TableCell className="font-medium whitespace-nowrap">
                                     {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}
                                     {order.customer_name && <span className="text-xs text-muted-foreground block">{order.customer_name}</span>}
                                 </TableCell>
-                                <TableCell>{format(new Date(dateToDisplay), 'dd/MM/yy HH:mm')}</TableCell>
-                                <TableCell className="text-center">{itemCount}</TableCell>
+                                <TableCell className="whitespace-nowrap">{format(new Date(dateToDisplay), 'dd/MM/yy HH:mm')}</TableCell>
+                                <TableCell className="text-center whitespace-nowrap">{itemCount}</TableCell>
                                 <TableCell>
                                     <Badge variant={paymentStatus.variant}>{paymentStatus.text}</Badge>
                                 </TableCell>
-                                <TableCell className="text-right font-medium">R$ {displayAmount.toFixed(2).replace('.', ',')}</TableCell>
+                                <TableCell className="text-right font-medium whitespace-nowrap">R$ {displayAmount.toFixed(2).replace('.', ',')}</TableCell>
                                 {tabName === 'fechadas' && (
                                     <TableCell>
                                         <AlertDialog>
@@ -641,25 +640,27 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
           </div>
         )}
         {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-4 mt-6">
+          <div className="flex justify-center items-center gap-2 md:gap-4 mt-6">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => handlePageChange(tab, 'prev')}
               disabled={currentPage === 1}
             >
-              <ChevronLeft className="h-4 w-4 mr-2" />
-              Anterior
+              <ChevronLeft className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Anterior</span>
             </Button>
             <span className="text-sm font-medium">
               Página {currentPage} de {totalPages}
             </span>
             <Button
               variant="outline"
+              size="sm"
               onClick={() => handlePageChange(tab, 'next')}
               disabled={currentPage === totalPages}
             >
-              Próximo
-              <ChevronRight className="h-4 w-4 ml-2" />
+              <span className="hidden md:inline">Próximo</span>
+              <ChevronRight className="h-4 w-4 md:ml-2" />
             </Button>
           </div>
         )}
@@ -670,13 +671,13 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Comandas</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
             <Button variant="outline" size="icon" onClick={() => fetchData(user, true)} disabled={isFetching}>
                 <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             </Button>
-            <Button onClick={() => setIsNewOrderDialogOpen(true)}>
+            <Button onClick={() => setIsNewOrderDialogOpen(true)} className="w-full">
               <PlusCircle className="mr-2 h-4 w-4" />
               Nova Comanda
             </Button>
@@ -734,3 +735,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
