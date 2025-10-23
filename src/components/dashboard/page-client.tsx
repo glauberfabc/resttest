@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { startOfToday, format } from 'date-fns';
+import { startOfToday, format, startOfDay } from 'date-fns';
 import { cn } from "@/lib/utils";
 import {
   Table,
@@ -167,7 +167,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setSelectedOrder(updatedOrder);
     }
   
-    const wasInNotebook = originalOrder && originalOrder.created_at < startOfToday();
+    const wasInNotebook = originalOrder && new Date(originalOrder.created_at) < startOfToday();
     const originalTotalQuantity = originalOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
     const updatedTotalQuantity = updatedOrder.items.reduce((sum, item) => sum + item.quantity, 0);
     const itemWasAddedOrQuantityIncreased = updatedTotalQuantity > originalTotalQuantity;
@@ -422,48 +422,41 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
   
-  const rawNotebookOrders = openOrders.filter(o => new Date(o.created_at) < todayStart && o.items.length > 0);
-  
   const notebookOrders = useMemo(() => {
-    const clientOrderMap = new Map<string, Order>();
+    const dailyConsumptionMap = new Map<string, Order>();
+    
+    // Filter orders for the notebook (name-based, open/paying status, from before today)
+    const rawNotebookOrders = openOrders.filter(o => 
+      o.type === 'name' && new Date(o.created_at) < todayStart && o.items.length > 0
+    );
 
-    // This process merges multiple old orders for the same client into one "virtual" order for display.
+    // Group items and payments by client and by day
     rawNotebookOrders.forEach(order => {
-        // Only merge 'name' type orders. Table orders from previous days are kept separate.
-        if (order.type === 'name') {
-            const clientName = (order.identifier) as string;
-            const existingOrder = clientOrderMap.get(clientName);
+        const clientName = (order.identifier) as string;
+        const orderDay = startOfDay(new Date(order.created_at)).toISOString().split('T')[0];
+        const key = `${clientName}_${orderDay}`;
 
-            if (existingOrder) {
-                // If an order for this client already exists in the map, merge items and payments.
-                existingOrder.items.push(...order.items);
-                if (order.payments) {
-                    existingOrder.payments = [...(existingOrder.payments || []), ...order.payments];
-                }
-                // Keep the oldest creation date as the primary one for the merged group.
-                if (order.created_at < existingOrder.created_at) {
-                    existingOrder.created_at = order.created_at;
-                    existingOrder.createdAt = order.created_at;
-                }
-                // Important: Keep the original ID of the *first* order encountered to act as the key.
-            } else {
-                // This is the first order for this client, create a deep copy to avoid mutation issues.
-                const newMergedOrder = JSON.parse(JSON.stringify(order));
-                 newMergedOrder.created_at = new Date(newMergedOrder.created_at);
-                if(newMergedOrder.paid_at) newMergedOrder.paid_at = new Date(newMergedOrder.paid_at);
-                newMergedOrder.createdAt = newMergedOrder.created_at;
-                if(newMergedOrder.paidAt) newMergedOrder.paidAt = new Date(newMergedOrder.paidAt);
-                
-                clientOrderMap.set(clientName, newMergedOrder);
+        const existingDailyOrder = dailyConsumptionMap.get(key);
+
+        if (existingDailyOrder) {
+            // Merge items and payments into the existing daily order
+            existingDailyOrder.items.push(...order.items);
+            if (order.payments) {
+                existingDailyOrder.payments = [...(existingDailyOrder.payments || []), ...order.payments];
             }
         } else {
-            // Keep old table orders separate. Use their own ID as the key.
-            clientOrderMap.set(order.id, order);
+            // This is the first order for this client on this day, create a new virtual order
+            const newDailyOrder: Order = JSON.parse(JSON.stringify(order));
+            newDailyOrder.created_at = startOfDay(new Date(order.created_at));
+            newDailyOrder.createdAt = newDailyOrder.created_at;
+            // Use the key as a stable ID for the virtual order
+            newDailyOrder.id = key; 
+            dailyConsumptionMap.set(key, newDailyOrder);
         }
     });
 
-    return Array.from(clientOrderMap.values());
-}, [rawNotebookOrders]);
+    return Array.from(dailyConsumptionMap.values());
+  }, [openOrders, todayStart]);
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
@@ -473,7 +466,10 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         const key = sortConfig.caderneta.key;
         const direction = sortConfig.caderneta.direction === 'asc' ? 1 : -1;
         if (key === 'identifier') {
-            return a.identifier.toString().localeCompare(b.identifier.toString()) * direction;
+            const nameCompare = a.identifier.toString().localeCompare(b.identifier.toString());
+            if (nameCompare !== 0) return nameCompare * direction;
+            // If names are the same, sort by date (newest first)
+            return (new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         } else { // date
             return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction;
         }
@@ -715,6 +711,9 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       {selectedOrder && (
         <OrderDetailsSheet
           order={selectedOrder}
+          allOrders={orders}
+          allClients={clients}
+          allCredits={credits}
           menuItems={menuItems}
           onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
           onUpdateOrder={handleUpdateOrder}
@@ -735,5 +734,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    

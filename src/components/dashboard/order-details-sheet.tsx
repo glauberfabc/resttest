@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
-import type { Order, MenuItem, OrderItem } from "@/lib/types";
+import type { Order, MenuItem, OrderItem, Client, ClientCredit } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -32,12 +32,15 @@ import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
-import { formatInTimeZone } from 'date-fns-tz';
+import { format, formatInTimeZone, startOfToday, startOfDay } from 'date-fns';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
 
 interface OrderDetailsSheetProps {
   order: Order;
+  allOrders: Order[];
+  allClients: Client[];
+  allCredits: ClientCredit[];
   menuItems: MenuItem[];
   onOpenChange: (isOpen: boolean) => void;
   onUpdateOrder: (order: Order) => void;
@@ -45,7 +48,7 @@ interface OrderDetailsSheetProps {
   onDeleteOrder: (orderId: string) => void;
 }
 
-export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder }: OrderDetailsSheetProps) {
+export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
@@ -113,6 +116,7 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
+  const isFromNotebook = new Date(order.created_at) < startOfToday();
   
   const groupedItemsForDisplay = useMemo(() => {
     const map = new Map<string, OrderItem>();
@@ -128,6 +132,36 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     return Array.from(map.values());
   }, [order.items]);
 
+  const previousBalance = useMemo(() => {
+    if (order.type !== 'name') return 0;
+    
+    const clientName = (order.identifier as string).toUpperCase();
+    const client = allClients.find(c => c.name.toUpperCase() === clientName);
+    if (!client) return 0;
+
+    const orderDayStart = startOfDay(new Date(order.created_at));
+
+    // Calculate balance from client credits before the order day
+    const creditBalance = allCredits
+      .filter(c => c.client_id === client.id && new Date(c.created_at) < orderDayStart)
+      .reduce((acc, c) => acc + c.amount, 0);
+
+    // Calculate debt from orders before the order day
+    const openOrdersBefore = allOrders.filter(o => 
+      o.type === 'name' && 
+      (o.identifier as string).toUpperCase() === clientName &&
+      o.status !== 'paid' &&
+      startOfDay(new Date(o.created_at)) < orderDayStart
+    );
+    
+    const debtFromOrders = openOrdersBefore.reduce((totalDebt, o) => {
+        const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+        const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+        return totalDebt + (orderTotal - orderPaid);
+    }, 0);
+
+    return creditBalance - debtFromOrders;
+  }, [order, allOrders, allClients, allCredits]);
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     let updatedItems = [...order.items];
@@ -197,21 +231,45 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
 
   const handleWhatsAppShare = () => {
-    const headerIdentifier = order.type === 'table' && order.customer_name
-      ? `Mesa ${order.identifier} (${order.customer_name})`
-      : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
-
-    const header = `*Comanda ${headerIdentifier}*\n\n`;
-    const itemsText = groupedItemsForDisplay.map(item => 
-      `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
-    ).join('\n');
-    const totalText = `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
-    const paidText = paidAmount > 0 ? `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*` : '';
-    const remainingText = paidAmount > 0 && !isPaid ? `\n*Restante: R$ ${remainingAmount.toFixed(2).replace('.', ',')}*` : '';
+    let message = '';
+    const dailyTotal = total - paidAmount;
+    const finalDebt = previousBalance + dailyTotal;
     
-    const message = encodeURIComponent(header + itemsText + totalText + paidText + remainingText);
-    window.open(`https://wa.me/?text=${message}`);
+    if (isFromNotebook) {
+        const dateStr = format(new Date(order.created_at), 'dd/MM/yyyy');
+        message += `*Resumo de Conta - ${order.identifier}*\n`;
+        message += `*Consumo do dia ${dateStr}:*\n`;
+        message += groupedItemsForDisplay.map(item => 
+          `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
+        ).join('\n');
+        message += `\n\n*Valor do Dia: R$ ${dailyTotal.toFixed(2).replace('.', ',')}*`;
+        if (previousBalance !== 0) {
+            message += `\n*Saldo Anterior: R$ ${previousBalance.toFixed(2).replace('.', ',')}*`;
+        }
+        message += `\n*DÍVIDA TOTAL: R$ ${finalDebt.toFixed(2).replace('.', ',')}*`;
+
+    } else {
+        const headerIdentifier = order.type === 'table' && order.customer_name
+            ? `Mesa ${order.identifier} (${order.customer_name})`
+            : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
+        
+        message += `*Comanda ${headerIdentifier}*\n\n`;
+        message += groupedItemsForDisplay.map(item => 
+            `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
+        ).join('\n');
+        message += `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
+        if (paidAmount > 0) {
+            message += `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*`;
+            if (!isPaid) {
+                message += `\n*Restante: R$ ${remainingAmount.toFixed(2).replace('.', ',')}*`;
+            }
+        }
+    }
+    
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedMessage}`);
   };
+
 
   const handlePayment = (amount: number, method: string) => {
     onProcessPayment(order.id, amount, method);
@@ -276,11 +334,20 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
   };
 
   const sheetTitle = () => {
-    const baseTitle = isPaid ? 'Comprovante' : 'Comanda';
+    let baseTitle = isPaid ? 'Comprovante' : 'Comanda';
+    if (isFromNotebook) baseTitle = 'Caderneta';
+    
     const identifier = order.type === 'table' && order.customer_name
       ? `Mesa ${order.identifier} (${order.customer_name})`
       : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
-    return `${baseTitle}: ${identifier}`;
+      
+    let finalTitle = `${baseTitle}: ${identifier}`;
+
+    if (isFromNotebook) {
+      finalTitle += ` - ${format(new Date(order.created_at), 'dd/MM/yyyy')}`;
+    }
+
+    return finalTitle;
   };
 
   return (
@@ -412,22 +479,30 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
 
               <SheetFooter className="mt-auto pt-4">
                 <div className="w-full space-y-4">
-                    {paidAmount > 0 && (
+                    {isFromNotebook && previousBalance !== 0 && (
+                         <div className="flex justify-between items-center text-sm text-muted-foreground">
+                            <span>Saldo Anterior</span>
+                            <span>R$ {previousBalance.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                    )}
+                    {(paidAmount > 0 || (isFromNotebook && previousBalance !== 0)) && (
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
-                          <span>Total Original</span>
+                          <span>{isFromNotebook ? 'Consumo do Dia' : 'Total Original'}</span>
                           <span>R$ {total.toFixed(2).replace('.', ',')}</span>
                         </div>
-                        <div className="flex justify-between items-center text-sm text-muted-foreground">
-                          <span>Total Pago</span>
-                          <span className="font-medium">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
-                        </div>
+                        {paidAmount > 0 && (
+                            <div className="flex justify-between items-center text-sm text-muted-foreground">
+                            <span>Total Pago</span>
+                            <span className="font-medium">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                            </div>
+                        )}
                         <Separator />
                       </>
                     )}
                     <div className="flex justify-between items-center text-xl font-bold">
-                        <span>{paidAmount > 0 ? 'Restante' : 'Total'}</span>
-                        <span>R$ {remainingAmount.toFixed(2).replace('.', ',')}</span>
+                        <span>{paidAmount > 0 && !isFromNotebook ? 'Restante' : 'Total'}</span>
+                        <span>R$ {(isFromNotebook ? remainingAmount + previousBalance : remainingAmount).toFixed(2).replace('.', ',')}</span>
                     </div>
 
                     {isSupported && (
@@ -508,5 +583,3 @@ export function OrderDetailsSheet({ order, menuItems, onOpenChange, onUpdateOrde
     </>
   );
 }
-
-    
