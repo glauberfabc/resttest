@@ -31,10 +31,9 @@ import { PaymentDialog } from "@/components/dashboard/payment-dialog";
 import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
-import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
+import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText } from "lucide-react";
 import { format, isToday, startOfDay } from "date-fns";
 import { formatInTimeZone } from 'date-fns-tz';
-import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
 
 interface OrderDetailsSheetProps {
@@ -59,19 +58,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const [itemsToPrint, setItemsToPrint] = useState<OrderItem[]>([]);
   
   const { toast } = useToast();
-  const {
-    isConnecting,
-    isConnected,
-    isSupported,
-    connect,
-    disconnect,
-    print,
-  } = useBluetoothPrinter();
 
   useEffect(() => {
-    // Initialize with an empty array. The state will be populated after the first print.
+    // When the order ID changes, reset the printed items state to an empty array.
+    // This ensures that when a new order is opened, we start fresh.
     setPrintedKitchenItems([]);
-     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.id]);
 
   useEffect(() => {
@@ -92,7 +83,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     currentItemsMap.forEach((quantity, key) => {
         const printedQuantity = printedItemsMap.get(key) || 0;
         if (quantity > printedQuantity) {
-            const [menuItemId, comment] = key.split('-') as [string, string | undefined];
+            const [menuItemId, comment] = key.split(/-(.*)/s) as [string, string | undefined];
             const menuItem = menuItems.find(mi => mi.id === menuItemId);
             if (menuItem) {
                 newItemsToPrint.push({
@@ -128,15 +119,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       return { previousDebt: 0, dailyConsumption: total };
     }
     
-    // Calculate credits for the client
     const clientCredits = allCredits
       .filter(c => c.client_id === client.id)
       .reduce((sum, c) => sum + c.amount, 0);
 
-    // Calculate debt from all OTHER open/paying orders for this client
     const clientDebtsFromOtherOrders = allOrders
       .filter(o => 
-        o.id !== order.id && // Exclude the current order
+        o.id !== order.id &&
         o.type === 'name' &&
         o.status !== 'paid' &&
         (o.identifier as string).toUpperCase() === clientName
@@ -147,15 +136,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         return sum + (orderTotal - orderPaid);
       }, 0);
       
-    // If the current order is from a previous day, its value is part of the previous debt.
-    let debtFromCurrentOrder = 0;
+    let debtFromCurrentOrderIfOld = 0;
     if (isFromBeforeToday) {
-        const currentOrderTotal = total; // `total` is already calculated for the current order
+        const currentOrderTotal = total;
         const currentOrderPaid = paidAmount;
-        debtFromCurrentOrder = currentOrderTotal - currentOrderPaid;
+        debtFromCurrentOrderIfOld = currentOrderTotal - currentOrderPaid;
     }
     
-    const totalPreviousDebt = clientCredits - clientDebtsFromOtherOrders - debtFromCurrentOrder;
+    const totalPreviousDebt = clientCredits - clientDebtsFromOtherOrders - debtFromCurrentOrderIfOld;
 
     return {
       previousDebt: totalPreviousDebt,
@@ -173,7 +161,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       if (existing) {
         existing.quantity += item.quantity;
       } else {
-        map.set(key, { ...item, id: item.id || key });
+        map.set(key, { ...item, id: item.id || key, quantity: item.quantity });
       }
     });
     return Array.from(map.values());
@@ -183,26 +171,20 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     let updatedItems = [...order.items];
     const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
-
-    if (delta === 0) { // Remove all items with the same key
-      updatedItems = updatedItems.filter(i => `${i.menuItem.id}-${i.comment || ''}` !== keyToUpdate);
-      onUpdateOrder({ ...order, items: updatedItems });
-      return;
-    }
     
-    // Try to find an item with the exact same key to update its quantity
+    // Find an item with the same key (product + comment)
     const existingItemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToUpdate);
 
-    if (existingItemIndex > -1) {
-      // Create a new array with the updated item
-      updatedItems = updatedItems.map((item, index) => {
-        if (index === existingItemIndex) {
-          return { ...item, quantity: item.quantity + delta };
-        }
-        return item;
-      }).filter(item => item.quantity > 0); // Filter out items with quantity 0 or less
-    } else if (delta > 0) {
-      // If no existing item, add a new one
+    if (delta === 0) { // Remove all items of this kind
+      updatedItems = updatedItems.filter(i => `${i.menuItem.id}-${i.comment || ''}` !== keyToUpdate);
+    } else if (existingItemIndex > -1) { // Item exists, update its quantity
+      const newQuantity = updatedItems[existingItemIndex].quantity + delta;
+      if (newQuantity > 0) {
+        updatedItems[existingItemIndex] = { ...updatedItems[existingItemIndex], quantity: newQuantity };
+      } else {
+        updatedItems.splice(existingItemIndex, 1); // Remove if quantity is 0 or less
+      }
+    } else if (delta > 0) { // Item doesn't exist, and we're adding
       updatedItems.push({
         id: crypto.randomUUID(),
         menuItem: itemToUpdate.menuItem,
@@ -247,21 +229,17 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
 
-    // Remove all items that match the original item (before comment change)
     const itemsWithoutOld = order.items.filter(i => i.id !== editingItem.id);
 
-    // Find if an item with the new comment already exists
     const keyWithNewComment = `${editingItem.menuItem.id}-${newComment || ''}`;
     const existingItemIndex = itemsWithoutOld.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyWithNewComment);
     
     let finalItems = [];
 
     if (existingItemIndex > -1) {
-        // Add quantity to the existing item
         itemsWithoutOld[existingItemIndex].quantity += editingItem.quantity;
         finalItems = itemsWithoutOld;
     } else {
-        // Just update the comment on the edited item and add it back
         const updatedItem = { ...editingItem, comment: newComment };
         finalItems = [...itemsWithoutOld, updatedItem];
     }
@@ -272,7 +250,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const handleWhatsAppShare = () => {
     let message = '';
-    const totalDebt = previousDebt - dailyConsumption;
+    const totalDebt = previousDebt + dailyConsumption;
     
     if (isFromBeforeToday) {
         const dateStr = format(new Date(order.created_at), 'dd/MM/yyyy');
@@ -282,7 +260,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
         ).join('\n');
         message += `\n\n*Valor do Dia: R$ ${total.toFixed(2).replace('.', ',')}*`;
-        const balanceBeforeThisOrder = previousDebt + total;
+        const balanceBeforeThisOrder = previousDebt - total;
         if (balanceBeforeThisOrder !== 0) {
             message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
@@ -306,7 +284,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
              message += `\n\n*Saldo Anterior: R$ ${previousDebt.toFixed(2).replace('.', ',')}*`;
         }
 
-        const totalToPay = dailyConsumption - previousDebt;
+        const totalToPay = dailyConsumption + previousDebt;
         message += `\n*Total: R$ ${totalToPay.toFixed(2).replace('.', ',')}*`;
 
 
@@ -333,40 +311,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       return;
     }
     window.print();
-    // After printing, update the state of printed items to match the current order items.
     setPrintedKitchenItems([...order.items]); 
   };
   
-  const handleBluetoothPrint = () => {
-     if (itemsToPrint.length === 0) {
-      toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
-      return;
-    }
-
-    const receiptDate = new Date();
-    const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
-    const line = "--------------------------------\n";
-
-    const identifier = order.type === 'table' && order.customer_name
-      ? `Mesa ${order.identifier} (${order.customer_name})`
-      : `${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}`;
-
-    let text = `Comanda: ${identifier}\n`;
-    text += `Pedido as: ${formattedTime}\n`;
-    text += line;
-    itemsToPrint.forEach(item => {
-        text += `${item.quantity}x ${item.menuItem.name}\n`;
-        if (item.comment) {
-            text += `  Obs: ${item.comment}\n`;
-        }
-    });
-    text += line;
-
-    print(text);
-    // After printing, update the state of printed items to match the current order items.
-    setPrintedKitchenItems([...order.items]);
-  };
-
   const getFormattedPaidAt = () => {
     const paidAt = order.paidAt || order.paid_at;
     if (!paidAt) return '';
@@ -379,12 +326,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         console.error("Error formatting date:", error);
         return 'Pago em data inválida';
     }
-  };
-
-  const PrinterStatusIcon = () => {
-    if (isConnecting) return <BluetoothSearching className="h-4 w-4" />;
-    if (isConnected) return <BluetoothConnected className="h-4 w-4" />;
-    return <Bluetooth className="h-4 w-4" />;
   };
 
   const sheetTitle = () => {
@@ -404,7 +345,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
 
-  const totalToDisplay = dailyConsumption - previousDebt - paidAmount;
+  const totalToDisplay = previousDebt + dailyConsumption - paidAmount;
 
 
   return (
@@ -565,22 +506,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         <span>{'Total Geral'}</span>
                         <span>R$ {totalToDisplay.toFixed(2).replace('.', ',')}</span>
                     </div>
-
-                    {isSupported && (
-                      <div className="flex justify-between items-center bg-muted/50 p-2 rounded-md">
-                        <div className="flex items-center gap-2 text-sm">
-                            <PrinterStatusIcon />
-                            <span>Impressora Bluetooth</span>
-                        </div>
-                        {isConnected ? (
-                          <Button size="sm" variant="destructive" onClick={disconnect}>Desconectar</Button>
-                        ) : (
-                          <Button size="sm" onClick={connect} disabled={isConnecting}>
-                            {isConnecting ? 'Conectando...' : 'Conectar'}
-                          </Button>
-                        )}
-                      </div>
-                    )}
                     
                     <div className="flex gap-2">
                         <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
@@ -594,11 +519,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                             Pagar
                         </Button>
                     </div>
-                     {isConnected && (
-                        <Button variant="secondary" className="w-full" onClick={handleBluetoothPrint} disabled={itemsToPrint.length === 0}>
-                            <Bluetooth className="mr-2 h-4 w-4" /> Imprimir Cozinha (Bluetooth)
-                        </Button>
-                    )}
                 </div>
               </SheetFooter>
             </>
@@ -644,8 +564,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
-
-
-
-    
