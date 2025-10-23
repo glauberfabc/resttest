@@ -20,22 +20,21 @@ import { useToast } from "@/hooks/use-toast";
 
 interface PaymentDialogProps {
   order: Order;
-  total: number;
+  total: number; // This 'total' now represents the full amount to be paid (current + previous debt)
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirmPayment: (amount: number, method: string) => void;
 }
 
-export function PaymentDialog({ order, total, isOpen, onOpenChange, onConfirmPayment }: PaymentDialogProps) {
+export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChange, onConfirmPayment }: PaymentDialogProps) {
     const { toast } = useToast();
-    const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-    const remainingAmount = total - paidAmount;
-
-    const [paymentAmount, setPaymentAmount] = useState(remainingAmount.toFixed(2));
+    
+    // Note: 'totalAmountDue' is the remaining amount passed as a prop, including any previous debt.
+    const [paymentAmount, setPaymentAmount] = useState(totalAmountDue.toFixed(2));
 
     useEffect(() => {
-        setPaymentAmount(remainingAmount.toFixed(2));
-    }, [remainingAmount]);
+        setPaymentAmount(totalAmountDue.toFixed(2));
+    }, [totalAmountDue]);
 
     const handlePayment = (method: string) => {
         const amount = parseFloat(paymentAmount);
@@ -43,7 +42,7 @@ export function PaymentDialog({ order, total, isOpen, onOpenChange, onConfirmPay
             toast({ variant: 'destructive', title: "Valor inválido", description: "Por favor, insira um valor de pagamento positivo." });
             return;
         }
-        if (amount > remainingAmount + 0.001) { // Tolerance for float issues
+        if (amount > totalAmountDue + 0.001) { // Tolerance for float issues
              toast({ variant: 'destructive', title: "Valor muito alto", description: "O valor a pagar não pode ser maior que o saldo devedor." });
             return;
         }
@@ -76,15 +75,12 @@ export function PaymentDialog({ order, total, isOpen, onOpenChange, onConfirmPay
         
         <div className="space-y-4 py-4">
             <div className="flex flex-col items-center justify-center space-y-2">
-                <p className="text-muted-foreground">Valor restante</p>
-                <p className="text-5xl font-bold tracking-tighter">R$ {remainingAmount.toFixed(2).replace('.', ',')}</p>
-                {paidAmount > 0 && (
-                    <p className="text-sm text-muted-foreground">Total: R$ {total.toFixed(2).replace('.', ',')} (pago R$ {paidAmount.toFixed(2).replace('.', ',')})</p>
-                )}
+                <p className="text-muted-foreground">Valor a pagar</p>
+                <p className="text-5xl font-bold tracking-tighter">R$ {totalAmountDue.toFixed(2).replace('.', ',')}</p>
             </div>
             
             <div className="space-y-2">
-                <Label htmlFor="payment-amount">Valor a Pagar</Label>
+                <Label htmlFor="payment-amount">Valor do Pagamento</Label>
                 <div className="flex gap-2">
                     <Input
                         id="payment-amount"
@@ -94,7 +90,7 @@ export function PaymentDialog({ order, total, isOpen, onOpenChange, onConfirmPay
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         placeholder="0,00"
                     />
-                    <Button variant="secondary" onClick={() => setPaymentAmount(remainingAmount.toFixed(2))}>Total</Button>
+                    <Button variant="secondary" onClick={() => setPaymentAmount(totalAmountDue.toFixed(2))}>Total</Button>
                 </div>
             </div>
 
