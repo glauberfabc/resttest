@@ -484,9 +484,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
               <SheetFooter className="mt-auto pt-4">
                 <div className="w-full space-y-4">
                     {previousBalance !== 0 && (
-                         <div className="flex justify-between items-center text-sm text-muted-foreground">
-                            <span>Saldo Anterior</span>
-                            <span className={previousBalance < 0 ? "text-destructive font-medium" : ""}>
+                         <div className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">Saldo Anterior</span>
+                            <span className={previousBalance < 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
                                 R$ {previousBalance.toFixed(2).replace('.', ',')}
                             </span>
                         </div>
@@ -499,8 +499,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         </div>
                         {paidAmount > 0 && (
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
-                            <span>Total Pago</span>
-                            <span className="font-medium">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                            <span>Total Pago Hoje</span>
+                            <span className="font-medium text-green-600">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
                             </div>
                         )}
                         <Separator />
@@ -590,4 +590,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   );
 }
 
-    
