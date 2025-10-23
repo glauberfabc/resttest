@@ -32,7 +32,7 @@ import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText } from "lucide-react";
-import { format, isToday, startOfDay } from "date-fns";
+import { format, isToday, startOfDay } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useToast } from "@/hooks/use-toast";
 
@@ -48,6 +48,22 @@ interface OrderDetailsSheetProps {
   onDeleteOrder: (orderId: string) => void;
 }
 
+// Helper function to group items by key (menuItem.id + comment)
+const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
+  const grouped = new Map<string, OrderItem>();
+  items.forEach(item => {
+    const key = `${item.menuItem.id}-${item.comment || ''}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.quantity += item.quantity;
+    } else {
+      grouped.set(key, { ...item });
+    }
+  });
+  return grouped;
+};
+
+
 export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -60,44 +76,35 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const { toast } = useToast();
 
   useEffect(() => {
-    // When the order ID changes, reset the printed items state to an empty array.
-    // This ensures that when a new order is opened, we start fresh.
-    setPrintedKitchenItems([]);
-  }, [order.id]);
+    // When the order ID changes, reset the printed items state.
+    // We initialize it with the items of the new order IF the order is old,
+    // assuming they were already printed. If it's a new order, it starts empty.
+    if (isToday(new Date(order.created_at))) {
+        setPrintedKitchenItems([]);
+    } else {
+        setPrintedKitchenItems([...order.items]);
+    }
+  }, [order.id, order.created_at, order.items]);
 
   useEffect(() => {
+    const currentGrouped = groupOrderItems(order.items);
+    const printedGrouped = groupOrderItems(printedKitchenItems);
     const newItemsToPrint: OrderItem[] = [];
 
-    const currentItemsMap = new Map<string, number>();
-    order.items.forEach(item => {
-        const key = `${item.menuItem.id}-${item.comment || ''}`;
-        currentItemsMap.set(key, (currentItemsMap.get(key) || 0) + item.quantity);
-    });
-
-    const printedItemsMap = new Map<string, number>();
-    printedKitchenItems.forEach(item => {
-        const key = `${item.menuItem.id}-${item.comment || ''}`;
-        printedItemsMap.set(key, (printedItemsMap.get(key) || 0) + item.quantity);
-    });
-
-    currentItemsMap.forEach((quantity, key) => {
-        const printedQuantity = printedItemsMap.get(key) || 0;
-        if (quantity > printedQuantity) {
-            const [menuItemId, comment] = key.split(/-(.*)/s) as [string, string | undefined];
-            const menuItem = menuItems.find(mi => mi.id === menuItemId);
-            if (menuItem) {
-                newItemsToPrint.push({
-                    id: crypto.randomUUID(),
-                    menuItem,
-                    quantity: quantity - printedQuantity,
-                    comment: comment || '',
-                });
-            }
+    currentGrouped.forEach((currentItem, key) => {
+        const printedItem = printedGrouped.get(key);
+        const printedQuantity = printedItem ? printedItem.quantity : 0;
+        
+        if (currentItem.quantity > printedQuantity) {
+            newItemsToPrint.push({
+                ...currentItem,
+                quantity: currentItem.quantity - printedQuantity,
+            });
         }
     });
 
     setItemsToPrint(newItemsToPrint);
-  }, [order.items, printedKitchenItems, menuItems]);
+  }, [order.items, printedKitchenItems]);
 
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
@@ -119,13 +126,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       return { previousDebt: 0, dailyConsumption: total };
     }
     
+    // Calculate total credits for the client
     const clientCredits = allCredits
       .filter(c => c.client_id === client.id)
       .reduce((sum, c) => sum + c.amount, 0);
 
-    const clientDebtsFromOtherOrders = allOrders
+    // Calculate total debt from all UNPAID orders for this client, INCLUDING the current one if it's from a previous day
+    const allClientOpenOrdersDebt = allOrders
       .filter(o => 
-        o.id !== order.id &&
         o.type === 'name' &&
         o.status !== 'paid' &&
         (o.identifier as string).toUpperCase() === clientName
@@ -135,64 +143,57 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
         return sum + (orderTotal - orderPaid);
       }, 0);
-      
-    let debtFromCurrentOrderIfOld = 0;
-    if (isFromBeforeToday) {
-        const currentOrderTotal = total;
-        const currentOrderPaid = paidAmount;
-        debtFromCurrentOrderIfOld = currentOrderTotal - currentOrderPaid;
-    }
-    
-    const totalPreviousDebt = clientCredits - clientDebtsFromOtherOrders - debtFromCurrentOrderIfOld;
+
+    const currentOrderConsumption = isFromBeforeToday ? 0 : total;
+    const currentOrderPaidToday = isFromBeforeToday ? 0 : paidAmount;
+
+    // Total debt is all open orders sum + all credits (which are often negative for payments)
+    // From this total debt, we subtract what's being consumed today to get the "previous" balance
+    const totalPreviousDebt = allClientOpenOrdersDebt - (total - paidAmount) + clientCredits;
 
     return {
       previousDebt: totalPreviousDebt,
-      dailyConsumption: isFromBeforeToday ? 0 : total
+      dailyConsumption: currentOrderConsumption
     };
 
   }, [order, allOrders, allClients, allCredits, total, paidAmount, isFromBeforeToday]);
 
   
   const groupedItemsForDisplay = useMemo(() => {
-    const map = new Map<string, OrderItem>();
-    order.items.forEach(item => {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      const existing = map.get(key);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        map.set(key, { ...item, id: item.id || key, quantity: item.quantity });
-      }
-    });
-    return Array.from(map.values());
+    return Array.from(groupOrderItems(order.items).values());
   }, [order.items]);
 
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
-    let updatedItems = [...order.items];
     const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
-    
-    // Find an item with the same key (product + comment)
-    const existingItemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToUpdate);
-
-    if (delta === 0) { // Remove all items of this kind
-      updatedItems = updatedItems.filter(i => `${i.menuItem.id}-${i.comment || ''}` !== keyToUpdate);
-    } else if (existingItemIndex > -1) { // Item exists, update its quantity
-      const newQuantity = updatedItems[existingItemIndex].quantity + delta;
-      if (newQuantity > 0) {
-        updatedItems[existingItemIndex] = { ...updatedItems[existingItemIndex], quantity: newQuantity };
-      } else {
-        updatedItems.splice(existingItemIndex, 1); // Remove if quantity is 0 or less
-      }
-    } else if (delta > 0) { // Item doesn't exist, and we're adding
+    let itemFound = false;
+    let updatedItems = order.items
+      .map(item => {
+        const currentKey = `${item.menuItem.id}-${item.comment || ''}`;
+        if (currentKey === keyToUpdate) {
+          itemFound = true;
+          return { ...item, quantity: item.quantity + delta };
+        }
+        return item;
+      })
+      .filter(item => item.quantity > 0);
+  
+    if (!itemFound && delta > 0) {
       updatedItems.push({
         id: crypto.randomUUID(),
         menuItem: itemToUpdate.menuItem,
         quantity: delta,
-        comment: itemToUpdate.comment,
+        comment: itemToUpdate.comment || '',
       });
     }
 
+    if(delta === 0) { // Special case to remove all items of a kind
+        updatedItems = order.items.filter(item => {
+            const currentKey = `${item.menuItem.id}-${item.comment || ''}`;
+            return currentKey !== keyToUpdate;
+        });
+    }
+  
     onUpdateOrder({ ...order, items: updatedItems });
   };
   
@@ -209,6 +210,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const existingItemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToAdd);
 
     if (existingItemIndex > -1) {
+        // Create a new array with the updated item for react state change detection
         updatedItems = updatedItems.map((item, index) => 
             index === existingItemIndex 
                 ? { ...item, quantity: item.quantity + 1 } 
@@ -229,19 +231,23 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
 
-    const itemsWithoutOld = order.items.filter(i => i.id !== editingItem.id);
+    let itemsWithoutOld = order.items.filter(i => {
+        const oldKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
+        const currentKey = `${i.menuItem.id}-${i.comment || ''}`;
+        return oldKey !== currentKey;
+    });
 
     const keyWithNewComment = `${editingItem.menuItem.id}-${newComment || ''}`;
-    const existingItemIndex = itemsWithoutOld.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyWithNewComment);
+    const existingItemIndexWithNewComment = itemsWithoutOld.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyWithNewComment);
     
     let finalItems = [];
 
-    if (existingItemIndex > -1) {
-        itemsWithoutOld[existingItemIndex].quantity += editingItem.quantity;
+    if (existingItemIndexWithNewComment > -1) {
+        itemsWithoutOld[existingItemIndexWithNewComment].quantity += editingItem.quantity;
         finalItems = itemsWithoutOld;
     } else {
-        const updatedItem = { ...editingItem, comment: newComment };
-        finalItems = [...itemsWithoutOld, updatedItem];
+        const updatedItemWithNewComment = { ...editingItem, comment: newComment };
+        finalItems = [...itemsWithoutOld, updatedItemWithNewComment];
     }
   
     onUpdateOrder({ ...order, items: finalItems });
@@ -260,7 +266,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
         ).join('\n');
         message += `\n\n*Valor do Dia: R$ ${total.toFixed(2).replace('.', ',')}*`;
-        const balanceBeforeThisOrder = previousDebt - total;
+        const balanceBeforeThisOrder = previousDebt;
         if (balanceBeforeThisOrder !== 0) {
             message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
@@ -564,3 +570,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    
