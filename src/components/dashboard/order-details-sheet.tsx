@@ -116,9 +116,47 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
-  const isFromNotebook = !isToday(new Date(order.created_at));
   
-  const dailyConsumption = isFromNotebook ? 0 : total;
+  const isFromNotebook = !isToday(new Date(order.created_at));
+
+  const { previousDebt, dailyConsumption } = useMemo(() => {
+    if (order.type !== 'name') {
+      return { previousDebt: 0, dailyConsumption: total };
+    }
+
+    const clientName = (order.identifier as string).toUpperCase();
+    const client = allClients.find(c => c.name.toUpperCase() === clientName);
+    
+    if (!client) {
+      return { previousDebt: 0, dailyConsumption: total };
+    }
+    
+    const clientCredits = allCredits
+      .filter(c => c.client_id === client.id)
+      .reduce((sum, c) => sum + c.amount, 0);
+
+    const clientDebtsFromOtherOrders = allOrders
+      .filter(o => 
+        o.id !== order.id &&
+        o.type === 'name' &&
+        o.status !== 'paid' &&
+        (o.identifier as string).toUpperCase() === clientName
+      )
+      .reduce((sum, o) => {
+        const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+        const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+        return sum + (orderTotal - orderPaid);
+      }, 0);
+      
+    const previousDebt = clientCredits - clientDebtsFromOtherOrders;
+
+    return {
+      previousDebt: previousDebt,
+      dailyConsumption: total
+    };
+
+  }, [order, allOrders, allClients, allCredits, total]);
+
   
   const groupedItemsForDisplay = useMemo(() => {
     const map = new Map<string, OrderItem>();
@@ -134,34 +172,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return Array.from(map.values());
   }, [order.items]);
 
-  const previousBalance = useMemo(() => {
-    if (order.type !== 'name') return 0;
-    
-    const clientName = (order.identifier as string).toUpperCase();
-    const client = allClients.find(c => c.name.toUpperCase() === clientName);
-    if (!client) return 0;
-
-    // Calculate balance from client credits
-    const creditBalance = allCredits
-      .filter(c => c.client_id === client.id)
-      .reduce((acc, c) => acc + c.amount, 0);
-
-    // Calculate debt from ALL other open orders for this client
-    const debtFromOtherOrders = allOrders
-      .filter(o => 
-          o.type === 'name' && 
-          (o.identifier as string).toUpperCase() === clientName && 
-          o.status !== 'paid' &&
-          o.id !== order.id // Exclude the current order from previous balance calculation
-      )
-      .reduce((totalDebt, o) => {
-          const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-          const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-          return totalDebt + (orderTotal - orderPaid);
-      }, 0);
-
-    return creditBalance - debtFromOtherOrders;
-  }, [order, allOrders, allClients, allCredits]);
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     let updatedItems = [...order.items];
@@ -232,7 +242,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const handleWhatsAppShare = () => {
     let message = '';
-    const finalDebt = previousBalance + dailyConsumption;
+    const finalDebt = previousDebt - dailyConsumption;
     
     if (isFromNotebook) {
         const dateStr = format(new Date(order.created_at), 'dd/MM/yyyy');
@@ -242,11 +252,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
         ).join('\n');
         message += `\n\n*Valor do Dia: R$ ${total.toFixed(2).replace('.', ',')}*`;
-        const balanceBeforeThisOrder = previousBalance - total;
+        const balanceBeforeThisOrder = previousDebt + total;
         if (balanceBeforeThisOrder !== 0) {
             message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
-        message += `\n*DÍVIDA TOTAL: R$ ${previousBalance.toFixed(2).replace('.', ',')}*`;
+        message += `\n*DÍVIDA TOTAL: R$ ${(Math.abs(previousDebt)).toFixed(2).replace('.', ',')}*`;
 
     } else {
         const headerIdentifier = order.type === 'table' && order.customer_name
@@ -259,16 +269,18 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
         ).join('\n');
 
-        if (previousBalance < 0) {
-             message += `\n\n*Saldo Anterior: R$ ${previousBalance.toFixed(2).replace('.', ',')}*`;
+        if (previousDebt < 0) {
+             message += `\n\n*Saldo Anterior: R$ ${previousDebt.toFixed(2).replace('.', ',')}*`;
         }
 
-        message += `\n*Total: R$ ${finalDebt.toFixed(2).replace('.', ',')}*`;
+        const totalToPay = dailyConsumption - previousDebt;
+        message += `\n*Total: R$ ${totalToPay.toFixed(2).replace('.', ',')}*`;
+
 
         if (paidAmount > 0) {
             message += `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*`;
             if (!isPaid) {
-                message += `\n*Restante: R$ ${(finalDebt - paidAmount).toFixed(2).replace('.', ',')}*`;
+                message += `\n*Restante: R$ ${(totalToPay - paidAmount).toFixed(2).replace('.', ',')}*`;
             }
         }
     }
@@ -357,7 +369,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
 
-  const totalToDisplay = previousBalance + dailyConsumption - paidAmount;
+  const totalToDisplay = dailyConsumption - previousDebt - paidAmount;
 
 
   return (
@@ -489,11 +501,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
               <SheetFooter className="mt-auto pt-4">
                 <div className="w-full space-y-4">
-                    {previousBalance !== 0 && (
+                    {previousDebt !== 0 && (
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
-                            <span className={previousBalance < 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
-                                R$ {previousBalance.toFixed(2).replace('.', ',')}
+                            <span className={previousDebt < 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
+                                R$ {previousDebt.toFixed(2).replace('.', ',')}
                             </span>
                         </div>
                     )}
@@ -501,8 +513,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Consumo do Dia</span>
-                          <span className={previousBalance < 0 ? "text-destructive font-medium" : "font-medium"}>
-                             - R$ {dailyConsumption.toFixed(2).replace('.', ',')}
+                          <span className={previousDebt < 0 ? "font-medium" : "font-medium"}>
+                              R$ {dailyConsumption.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                         {paidAmount > 0 && (
@@ -598,4 +610,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   );
 }
 
-    
