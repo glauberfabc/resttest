@@ -32,7 +32,7 @@ import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
-import { format, startOfToday, startOfDay } from 'date-fns';
+import { format, startOfToday, startOfDay, isToday } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -117,7 +117,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
-  const isFromNotebook = new Date(order.created_at) < startOfToday();
+  const isFromNotebook = !isToday(new Date(order.created_at));
+  
+  const dailyConsumption = isFromNotebook ? 0 : total;
   
   const groupedItemsForDisplay = useMemo(() => {
     const map = new Map<string, OrderItem>();
@@ -144,21 +146,21 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
     // Calculate balance from client credits before the current order
     const creditBalance = allCredits
-      .filter(c => c.client_id === client.id && new Date(c.created_at).getTime() < orderCreationTime)
+      .filter(c => c.client_id === client.id)
       .reduce((acc, c) => acc + c.amount, 0);
 
-    // Calculate debt from orders created before the current one (excluding the current one)
-    const openOrdersBefore = allOrders.filter(o => 
-      o.id !== order.id &&
-      o.type === 'name' && 
-      (o.identifier as string).toUpperCase() === clientName
-    );
-    
-    const debtFromOrders = openOrdersBefore.reduce((totalDebt, o) => {
-        const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-        const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-        return totalDebt + (orderTotal - orderPaid);
-    }, 0);
+    // Calculate debt from ALL open orders for this client, including old ones
+    const debtFromOrders = allOrders
+      .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientName && o.status !== 'paid')
+      .reduce((totalDebt, o) => {
+          // Exclude the current order's consumption from the "previous balance" if it's from today
+          if (o.id === order.id && isToday(new Date(o.created_at))) {
+            return totalDebt;
+          }
+          const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+          const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+          return totalDebt + (orderTotal - orderPaid);
+      }, 0);
 
     return creditBalance - debtFromOrders;
   }, [order, allOrders, allClients, allCredits]);
@@ -232,8 +234,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const handleWhatsAppShare = () => {
     let message = '';
-    const dailyTotal = total - paidAmount;
-    const finalDebt = previousBalance + dailyTotal;
+    const finalDebt = previousBalance + dailyConsumption;
     
     if (isFromNotebook) {
         const dateStr = format(new Date(order.created_at), 'dd/MM/yyyy');
@@ -242,11 +243,12 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         message += groupedItemsForDisplay.map(item => 
           `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
         ).join('\n');
-        message += `\n\n*Valor do Dia: R$ ${dailyTotal.toFixed(2).replace('.', ',')}*`;
-        if (previousBalance !== 0) {
-            message += `\n*Saldo Anterior: R$ ${previousBalance.toFixed(2).replace('.', ',')}*`;
+        message += `\n\n*Valor do Dia: R$ ${total.toFixed(2).replace('.', ',')}*`;
+        const balanceBeforeThisOrder = previousBalance - total;
+        if (balanceBeforeThisOrder !== 0) {
+            message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
-        message += `\n*DÍVIDA TOTAL: R$ ${finalDebt.toFixed(2).replace('.', ',')}*`;
+        message += `\n*DÍVIDA TOTAL: R$ ${previousBalance.toFixed(2).replace('.', ',')}*`;
 
     } else {
         const headerIdentifier = order.type === 'table' && order.customer_name
@@ -254,14 +256,21 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
         
         message += `*Comanda ${headerIdentifier}*\n\n`;
+        message += `*Consumo do dia:*\n`;
         message += groupedItemsForDisplay.map(item => 
             `${item.quantity}x ${item.menuItem.name}${item.comment ? ` (${item.comment})` : ''} - R$ ${(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}`
         ).join('\n');
-        message += `\n\n*Total: R$ ${total.toFixed(2).replace('.', ',')}*`;
+
+        if (previousBalance < 0) {
+             message += `\n\n*Saldo Anterior: R$ ${previousBalance.toFixed(2).replace('.', ',')}*`;
+        }
+
+        message += `\n*Total: R$ ${finalDebt.toFixed(2).replace('.', ',')}*`;
+
         if (paidAmount > 0) {
             message += `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*`;
             if (!isPaid) {
-                message += `\n*Restante: R$ ${remainingAmount.toFixed(2).replace('.', ',')}*`;
+                message += `\n*Restante: R$ ${(finalDebt - paidAmount).toFixed(2).replace('.', ',')}*`;
             }
         }
     }
@@ -350,7 +359,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
 
-  const totalToDisplay = remainingAmount + previousBalance;
+  const totalToDisplay = previousBalance + dailyConsumption - paidAmount;
 
 
   return (
@@ -490,12 +499,12 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                             </span>
                         </div>
                     )}
-                    {(paidAmount > 0 || previousBalance !== 0) && (
+                    {(paidAmount > 0 || dailyConsumption > 0) && (
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Consumo do Dia</span>
-                          <span className={previousBalance < 0 ? "text-destructive" : ""}>
-                            {previousBalance < 0 ? '- ' : ''}R$ {total.toFixed(2).replace('.', ',')}
+                          <span>
+                            R$ {dailyConsumption.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                         {paidAmount > 0 && (
@@ -508,7 +517,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       </>
                     )}
                     <div className="flex justify-between items-center text-xl font-bold">
-                        <span>{paidAmount > 0 || previousBalance !== 0 ? 'Total Geral' : 'Total'}</span>
+                        <span>{'Total Geral'}</span>
                         <span>R$ {totalToDisplay.toFixed(2).replace('.', ',')}</span>
                     </div>
 
