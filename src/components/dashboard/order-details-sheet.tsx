@@ -46,6 +46,8 @@ interface OrderDetailsSheetProps {
   onUpdateOrder: (order: Order) => void;
   onProcessPayment: (orderId: string, amount: number, method: string) => void;
   onDeleteOrder: (orderId: string) => void;
+  printedKitchenItems: OrderItem[];
+  onSetPrintedItems: (items: OrderItem[]) => void;
 }
 
 // Helper function to group items by key (menuItem.id + comment)
@@ -57,34 +59,23 @@ const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
     if (existing) {
       existing.quantity += item.quantity;
     } else {
-      grouped.set(key, { ...item });
+      // Ensure we're creating a new object to avoid mutation issues
+      grouped.set(key, { ...item }); 
     }
   });
   return grouped;
 };
 
 
-export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder }: OrderDetailsSheetProps) {
+export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder, printedKitchenItems, onSetPrintedItems }: OrderDetailsSheetProps) {
   const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   const [isCommentDialogOpen, setIsCommentDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
 
-  const [printedKitchenItems, setPrintedKitchenItems] = useState<OrderItem[]>([]);
   const [itemsToPrint, setItemsToPrint] = useState<OrderItem[]>([]);
   
   const { toast } = useToast();
-
-  useEffect(() => {
-    // When the order ID changes, reset the printed items state.
-    // We initialize it with the items of the new order IF the order is old,
-    // assuming they were already printed. If it's a new order, it starts empty.
-    if (isToday(new Date(order.created_at))) {
-        setPrintedKitchenItems([]);
-    } else {
-        setPrintedKitchenItems([...order.items]);
-    }
-  }, [order.id, order.created_at, order.items]);
 
   useEffect(() => {
     const currentGrouped = groupOrderItems(order.items);
@@ -115,48 +106,44 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const isFromBeforeToday = !isToday(new Date(order.created_at));
 
   const { previousDebt, dailyConsumption } = useMemo(() => {
-    if (order.type !== 'name') {
-      return { previousDebt: 0, dailyConsumption: total };
+    let previousDebtResult = 0;
+    const currentOrderConsumption = isToday(new Date(order.created_at)) ? total : 0;
+
+    if (order.type === 'name') {
+        const clientName = (order.identifier as string).toUpperCase();
+        const client = allClients.find(c => c.name.toUpperCase() === clientName);
+        
+        if (client) {
+            const clientCredits = allCredits
+                .filter(c => c.client_id === client.id)
+                .reduce((sum, c) => sum + c.amount, 0);
+
+            const allClientOpenOrdersDebt = allOrders
+                .filter(o => 
+                    o.type === 'name' &&
+                    o.status !== 'paid' &&
+                    o.id !== order.id && // Exclude the current order from this calculation
+                    (o.identifier as string).toUpperCase() === clientName
+                )
+                .reduce((sum, o) => {
+                    const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+                    const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                    return sum + (orderTotal - orderPaid);
+                }, 0);
+            
+            // If the current order is from a previous day, its value is part of the previous debt
+            const currentOrderDebtContribution = !isToday(new Date(order.created_at)) ? (total - paidAmount) : 0;
+            
+            previousDebtResult = allClientOpenOrdersDebt + clientCredits + currentOrderDebtContribution;
+        }
     }
-
-    const clientName = (order.identifier as string).toUpperCase();
-    const client = allClients.find(c => c.name.toUpperCase() === clientName);
     
-    if (!client) {
-      return { previousDebt: 0, dailyConsumption: total };
-    }
-    
-    // Calculate total credits for the client
-    const clientCredits = allCredits
-      .filter(c => c.client_id === client.id)
-      .reduce((sum, c) => sum + c.amount, 0);
-
-    // Calculate total debt from all UNPAID orders for this client, INCLUDING the current one if it's from a previous day
-    const allClientOpenOrdersDebt = allOrders
-      .filter(o => 
-        o.type === 'name' &&
-        o.status !== 'paid' &&
-        (o.identifier as string).toUpperCase() === clientName
-      )
-      .reduce((sum, o) => {
-        const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-        const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-        return sum + (orderTotal - orderPaid);
-      }, 0);
-
-    const currentOrderConsumption = isFromBeforeToday ? 0 : total;
-    const currentOrderPaidToday = isFromBeforeToday ? 0 : paidAmount;
-
-    // Total debt is all open orders sum + all credits (which are often negative for payments)
-    // From this total debt, we subtract what's being consumed today to get the "previous" balance
-    const totalPreviousDebt = allClientOpenOrdersDebt - (total - paidAmount) + clientCredits;
-
     return {
-      previousDebt: totalPreviousDebt,
+      previousDebt: previousDebtResult,
       dailyConsumption: currentOrderConsumption
     };
 
-  }, [order, allOrders, allClients, allCredits, total, paidAmount, isFromBeforeToday]);
+  }, [order, allOrders, allClients, allCredits, total, paidAmount]);
 
   
   const groupedItemsForDisplay = useMemo(() => {
@@ -317,7 +304,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       return;
     }
     window.print();
-    setPrintedKitchenItems([...order.items]); 
+    onSetPrintedItems([...order.items]);
   };
   
   const getFormattedPaidAt = () => {
@@ -570,5 +557,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
-    

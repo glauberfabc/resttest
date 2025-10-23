@@ -59,6 +59,9 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [searchTerm, setSearchTerm] = useState("");
   const [isFetching, setIsFetching] = useState(false);
 
+  // State to track printed items for each order
+  const [printedItemsMap, setPrintedItemsMap] = useState<Map<string, OrderItem[]>>(new Map());
+
   const [sortConfig, setSortConfig] = useState({
     caderneta: { key: 'identifier' as SortKey, direction: 'asc' as SortDirection },
     fechadas: { key: 'date' as SortKey, direction: 'desc' as SortDirection },
@@ -154,6 +157,13 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
 
   const handleSelectOrder = (order: Order) => {
+    if (!printedItemsMap.has(order.id)) {
+        // If we haven't seen this order before, initialize its printed items.
+        // If the order is from a previous day, assume all its items were already printed.
+        // If it's from today, start with an empty list of printed items.
+        const initialPrintedItems = new Date(order.created_at) < startOfToday() ? order.items : [];
+        setPrintedItemsMap(prev => new Map(prev).set(order.id, initialPrintedItems));
+    }
     setSelectedOrder(order);
   };
 
@@ -231,7 +241,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
     if (existingOrderToday) {
         toast({ title: "Comanda já existe", description: `Abrindo a comanda existente para ${identifier}.` });
-        setSelectedOrder(existingOrderToday);
+        handleSelectOrder(existingOrderToday); // Use the new handler
         setIsNewOrderDialogOpen(false);
         return;
     }
@@ -283,7 +293,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     };
     
     setOrders(prevOrders => [newOrder, ...prevOrders]);
-    setSelectedOrder(newOrder);
+    handleSelectOrder(newOrder); // Use the new handler
     setIsNewOrderDialogOpen(false);
   };
   
@@ -405,6 +415,9 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     }
   };
 
+  const handleSetPrintedItems = useCallback((orderId: string, items: OrderItem[]) => {
+      setPrintedItemsMap(prev => new Map(prev).set(orderId, items));
+  }, []);
 
   const filteredOrders = useMemo(() => {
     if (!searchTerm) {
@@ -715,6 +728,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
           allClients={clients}
           allCredits={credits}
           menuItems={menuItems}
+          printedKitchenItems={printedItemsMap.get(selectedOrder.id) || []}
+          onSetPrintedItems={(items) => handleSetPrintedItems(selectedOrder.id, items)}
           onOpenChange={(isOpen) => !isOpen && setSelectedOrder(null)}
           onUpdateOrder={handleUpdateOrder}
           onProcessPayment={handleProcessPayment}
@@ -734,5 +749,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
