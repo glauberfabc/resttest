@@ -32,7 +32,8 @@ import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
-import { format, formatInTimeZone, startOfToday, startOfDay } from 'date-fns';
+import { format, startOfToday, startOfDay } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
 
@@ -506,7 +507,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       </>
                     )}
                     <div className="flex justify-between items-center text-xl font-bold">
-                        <span>{paidAmount > 0 ? 'Restante' : 'Total'}</span>
+                        <span>{paidAmount > 0 || previousBalance !== 0 ? 'Total Geral' : 'Total'}</span>
                         <span>R$ {totalToDisplay.toFixed(2).replace('.', ',')}</span>
                     </div>
 
@@ -588,3 +589,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    

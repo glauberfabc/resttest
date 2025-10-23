@@ -105,3 +105,5 @@ export function PrintableReceipt({ order, total, paidAmount, remainingAmount, cl
     </div>
   );
 }
+
+    
