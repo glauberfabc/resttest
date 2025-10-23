@@ -151,8 +151,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const openOrdersBefore = allOrders.filter(o => 
       o.id !== order.id &&
       o.type === 'name' && 
-      (o.identifier as string).toUpperCase() === clientName &&
-      new Date(o.created_at).getTime() < orderCreationTime
+      (o.identifier as string).toUpperCase() === clientName
     );
     
     const debtFromOrders = openOrdersBefore.reduce((totalDebt, o) => {
@@ -495,7 +494,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Consumo do Dia</span>
-                          <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                          <span className={previousBalance < 0 ? "text-destructive" : ""}>
+                            {previousBalance < 0 ? '- ' : ''}R$ {total.toFixed(2).replace('.', ',')}
+                          </span>
                         </div>
                         {paidAmount > 0 && (
                             <div className="flex justify-between items-center text-sm text-muted-foreground">
@@ -589,4 +590,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
