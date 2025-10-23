@@ -32,7 +32,7 @@ import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
-import { format, startOfToday, startOfDay, isToday } from 'date-fns';
+import { format, isToday, startOfDay } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -114,7 +114,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-  const remainingAmount = total - paidAmount;
   const isPaid = order.status === 'paid';
   const timeZone = 'America/Sao_Paulo';
   const isFromNotebook = !isToday(new Date(order.created_at));
@@ -142,27 +141,26 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const client = allClients.find(c => c.name.toUpperCase() === clientName);
     if (!client) return 0;
 
-    const orderCreationTime = new Date(order.created_at).getTime();
-
-    // Calculate balance from client credits before the current order
+    // Calculate balance from client credits
     const creditBalance = allCredits
       .filter(c => c.client_id === client.id)
       .reduce((acc, c) => acc + c.amount, 0);
 
-    // Calculate debt from ALL open orders for this client, including old ones
-    const debtFromOrders = allOrders
-      .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientName && o.status !== 'paid')
+    // Calculate debt from ALL other open orders for this client
+    const debtFromOtherOrders = allOrders
+      .filter(o => 
+          o.type === 'name' && 
+          (o.identifier as string).toUpperCase() === clientName && 
+          o.status !== 'paid' &&
+          o.id !== order.id // Exclude the current order from previous balance calculation
+      )
       .reduce((totalDebt, o) => {
-          // Exclude the current order's consumption from the "previous balance" if it's from today
-          if (o.id === order.id && isToday(new Date(o.created_at))) {
-            return totalDebt;
-          }
           const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
           const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
           return totalDebt + (orderTotal - orderPaid);
       }, 0);
 
-    return creditBalance - debtFromOrders;
+    return creditBalance - debtFromOtherOrders;
   }, [order, allOrders, allClients, allCredits]);
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
@@ -378,7 +376,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           {isPaid ? (
             <>
                 <div className="flex-1 my-4 p-4 border rounded-md bg-white text-black overflow-y-auto font-mono">
-                    <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} className="!block !relative !w-full !p-0 !text-black !bg-white !shadow-none !border-none !text-sm" />
+                    <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} className="!block !relative !w-full !p-0 !text-black !bg-white !shadow-none !border-none !text-sm" />
                 </div>
                 <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2">
                     <Button variant="outline" className="w-full" onClick={() => window.print()}>
@@ -442,11 +440,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -item.quantity)} disabled={item.quantity <= 1}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)} disabled={item.quantity <= 1}>
                               <Minus className="h-4 w-4" />
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => addItemToOrder(item.menuItem)}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
                               <Plus className="h-4 w-4" />
                             </Button>
                           </div>
@@ -503,8 +501,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Consumo do Dia</span>
-                          <span>
-                            R$ {dailyConsumption.toFixed(2).replace('.', ',')}
+                          <span className={previousBalance < 0 ? "text-destructive font-medium" : "font-medium"}>
+                             - R$ {dailyConsumption.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                         {paidAmount > 0 && (
@@ -563,7 +561,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
       <div className="print-area">
         <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
-        {isPaid && <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={remainingAmount} />}
+        {isPaid && <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} />}
       </div>
 
       {!isPaid && (
@@ -599,3 +597,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    
