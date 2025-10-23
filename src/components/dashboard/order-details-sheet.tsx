@@ -32,7 +32,7 @@ import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText, Bluetooth, BluetoothConnected, BluetoothSearching } from "lucide-react";
-import { format, isToday, startOfDay } from 'date-fns';
+import { format, isToday, startOfDay } from "date-fns";
 import { formatInTimeZone } from 'date-fns-tz';
 import { useBluetoothPrinter } from "@/hooks/use-bluetooth-printer";
 import { useToast } from "@/hooks/use-toast";
@@ -69,8 +69,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   } = useBluetoothPrinter();
 
   useEffect(() => {
-    // Initialize printed items state only when the order ID changes.
-    setPrintedKitchenItems(order.items);
+    // Initialize with an empty array. The state will be populated after the first print.
+    setPrintedKitchenItems([]);
      // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order.id]);
 
@@ -133,10 +133,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       .filter(c => c.client_id === client.id)
       .reduce((sum, c) => sum + c.amount, 0);
 
-    // Calculate debt from all OTHER open orders for this client
+    // Calculate debt from all OTHER open/paying orders for this client
     const clientDebtsFromOtherOrders = allOrders
       .filter(o => 
-        o.id !== order.id &&
+        o.id !== order.id && // Exclude the current order
         o.type === 'name' &&
         o.status !== 'paid' &&
         (o.identifier as string).toUpperCase() === clientName
@@ -147,21 +147,22 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         return sum + (orderTotal - orderPaid);
       }, 0);
       
-    let debt = clientCredits - clientDebtsFromOtherOrders;
-    
-    let currentOrderConsumption = total;
-    // If the order is from a previous day, its value is part of the previous debt, not daily consumption
+    // If the current order is from a previous day, its value is part of the previous debt.
+    let debtFromCurrentOrder = 0;
     if (isFromBeforeToday) {
-        debt -= currentOrderConsumption;
-        currentOrderConsumption = 0;
+        const currentOrderTotal = total; // `total` is already calculated for the current order
+        const currentOrderPaid = paidAmount;
+        debtFromCurrentOrder = currentOrderTotal - currentOrderPaid;
     }
+    
+    const totalPreviousDebt = clientCredits - clientDebtsFromOtherOrders - debtFromCurrentOrder;
 
     return {
-      previousDebt: debt,
-      dailyConsumption: currentOrderConsumption
+      previousDebt: totalPreviousDebt,
+      dailyConsumption: isFromBeforeToday ? 0 : total
     };
 
-  }, [order, allOrders, allClients, allCredits, total, isFromBeforeToday]);
+  }, [order, allOrders, allClients, allCredits, total, paidAmount, isFromBeforeToday]);
 
   
   const groupedItemsForDisplay = useMemo(() => {
@@ -180,34 +181,37 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
-      const updatedItems = [...order.items];
-      const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
+    let updatedItems = [...order.items];
+    const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
 
-      if (delta === 0) { // Remove all with same menu item id and comment
-          const itemsToKeep = order.items.filter(i => {
-              const itemKey = `${i.menuItem.id}-${i.comment || ''}`;
-              return itemKey !== keyToUpdate;
-          });
-          onUpdateOrder({ ...order, items: itemsToKeep });
-          return;
-      }
-
-      const itemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToUpdate);
-
-      if (itemIndex > -1) {
-          updatedItems[itemIndex].quantity += delta;
-          if (updatedItems[itemIndex].quantity <= 0) {
-              updatedItems.splice(itemIndex, 1);
-          }
-      } else if (delta > 0) {
-          updatedItems.push({
-              ...itemToUpdate,
-              id: crypto.randomUUID(),
-              quantity: delta
-          });
-      }
-
+    if (delta === 0) { // Remove all items with the same key
+      updatedItems = updatedItems.filter(i => `${i.menuItem.id}-${i.comment || ''}` !== keyToUpdate);
       onUpdateOrder({ ...order, items: updatedItems });
+      return;
+    }
+    
+    // Try to find an item with the exact same key to update its quantity
+    const existingItemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToUpdate);
+
+    if (existingItemIndex > -1) {
+      // Create a new array with the updated item
+      updatedItems = updatedItems.map((item, index) => {
+        if (index === existingItemIndex) {
+          return { ...item, quantity: item.quantity + delta };
+        }
+        return item;
+      }).filter(item => item.quantity > 0); // Filter out items with quantity 0 or less
+    } else if (delta > 0) {
+      // If no existing item, add a new one
+      updatedItems.push({
+        id: crypto.randomUUID(),
+        menuItem: itemToUpdate.menuItem,
+        quantity: delta,
+        comment: itemToUpdate.comment,
+      });
+    }
+
+    onUpdateOrder({ ...order, items: updatedItems });
   };
   
   const addItemToOrder = useCallback((menuItem: MenuItem) => {
@@ -218,13 +222,16 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         comment: '',
     };
     
-    // Group with existing items if possible
-    const updatedItems = [...order.items];
+    let updatedItems = [...order.items];
     const keyToAdd = `${newItem.menuItem.id}-${newItem.comment || ''}`;
     const existingItemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToAdd);
 
     if (existingItemIndex > -1) {
-        updatedItems[existingItemIndex].quantity += 1;
+        updatedItems = updatedItems.map((item, index) => 
+            index === existingItemIndex 
+                ? { ...item, quantity: item.quantity + 1 } 
+                : item
+        );
     } else {
         updatedItems.push(newItem);
     }
@@ -326,7 +333,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       return;
     }
     window.print();
-    setPrintedKitchenItems([...order.items]); // Mark all current items as printed
+    // After printing, update the state of printed items to match the current order items.
+    setPrintedKitchenItems([...order.items]); 
   };
   
   const handleBluetoothPrint = () => {
@@ -355,7 +363,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     text += line;
 
     print(text);
-    setPrintedKitchenItems([...order.items]); // Mark all current items as printed
+    // After printing, update the state of printed items to match the current order items.
+    setPrintedKitchenItems([...order.items]);
   };
 
   const getFormattedPaidAt = () => {
@@ -577,7 +586,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
                             <Share className="h-4 w-4" />
                         </Button>
-                        <Button variant="outline" size="icon" onClick={handleKitchenPrint}>
+                        <Button variant="outline" size="icon" onClick={handleKitchenPrint} disabled={itemsToPrint.length === 0}>
                             <Printer className="h-4 w-4" />
                         </Button>
                         <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0 || totalToDisplay < 0.01}>
@@ -635,6 +644,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
 
 
 
