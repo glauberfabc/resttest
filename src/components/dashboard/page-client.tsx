@@ -223,15 +223,15 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
     const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
 
-    // Check for existing open orders for the same identifier (name or table)
-    const openOrders = orders.filter(o => o.status === 'open' || o.status === 'paying');
-    const existingOrder = openOrders.find(o => 
+    // Check for existing open orders FOR TODAY for the same identifier
+    const openOrdersToday = orders.filter(o => o.status !== 'paid' && new Date(o.created_at) >= startOfToday());
+    const existingOrderToday = openOrdersToday.find(o => 
         o.type === type && String(o.identifier).toUpperCase() === String(finalIdentifier).toUpperCase()
     );
 
-    if (existingOrder) {
+    if (existingOrderToday) {
         toast({ title: "Comanda já existe", description: `Abrindo a comanda existente para ${identifier}.` });
-        setSelectedOrder(existingOrder);
+        setSelectedOrder(existingOrderToday);
         setIsNewOrderDialogOpen(false);
         return;
     }
@@ -370,8 +370,8 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToDelete = orders.find(o => o.id === orderId);
     if (!orderToDelete) return;
 
-    const isPaid = orderToDelete.status === 'paid';
     const isEmpty = orderToDelete.items.length === 0;
+    const isPaid = orderToDelete.status === 'paid';
 
     if (!isPaid && !isEmpty) {
         toast({ 
@@ -456,7 +456,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     });
 
     return Array.from(dailyConsumptionMap.values());
-  }, [openOrders, todayStart]);
+  }, [openOrders]);
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
@@ -734,3 +734,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
