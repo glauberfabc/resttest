@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Client, Order, ClientCredit, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +36,7 @@ interface ClientsPageClientProps {
 export default function ClientsPageClient({ initialClients: initialClientsProp, initialOrders: initialOrdersProp, user }: ClientsPageClientProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
@@ -46,6 +47,12 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [searchTerm, setSearchTerm] = useState("");
 
+  useEffect(() => {
+    const searchFromUrl = searchParams.get('search');
+    if (searchFromUrl) {
+        setSearchTerm(searchFromUrl);
+    }
+  }, [searchParams]);
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
@@ -376,5 +383,3 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
-
-    

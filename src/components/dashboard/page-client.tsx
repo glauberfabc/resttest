@@ -2,6 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import type { Order, MenuItem, Client, OrderItem, ClientCredit, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
@@ -50,6 +51,7 @@ interface DashboardPageClientProps {
 export default function DashboardPageClient({ initialOrders: initialOrdersProp, menuItems: menuItemsProp, initialClients: initialClientsProp, user }: DashboardPageClientProps) {
   const { toast } = useToast();
   const supabase = createClient();
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
@@ -158,9 +160,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleSelectOrder = (order: Order) => {
     if (!printedItemsMap.has(order.id)) {
-        // If we haven't seen this order before, initialize its printed items.
         // If the order is from a previous day, assume all its items were already printed.
-        // If it's from today, start with an empty list of printed items.
         const initialPrintedItems = new Date(order.created_at) < startOfToday() ? order.items : [];
         setPrintedItemsMap(prev => new Map(prev).set(order.id, initialPrintedItems));
     }
@@ -526,6 +526,11 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     });
   };
 
+  const handleNotebookClick = (order: Order) => {
+    const clientName = order.identifier as string;
+    router.push(`/dashboard/clients?search=${encodeURIComponent(clientName)}`);
+  };
+
   const renderPaginatedOrders = (orderList: Order[], tab: 'abertas' | 'caderneta' | 'fechadas') => {
     const { currentPage } = pagination[tab];
     const totalPages = Math.ceil(orderList.length / ITEMS_PER_PAGE);
@@ -586,7 +591,11 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                          const dateToDisplay = order.status === 'paid' && order.paid_at ? order.paid_at : order.created_at;
 
                         return (
-                            <TableRow key={order.id} onClick={() => handleSelectOrder(order)} className="cursor-pointer">
+                            <TableRow 
+                                key={order.id} 
+                                onClick={() => tabName === 'caderneta' ? handleNotebookClick(order) : handleSelectOrder(order)} 
+                                className="cursor-pointer"
+                            >
                                 <TableCell className="font-medium whitespace-nowrap">
                                     {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}
                                     {order.customer_name && <span className="text-xs text-muted-foreground block">{order.customer_name}</span>}
