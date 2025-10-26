@@ -22,8 +22,8 @@ export function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const supabase = createClient();
-  const [email, setEmail] = useState("snooker@snooker.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
