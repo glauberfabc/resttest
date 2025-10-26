@@ -333,46 +333,57 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         return;
     }
 
-    // This is the order currently open in the sheet
     const currentOrderTotal = orderToPay.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
     const currentOrderTotalPaid = (orderToPay.payments?.reduce((acc, p) => acc + p.amount, 0) || 0) + amount;
+    
+    let isCurrentOrderFullyPaid = currentOrderTotalPaid >= currentOrderTotal - 0.001;
+    let finalStatus = orderToPay.status;
 
-    const isCurrentOrderFullyPaid = currentOrderTotalPaid >= currentOrderTotal - 0.001;
-    let finalStatus = isCurrentOrderFullyPaid ? 'paid' : 'paying';
-
-    // If it's a client order, check if this payment settles the ENTIRE debt
     if (orderToPay.type === 'name') {
         const clientName = (orderToPay.identifier as string).toUpperCase();
-        const clientOpenOrders = orders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientName && o.status !== 'paid');
-        const totalDebt = clientOpenOrders.reduce((sum, o) => {
-            const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-            const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-            return sum + (orderTotal - orderPaid);
-        }, 0);
+        const client = clients.find(c => c.name.toUpperCase() === clientName);
 
-        const clientCreditBalance = credits
-            .filter(c => clients.find(cl => cl.name.toUpperCase() === clientName)?.id === c.client_id)
-            .reduce((sum, c) => sum + c.amount, 0);
+        if (client) {
+            const clientOpenOrders = orders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientName && o.status !== 'paid');
+            const totalDebt = clientOpenOrders.reduce((sum, o) => {
+                const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+                const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                return sum + (orderTotal - orderPaid);
+            }, 0);
 
-        const netDebt = totalDebt - clientCreditBalance;
-        
-        if (amount >= netDebt - 0.001) { // Payment covers all debt
-            const paidAt = new Date().toISOString();
-            const orderIdsToUpdate = clientOpenOrders.map(o => o.id);
+            const clientCreditBalance = credits
+                .filter(c => c.client_id === client.id)
+                .reduce((sum, c) => sum + c.amount, 0);
+
+            const netDebt = totalDebt - clientCreditBalance;
+            const totalPaidIncludingNew = (orderToPay.payments?.reduce((acc, p) => acc + p.amount, 0) || 0) + amount;
             
-            const { error: updateError } = await supabase
-                .from('orders')
-                .update({ status: 'paid', paid_at: paidAt })
-                .in('id', orderIdsToUpdate);
+            // Check if the payment covers all open orders for this client.
+            if (totalPaidIncludingNew >= netDebt - 0.01) {
+                const paidAt = new Date().toISOString();
+                const orderIdsToUpdate = clientOpenOrders.map(o => o.id);
+                
+                const { error: updateError } = await supabase
+                    .from('orders')
+                    .update({ status: 'paid', paid_at: paidAt })
+                    .in('id', orderIdsToUpdate);
 
-            if (updateError) {
-                console.error("Error closing client orders:", updateError);
-                toast({ variant: 'destructive', title: "Erro ao fechar comandas", description: "O pagamento foi registrado, mas não foi possível fechar todas as comandas antigas." });
-            } else {
-                 toast({ title: "Dívida quitada!", description: `Todas as comandas de ${clientName} foram pagas.` });
-                 finalStatus = 'paid';
+                if (updateError) {
+                    console.error("Error closing client orders:", updateError);
+                    toast({ variant: 'destructive', title: "Erro ao fechar comandas", description: "O pagamento foi registrado, mas não foi possível fechar todas as comandas antigas." });
+                } else {
+                    toast({ title: "Dívida quitada!", description: `Todas as comandas de ${clientName} foram pagas.` });
+                    finalStatus = 'paid';
+                    isCurrentOrderFullyPaid = true;
+                }
             }
         }
+    }
+    
+    if (isCurrentOrderFullyPaid) {
+        finalStatus = 'paid';
+    } else if (amount > 0) {
+        finalStatus = 'paying';
     }
 
     const { error: updateError } = await supabase
@@ -389,13 +400,28 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     if (finalStatus === 'paid') {
         setSelectedOrder(null);
     } else {
-        const updatedOrder = orders.find(o => o.id === orderId);
+        // Refetch the updated order to show the new payment in the sheet
+        const updatedOrder = (await supabase.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single()).data;
         if (updatedOrder) {
-            setSelectedOrder({
+             const formattedOrder: Order = {
                 ...updatedOrder,
-                status: 'paying',
-                payments: [...(updatedOrder.payments || []), paymentData] as any,
-            });
+                items: updatedOrder.items.map((item: any) => ({
+                    id: item.id || crypto.randomUUID(),
+                    quantity: item.quantity,
+                    comment: item.comment || '',
+                    menuItem: {
+                        ...item.menu_item,
+                        id: item.menu_item.id || crypto.randomUUID(),
+                        imageUrl: item.menu_item.image_url,
+                        lowStockThreshold: item.menu_item.low_stock_threshold,
+                    }
+                })),
+                created_at: new Date(updatedOrder.created_at),
+                paid_at: updatedOrder.paid_at ? new Date(updatedOrder.paid_at) : undefined,
+                createdAt: new Date(updatedOrder.created_at),
+                paidAt: updatedOrder.paid_at ? new Date(updatedOrder.paid_at) : undefined,
+            };
+            setSelectedOrder(formattedOrder);
         }
     }
 };
@@ -516,11 +542,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     });
   };
 
-  const handleNotebookClick = (order: Order) => {
-    const clientName = order.identifier as string;
-    router.push(`/dashboard/clients?search=${encodeURIComponent(clientName)}`);
-  };
-
   const renderPaginatedOrders = (orderList: Order[], tab: 'abertas' | 'caderneta' | 'fechadas') => {
     const { currentPage } = pagination[tab];
     const totalPages = Math.ceil(orderList.length / ITEMS_PER_PAGE);
@@ -583,7 +604,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                         return (
                             <TableRow 
                                 key={order.id} 
-                                onClick={() => tabName === 'caderneta' ? handleNotebookClick(order) : handleSelectOrder(order)} 
+                                onClick={() => handleSelectOrder(order)} 
                                 className="cursor-pointer"
                             >
                                 <TableCell className="font-medium whitespace-nowrap">

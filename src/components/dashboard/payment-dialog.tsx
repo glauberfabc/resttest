@@ -49,7 +49,7 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
     }, [order, clients, credits]);
 
     const handlePayment = (method: string) => {
-        const amount = parseFloat(paymentAmount);
+        const amount = parseFloat(paymentAmount.replace(',', '.'));
         if (isNaN(amount) || amount <= 0) {
             toast({ variant: 'destructive', title: "Valor inválido", description: "Por favor, insira um valor de pagamento positivo." });
             return;
@@ -71,7 +71,7 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
     ]
 
     // Only show "Pagar com Saldo" if it's a client order and they have a positive balance
-    if (order.type === 'name' && clientBalance > 0) {
+    if (order.type === 'name' && clientBalance > 0.001) {
         paymentMethods.push({ name: "Saldo Cliente", icon: WalletCards });
     }
 
@@ -96,8 +96,8 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
                 <div className="flex gap-2">
                     <Input
                         id="payment-amount"
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={paymentAmount}
                         onChange={(e) => setPaymentAmount(e.target.value)}
                         placeholder="0,00"
