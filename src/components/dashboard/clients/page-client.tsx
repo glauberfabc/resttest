@@ -46,6 +46,8 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [searchTerm, setSearchTerm] = useState("");
+  const [balanceFilter, setBalanceFilter] = useState<'all' | 'positive' | 'negative'>('all');
+
 
   useEffect(() => {
     const searchFromUrl = searchParams.get('search');
@@ -97,24 +99,6 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     }
   }, [user, fetchData]);
   
-  const sortedClients = useMemo(() => {
-    const filteredClients = clients.filter(client =>
-        client.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    return filteredClients.sort((a, b) => {
-        if (sortOrder === 'asc') {
-            return a.name.localeCompare(b.name);
-        } else {
-            return b.name.localeCompare(a.name);
-        }
-    });
-  }, [clients, searchTerm, sortOrder]);
-
-  const toggleSortOrder = () => {
-    setSortOrder(currentOrder => (currentOrder === 'asc' ? 'desc' : 'asc'));
-  };
-
   const clientBalances = useMemo(() => {
     const balanceMap = new Map<string, number>();
 
@@ -142,6 +126,31 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
 
     return balanceMap;
   }, [orders, clients, credits]);
+
+  const sortedClients = useMemo(() => {
+    const filteredByBalance = clients.filter(client => {
+        const balance = clientBalances.get(client.id) || 0;
+        if (balanceFilter === 'positive') return balance > 0;
+        if (balanceFilter === 'negative') return balance < 0;
+        return true; // 'all'
+    });
+
+    const filteredBySearch = filteredByBalance.filter(client =>
+        client.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    return filteredBySearch.sort((a, b) => {
+        if (sortOrder === 'asc') {
+            return a.name.localeCompare(b.name);
+        } else {
+            return b.name.localeCompare(a.name);
+        }
+    });
+  }, [clients, searchTerm, sortOrder, balanceFilter, clientBalances]);
+
+  const toggleSortOrder = () => {
+    setSortOrder(currentOrder => (currentOrder === 'asc' ? 'desc' : 'asc'));
+  };
 
 
   const handleSaveClient = async (clientData: Omit<Client, 'id' | 'user_id'>) => {
@@ -211,7 +220,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         const newCredit = { ...data, created_at: new Date(data.created_at) } as ClientCredit;
         setCredits(prev => [newCredit, ...prev]);
         const action = amount > 0 ? 'adicionado' : 'debitado';
-        toast({ title: "Sucesso!", description: `Valor de R$ ${Math.abs(amount).toFixed(2)} ${action}.` });
+        toast({ title: "Sucesso!", description: `Valor de R$ ${Math.abs(amount).toFixed(2).replace('.', ',')} ${action}.` });
     }
 
     setIsCreditFormOpen(false);
@@ -288,15 +297,23 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
         </Button>
       </div>
 
-      <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-              placeholder="Buscar cliente por nome..."
-              className="pl-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-          />
+      <div className="flex flex-col gap-4">
+        <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+                placeholder="Buscar cliente por nome..."
+                className="pl-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+            />
+        </div>
+        <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant={balanceFilter === 'all' ? 'default' : 'outline'} onClick={() => setBalanceFilter('all')}>Todos</Button>
+            <Button size="sm" variant={balanceFilter === 'negative' ? 'default' : 'outline'} onClick={() => setBalanceFilter('negative')}>Com Saldo Devedor</Button>
+            <Button size="sm" variant={balanceFilter === 'positive' ? 'default' : 'outline'} onClick={() => setBalanceFilter('positive')}>Com Saldo Positivo</Button>
+        </div>
       </div>
+
 
        <div className="border rounded-lg overflow-x-auto">
         <Table>
@@ -383,3 +400,5 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
+
+    
