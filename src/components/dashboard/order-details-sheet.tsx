@@ -47,12 +47,15 @@ interface OrderDetailsSheetProps {
   onProcessPayment: (orderId: string, amount: number, method: string) => void;
   onDeleteOrder: (orderId: string) => void;
   printedKitchenItems: OrderItem[];
-  onSetPrintedItems: (orderId: string, items: OrderItem[]) => void;
+  onSetPrintedItems: (items: OrderItem[]) => void;
 }
 
 // Helper function to group items by key (menuItem.id + comment)
 const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
   const grouped = new Map<string, OrderItem>();
+  if (!Array.isArray(items)) {
+    return grouped;
+  }
   items.forEach(item => {
     const key = `${item.menuItem.id}-${item.comment || ''}`;
     const existing = grouped.get(key);
@@ -79,7 +82,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   useEffect(() => {
     const currentGrouped = groupOrderItems(order.items);
-    const printedGrouped = groupOrderItems(printedKitchenItems || []);
+    const printedGrouped = groupOrderItems(printedKitchenItems);
     const newItems: OrderItem[] = [];
 
     currentGrouped.forEach((currentItem, key) => {
@@ -304,7 +307,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       document.body.appendChild(clonedPrintArea);
       window.print();
       document.body.removeChild(clonedPrintArea);
-      onSetPrintedItems(order.id, Array.from(groupOrderItems(order.items).values()));
+      onSetPrintedItems(Array.from(groupOrderItems(order.items).values()));
     }
   };
   
@@ -560,3 +563,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    
