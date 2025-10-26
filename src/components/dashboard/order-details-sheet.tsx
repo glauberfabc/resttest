@@ -47,7 +47,7 @@ interface OrderDetailsSheetProps {
   onProcessPayment: (orderId: string, amount: number, method: string) => void;
   onDeleteOrder: (orderId: string) => void;
   printedKitchenItems: OrderItem[];
-  onSetPrintedItems: (items: OrderItem[]) => void;
+  onSetPrintedItems: (orderId: string, items: OrderItem[]) => void;
 }
 
 // Helper function to group items by key (menuItem.id + comment)
@@ -79,7 +79,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   useEffect(() => {
     const currentGrouped = groupOrderItems(order.items);
-    const printedGrouped = groupOrderItems(printedKitchenItems);
+    const printedGrouped = groupOrderItems(printedKitchenItems || []);
     const newItems: OrderItem[] = [];
 
     currentGrouped.forEach((currentItem, key) => {
@@ -154,51 +154,56 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
-    const updatedItems = [...order.items];
-    let itemFoundAndUpdated = false;
+    let updatedItems = [...order.items];
+    let itemFound = false;
 
-    // Try to find and update existing item
-    const newItems = updatedItems.map(item => {
-        const currentKey = `${item.menuItem.id}-${item.comment || ''}`;
-        if (currentKey === keyToUpdate) {
-            itemFoundAndUpdated = true;
+    // First, try to find an exact match to update quantity or remove
+    updatedItems = updatedItems.map(item => {
+        if (`${item.menuItem.id}-${item.comment || ''}` === keyToUpdate) {
+            itemFound = true;
             return { ...item, quantity: item.quantity + delta };
         }
         return item;
-    });
+    }).filter(item => item.quantity > 0);
 
-    if (!itemFoundAndUpdated && delta > 0) {
-        // If not found, add as a new item
-        newItems.push({
-            id: crypto.randomUUID(),
+    // If adding a new item and it wasn't found, push it to the array
+    if (!itemFound && delta > 0) {
+        updatedItems.push({
+            id: crypto.randomUUID(), // Ensure a unique ID for each new item instance
             menuItem: itemToUpdate.menuItem,
             quantity: delta,
             comment: itemToUpdate.comment || '',
         });
     }
-    
-    let finalItems = newItems.filter(item => item.quantity > 0);
 
-    if (delta === 0) { // Special case to remove all of a kind
-        finalItems = updatedItems.filter(item => {
-            const currentKey = `${item.menuItem.id}-${item.comment || ''}`;
-            return currentKey !== keyToUpdate;
-        });
+    // Special case to remove all of a kind (e.g., trash icon)
+    if (delta === 0) {
+        updatedItems = order.items.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
     }
-
-    onUpdateOrder({ ...order, items: finalItems });
-  };
-
+    
+    onUpdateOrder({ ...order, items: updatedItems });
+};
   
   const addItemToOrder = useCallback((menuItem: MenuItem) => {
-    const newItem = {
-        id: crypto.randomUUID(),
-        menuItem,
-        quantity: 1,
-        comment: '',
-    };
-    updateItemQuantity(newItem, 1);
-  }, [order, onUpdateOrder]);
+    const key = `${menuItem.id}-`; // Key for item without comment
+    let items = [...order.items];
+    const existingItemIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === key);
+
+    if (existingItemIndex > -1) {
+        items[existingItemIndex] = {
+            ...items[existingItemIndex],
+            quantity: items[existingItemIndex].quantity + 1
+        };
+    } else {
+        items.push({
+            id: crypto.randomUUID(),
+            menuItem,
+            quantity: 1,
+            comment: '',
+        });
+    }
+    onUpdateOrder({ ...order, items });
+}, [order, onUpdateOrder]);
   
   const handleEditComment = (item: OrderItem) => {
     setEditingItem(item);
@@ -299,7 +304,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       document.body.appendChild(clonedPrintArea);
       window.print();
       document.body.removeChild(clonedPrintArea);
-      onSetPrintedItems(Array.from(groupOrderItems(order.items).values()));
+      onSetPrintedItems(order.id, Array.from(groupOrderItems(order.items).values()));
     }
   };
   
@@ -388,8 +393,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
               <ScrollArea className="flex-1 -mr-6">
                 {groupedItemsForDisplay.length > 0 ? (
                   <div className="pr-6">
-                    {groupedItemsForDisplay.map((item) => (
-                      <div key={item.id} className="flex items-center gap-4 py-3">
+                    {groupedItemsForDisplay.map((item, index) => (
+                      <div key={`${item.id}-${index}`} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}
@@ -417,7 +422,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)} disabled={item.quantity <= 1}>
+                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
                               <Minus className="h-4 w-4" />
                             </Button>
                             <span className="font-bold w-6 text-center">{item.quantity}</span>
