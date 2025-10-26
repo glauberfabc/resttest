@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { CreditCard, Landmark, CircleDollarSign, QrCode, WalletCards } from "lucide-react";
-import type { Order } from "@/lib/types";
+import type { Client, ClientCredit, Order } from "@/lib/types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
@@ -24,9 +24,11 @@ interface PaymentDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
   onConfirmPayment: (amount: number, method: string) => void;
+  clients: Client[];
+  credits: ClientCredit[];
 }
 
-export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChange, onConfirmPayment }: PaymentDialogProps) {
+export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChange, onConfirmPayment, clients, credits }: PaymentDialogProps) {
     const { toast } = useToast();
     
     // Note: 'totalAmountDue' is the remaining amount passed as a prop, including any previous debt.
@@ -35,6 +37,16 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
     useEffect(() => {
         setPaymentAmount(totalAmountDue.toFixed(2));
     }, [totalAmountDue]);
+
+    const clientBalance = useMemo(() => {
+        if (order.type !== 'name') return 0;
+        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
+        if (!client) return 0;
+
+        return credits
+            .filter(c => c.client_id === client.id)
+            .reduce((sum, c) => sum + c.amount, 0);
+    }, [order, clients, credits]);
 
     const handlePayment = (method: string) => {
         const amount = parseFloat(paymentAmount);
@@ -58,8 +70,8 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
         { name: "Dinheiro", icon: CircleDollarSign },
     ]
 
-    // Only show "Pagar com Saldo" if it's a client order
-    if (order.type === 'name') {
+    // Only show "Pagar com Saldo" if it's a client order and they have a positive balance
+    if (order.type === 'name' && clientBalance > 0) {
         paymentMethods.push({ name: "Saldo Cliente", icon: WalletCards });
     }
 

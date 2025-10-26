@@ -60,7 +60,7 @@ const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
       existing.quantity += item.quantity;
     } else {
       // Ensure we're creating a new object to avoid mutation issues
-      grouped.set(key, { ...item }); 
+      grouped.set(key, { ...item, quantity: item.quantity }); 
     }
   });
   return grouped;
@@ -80,21 +80,21 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   useEffect(() => {
     const currentGrouped = groupOrderItems(order.items);
     const printedGrouped = groupOrderItems(printedKitchenItems);
-    const newItemsToPrint: OrderItem[] = [];
+    const newItems: OrderItem[] = [];
 
     currentGrouped.forEach((currentItem, key) => {
         const printedItem = printedGrouped.get(key);
         const printedQuantity = printedItem ? printedItem.quantity : 0;
         
         if (currentItem.quantity > printedQuantity) {
-            newItemsToPrint.push({
+            newItems.push({
                 ...currentItem,
                 quantity: currentItem.quantity - printedQuantity,
             });
         }
     });
 
-    setItemsToPrint(newItemsToPrint);
+    setItemsToPrint(newItems);
   }, [order.items, printedKitchenItems]);
 
 
@@ -106,23 +106,25 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const isFromBeforeToday = !isToday(new Date(order.created_at));
 
   const { previousDebt, dailyConsumption } = useMemo(() => {
-    let previousDebtResult = 0;
-    const currentOrderConsumption = isToday(new Date(order.created_at)) ? total : 0;
+    let debt = 0;
+    const consumption = isToday(new Date(order.created_at)) ? total : 0;
 
     if (order.type === 'name') {
         const clientName = (order.identifier as string).toUpperCase();
         const client = allClients.find(c => c.name.toUpperCase() === clientName);
         
         if (client) {
+            // Sum all credits for the client
             const clientCredits = allCredits
                 .filter(c => c.client_id === client.id)
                 .reduce((sum, c) => sum + c.amount, 0);
-
-            const allClientOpenOrdersDebt = allOrders
+            
+            // Sum debt from all open orders for this client, excluding the current one
+            const otherOpenOrdersDebt = allOrders
                 .filter(o => 
                     o.type === 'name' &&
                     o.status !== 'paid' &&
-                    o.id !== order.id && // Exclude the current order from this calculation
+                    o.id !== order.id &&
                     (o.identifier as string).toUpperCase() === clientName
                 )
                 .reduce((sum, o) => {
@@ -131,18 +133,17 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     return sum + (orderTotal - orderPaid);
                 }, 0);
             
-            // If the current order is from a previous day, its value is part of the previous debt
+            // If the current order is old, its value is part of the previous debt
             const currentOrderDebtContribution = !isToday(new Date(order.created_at)) ? (total - paidAmount) : 0;
-            
-            previousDebtResult = allClientOpenOrdersDebt + clientCredits + currentOrderDebtContribution;
+
+            debt = otherOpenOrdersDebt - clientCredits + currentOrderDebtContribution;
         }
     }
     
     return {
-      previousDebt: previousDebtResult,
-      dailyConsumption: currentOrderConsumption
+      previousDebt: debt,
+      dailyConsumption: consumption
     };
-
   }, [order, allOrders, allClients, allCredits, total, paidAmount]);
 
   
@@ -153,62 +154,51 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
     const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
-    let itemFound = false;
-    let updatedItems = order.items
-      .map(item => {
+    const updatedItems = [...order.items];
+    let itemFoundAndUpdated = false;
+
+    // Try to find and update existing item
+    const newItems = updatedItems.map(item => {
         const currentKey = `${item.menuItem.id}-${item.comment || ''}`;
         if (currentKey === keyToUpdate) {
-          itemFound = true;
-          return { ...item, quantity: item.quantity + delta };
+            itemFoundAndUpdated = true;
+            return { ...item, quantity: item.quantity + delta };
         }
         return item;
-      })
-      .filter(item => item.quantity > 0);
-  
-    if (!itemFound && delta > 0) {
-      updatedItems.push({
-        id: crypto.randomUUID(),
-        menuItem: itemToUpdate.menuItem,
-        quantity: delta,
-        comment: itemToUpdate.comment || '',
-      });
-    }
+    });
 
-    if(delta === 0) { // Special case to remove all items of a kind
-        updatedItems = order.items.filter(item => {
+    if (!itemFoundAndUpdated && delta > 0) {
+        // If not found, add as a new item
+        newItems.push({
+            id: crypto.randomUUID(),
+            menuItem: itemToUpdate.menuItem,
+            quantity: delta,
+            comment: itemToUpdate.comment || '',
+        });
+    }
+    
+    let finalItems = newItems.filter(item => item.quantity > 0);
+
+    if (delta === 0) { // Special case to remove all of a kind
+        finalItems = updatedItems.filter(item => {
             const currentKey = `${item.menuItem.id}-${item.comment || ''}`;
             return currentKey !== keyToUpdate;
         });
     }
-  
-    onUpdateOrder({ ...order, items: updatedItems });
+
+    onUpdateOrder({ ...order, items: finalItems });
   };
+
   
   const addItemToOrder = useCallback((menuItem: MenuItem) => {
-    const newItem: OrderItem = {
+    const newItem = {
         id: crypto.randomUUID(),
         menuItem,
         quantity: 1,
         comment: '',
     };
-    
-    let updatedItems = [...order.items];
-    const keyToAdd = `${newItem.menuItem.id}-${newItem.comment || ''}`;
-    const existingItemIndex = updatedItems.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyToAdd);
-
-    if (existingItemIndex > -1) {
-        // Create a new array with the updated item for react state change detection
-        updatedItems = updatedItems.map((item, index) => 
-            index === existingItemIndex 
-                ? { ...item, quantity: item.quantity + 1 } 
-                : item
-        );
-    } else {
-        updatedItems.push(newItem);
-    }
-
-    onUpdateOrder({ ...order, items: updatedItems });
-  },[order, onUpdateOrder]);
+    updateItemQuantity(newItem, 1);
+  }, [order, onUpdateOrder]);
   
   const handleEditComment = (item: OrderItem) => {
     setEditingItem(item);
@@ -254,10 +244,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         ).join('\n');
         message += `\n\n*Valor do Dia: R$ ${total.toFixed(2).replace('.', ',')}*`;
         const balanceBeforeThisOrder = previousDebt;
-        if (balanceBeforeThisOrder !== 0) {
+        if (balanceBeforeThisOrder < 0) {
             message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
-        message += `\n*DÍVIDA TOTAL: R$ ${(Math.abs(totalDebt)).toFixed(2).replace('.', ',')}*`;
+        message += `\n*DÍVIDA TOTAL: R$ ${(totalDebt).toFixed(2).replace('.', ',')}*`;
 
     } else {
         const headerIdentifier = order.type === 'table' && order.customer_name
@@ -303,8 +293,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
       return;
     }
-    window.print();
-    onSetPrintedItems([...order.items]);
+    const printArea = document.querySelector('.print-area');
+    if (printArea) {
+      const clonedPrintArea = printArea.cloneNode(true);
+      document.body.appendChild(clonedPrintArea);
+      window.print();
+      document.body.removeChild(clonedPrintArea);
+      onSetPrintedItems(Array.from(groupOrderItems(order.items).values()));
+    }
   };
   
   const getFormattedPaidAt = () => {
@@ -323,7 +319,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const sheetTitle = () => {
     let baseTitle = isPaid ? 'Comprovante' : 'Comanda';
-    if (isFromBeforeToday) baseTitle = 'Caderneta';
+    if (isFromBeforeToday && !isPaid) baseTitle = 'Caderneta';
     
     const identifier = order.type === 'table' && order.customer_name
       ? `Mesa ${order.identifier} (${order.customer_name})`
@@ -331,7 +327,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       
     let finalTitle = `${baseTitle}: ${identifier}`;
 
-    if (isFromBeforeToday) {
+    if (isFromBeforeToday && !isPaid) {
       finalTitle += ` - ${format(new Date(order.created_at), 'dd/MM/yyyy')}`;
     }
 
@@ -470,10 +466,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
               <SheetFooter className="mt-auto pt-4">
                 <div className="w-full space-y-4">
-                    {previousDebt < 0 && (
+                    {previousDebt !== 0 && (
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
-                            <span className={"text-destructive font-medium"}>
+                            <span className={previousDebt < 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
                                 R$ {previousDebt.toFixed(2).replace('.', ',')}
                             </span>
                         </div>
@@ -482,8 +478,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Consumo do Dia</span>
-                          <span className="font-medium text-destructive">
-                              - R$ {dailyConsumption.toFixed(2).replace('.', ',')}
+                          <span>
+                              R$ {dailyConsumption.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                       </>
@@ -491,10 +487,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     {paidAmount > 0 && (
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                         <span>Total Pago Hoje</span>
-                        <span className="font-medium text-green-600">+ R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                        <span className="font-medium text-green-600">R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
                         </div>
                     )}
-                    {(previousDebt < 0 || dailyConsumption > 0 || paidAmount > 0) && <Separator />}
+                    {(previousDebt !== 0 || dailyConsumption > 0 || paidAmount > 0) && <Separator />}
                     <div className="flex justify-between items-center text-xl font-bold">
                         <span>{'Total Geral'}</span>
                         <span>R$ {totalToDisplay.toFixed(2).replace('.', ',')}</span>
@@ -542,6 +538,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 isOpen={isPaymentDialogOpen}
                 onOpenChange={setIsPaymentDialogOpen}
                 onConfirmPayment={handlePayment}
+                clients={allClients}
+                credits={allCredits}
                 />
             )}
             {isCommentDialogOpen && editingItem && (

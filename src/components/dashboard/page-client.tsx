@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import type { Order, MenuItem, Client, OrderItem, ClientCredit, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
@@ -52,6 +52,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const { toast } = useToast();
   const supabase = createClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
@@ -61,7 +62,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [searchTerm, setSearchTerm] = useState("");
   const [isFetching, setIsFetching] = useState(false);
 
-  // State to track printed items for each order
   const [printedItemsMap, setPrintedItemsMap] = useState<Map<string, OrderItem[]>>(new Map());
 
   const [sortConfig, setSortConfig] = useState({
@@ -125,10 +125,11 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   }, [supabase, toast]);
 
   useEffect(() => {
-    if (user) {
-      // Initial fetch is done via props, so no need to call fetchData here on mount
+    const search = searchParams.get('search');
+    if(search) {
+        setSearchTerm(search);
     }
-  }, [user]);
+  }, [searchParams]);
 
   const handleRealtimeUpdate = useCallback(() => {
     fetchData(user, false);
@@ -159,11 +160,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
 
   const handleSelectOrder = (order: Order) => {
-    if (!printedItemsMap.has(order.id)) {
-        // If the order is from a previous day, assume all its items were already printed.
-        const initialPrintedItems = new Date(order.created_at) < startOfToday() ? order.items : [];
-        setPrintedItemsMap(prev => new Map(prev).set(order.id, initialPrintedItems));
-    }
     setSelectedOrder(order);
   };
 
@@ -189,7 +185,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     };
   
     if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
-      finalOrderDataForUpdate.created_at = new Date();
+      finalOrderDataForUpdate.created_at = new Date().toISOString();
     }
   
     const { error: orderError } = await supabase
@@ -241,7 +237,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
     if (existingOrderToday) {
         toast({ title: "Comanda já existe", description: `Abrindo a comanda existente para ${identifier}.` });
-        handleSelectOrder(existingOrderToday); // Use the new handler
+        handleSelectOrder(existingOrderToday);
         setIsNewOrderDialogOpen(false);
         return;
     }
@@ -293,14 +289,14 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     };
     
     setOrders(prevOrders => [newOrder, ...prevOrders]);
-    handleSelectOrder(newOrder); // Use the new handler
+    handleSelectOrder(newOrder);
     setIsNewOrderDialogOpen(false);
   };
   
   const handleProcessPayment = async (orderId: string, amount: number, method: string) => {
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
-    
+
     if (method === "Saldo Cliente") {
         const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
         if (!client) {
@@ -312,7 +308,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
             .from('client_credits')
             .insert({
                 client_id: client.id,
-                amount: -amount, // Use negative amount for debit
+                amount: -amount,
                 method: `Pagamento Comanda #${orderToPay.id.substring(0, 4)}`,
                 user_id: user.id,
             })
@@ -325,56 +321,85 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         }
     }
 
-
     const { data: paymentData, error: paymentError } = await supabase
         .from('order_payments')
-        .insert({
-            order_id: orderId,
-            amount,
-            method,
-        })
+        .insert({ order_id: orderId, amount, method })
         .select()
         .single();
-    
+
     if (paymentError || !paymentData) {
-         console.error("Error processing payment:", paymentError);
+        console.error("Error processing payment:", paymentError);
         toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
         return;
     }
 
-    const newPayment = { ...paymentData, paid_at: paymentData.paid_at };
-    let updatedOrder: Order = {
-      ...orderToPay,
-      payments: [...(orderToPay.payments || []), newPayment] as any,
-    };
+    // This is the order currently open in the sheet
+    const currentOrderTotal = orderToPay.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+    const currentOrderTotalPaid = (orderToPay.payments?.reduce((acc, p) => acc + p.amount, 0) || 0) + amount;
 
-    const orderTotal = updatedOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-    const totalPaid = updatedOrder.payments.reduce((acc, p) => acc + p.amount, 0);
-    
-    const isFullyPaid = totalPaid >= orderTotal - 0.001;
+    const isCurrentOrderFullyPaid = currentOrderTotalPaid >= currentOrderTotal - 0.001;
+    let finalStatus = isCurrentOrderFullyPaid ? 'paid' : 'paying';
 
-    if (isFullyPaid) {
-      updatedOrder = {
-        ...updatedOrder,
-        status: 'paid',
-        paid_at: new Date(),
-        paidAt: new Date(),
-      };
-    } else {
-        updatedOrder = {
-            ...updatedOrder,
-            status: 'paying',
-        };
+    // If it's a client order, check if this payment settles the ENTIRE debt
+    if (orderToPay.type === 'name') {
+        const clientName = (orderToPay.identifier as string).toUpperCase();
+        const clientOpenOrders = orders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientName && o.status !== 'paid');
+        const totalDebt = clientOpenOrders.reduce((sum, o) => {
+            const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+            const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+            return sum + (orderTotal - orderPaid);
+        }, 0);
+
+        const clientCreditBalance = credits
+            .filter(c => clients.find(cl => cl.name.toUpperCase() === clientName)?.id === c.client_id)
+            .reduce((sum, c) => sum + c.amount, 0);
+
+        const netDebt = totalDebt - clientCreditBalance;
+        
+        if (amount >= netDebt - 0.001) { // Payment covers all debt
+            const paidAt = new Date().toISOString();
+            const orderIdsToUpdate = clientOpenOrders.map(o => o.id);
+            
+            const { error: updateError } = await supabase
+                .from('orders')
+                .update({ status: 'paid', paid_at: paidAt })
+                .in('id', orderIdsToUpdate);
+
+            if (updateError) {
+                console.error("Error closing client orders:", updateError);
+                toast({ variant: 'destructive', title: "Erro ao fechar comandas", description: "O pagamento foi registrado, mas não foi possível fechar todas as comandas antigas." });
+            } else {
+                 toast({ title: "Dívida quitada!", description: `Todas as comandas de ${clientName} foram pagas.` });
+                 finalStatus = 'paid';
+            }
+        }
     }
-    
-    await handleUpdateOrder(updatedOrder); 
-    
-    if (isFullyPaid) {
-      setSelectedOrder(null); 
-    } else {
-      setSelectedOrder(updatedOrder);
+
+    const { error: updateError } = await supabase
+        .from('orders')
+        .update({ status: finalStatus, paid_at: finalStatus === 'paid' ? new Date().toISOString() : null })
+        .eq('id', orderId);
+
+    if (updateError) {
+         toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
     }
-  };
+
+    await fetchData(user, false);
+    
+    if (finalStatus === 'paid') {
+        setSelectedOrder(null);
+    } else {
+        const updatedOrder = orders.find(o => o.id === orderId);
+        if (updatedOrder) {
+            setSelectedOrder({
+                ...updatedOrder,
+                status: 'paying',
+                payments: [...(updatedOrder.payments || []), paymentData] as any,
+            });
+        }
+    }
+};
+
 
   const handleDeleteOrder = async (orderId: string) => {
     const orderToDelete = orders.find(o => o.id === orderId);
@@ -396,11 +421,9 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     setOrders(orders.filter(o => o.id !== orderId));
     setSelectedOrder(null);
 
-    // Cascade delete: payments and items first (if they exist)
     await supabase.from('order_payments').delete().eq('order_id', orderId);
     await supabase.from('order_items').delete().eq('order_id', orderId);
 
-    // Then delete the order itself
     const { error } = await supabase
       .from('orders')
       .delete()
@@ -436,39 +459,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
   
   const notebookOrders = useMemo(() => {
-    const dailyConsumptionMap = new Map<string, Order>();
-    
-    // Filter orders for the notebook (name-based, open/paying status, from before today)
-    const rawNotebookOrders = openOrders.filter(o => 
-      o.type === 'name' && new Date(o.created_at) < todayStart && o.items.length > 0
-    );
-
-    // Group items and payments by client and by day
-    rawNotebookOrders.forEach(order => {
-        const clientName = (order.identifier) as string;
-        const orderDay = startOfDay(new Date(order.created_at)).toISOString().split('T')[0];
-        const key = `${clientName}_${orderDay}`;
-
-        const existingDailyOrder = dailyConsumptionMap.get(key);
-
-        if (existingDailyOrder) {
-            // Merge items and payments into the existing daily order
-            existingDailyOrder.items.push(...order.items);
-            if (order.payments) {
-                existingDailyOrder.payments = [...(existingDailyOrder.payments || []), ...order.payments];
-            }
-        } else {
-            // This is the first order for this client on this day, create a new virtual order
-            const newDailyOrder: Order = JSON.parse(JSON.stringify(order));
-            newDailyOrder.created_at = startOfDay(new Date(order.created_at));
-            newDailyOrder.createdAt = newDailyOrder.created_at;
-            // Use the key as a stable ID for the virtual order
-            newDailyOrder.id = key; 
-            dailyConsumptionMap.set(key, newDailyOrder);
-        }
-    });
-
-    return Array.from(dailyConsumptionMap.values());
+    return openOrders.filter(o => o.type === 'name' && new Date(o.created_at) < todayStart && o.items.length > 0);
   }, [openOrders]);
 
 
@@ -481,7 +472,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         if (key === 'identifier') {
             const nameCompare = a.identifier.toString().localeCompare(b.identifier.toString());
             if (nameCompare !== 0) return nameCompare * direction;
-            // If names are the same, sort by date (newest first)
             return (new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         } else { // date
             return (new Date(a.created_at).getTime() - new Date(b.created_at).getTime()) * direction;
