@@ -48,7 +48,9 @@ export function AddCreditDialog({ isOpen, onOpenChange, onSave, client }: AddCre
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const numericAmount = parseFloat(amount);
+    const formattedAmount = amount.replace(',', '.');
+    const numericAmount = parseFloat(formattedAmount);
+
     if (isNaN(numericAmount) || numericAmount === 0) {
       toast({ variant: 'destructive', title: "Valor inválido", description: "Insira um valor diferente de zero." });
       return;
@@ -74,8 +76,8 @@ export function AddCreditDialog({ isOpen, onOpenChange, onSave, client }: AddCre
                 <Label htmlFor="amount" className="text-right">Valor (R$)</Label>
                 <Input
                     id="amount"
-                    type="number"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={amount}
                     onChange={e => setAmount(e.target.value)}
                     className="col-span-3"
