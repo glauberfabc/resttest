@@ -80,23 +80,42 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   
   const { toast } = useToast();
 
+  const getGroupedItems = (items: OrderItem[]): OrderItem[] => {
+    const groupedMap = new Map<string, OrderItem>();
+    if (!Array.isArray(items)) return [];
+  
+    items.forEach(item => {
+      const key = `${item.menuItem.id}-${item.comment || ''}`;
+      const existing = groupedMap.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        groupedMap.set(key, { ...item });
+      }
+    });
+  
+    return Array.from(groupedMap.values());
+  };
+
   useEffect(() => {
-    const currentGrouped = groupOrderItems(order.items);
-    const printedGrouped = groupOrderItems(printedKitchenItems);
+    const currentGrouped = getGroupedItems(order.items);
+    const printedGrouped = getGroupedItems(printedKitchenItems);
     const newItems: OrderItem[] = [];
 
-    currentGrouped.forEach((currentItem, key) => {
-        const printedItem = printedGrouped.get(key);
-        const printedQuantity = printedItem ? printedItem.quantity : 0;
-        
-        if (currentItem.quantity > printedQuantity) {
-            newItems.push({
-                ...currentItem,
-                quantity: currentItem.quantity - printedQuantity,
-            });
-        }
+    currentGrouped.forEach(currentItem => {
+      const printedItem = printedGrouped.find(pItem => 
+        pItem.menuItem.id === currentItem.menuItem.id && 
+        (pItem.comment || '') === (currentItem.comment || '')
+      );
+      const printedQuantity = printedItem ? printedItem.quantity : 0;
+      
+      if (currentItem.quantity > printedQuantity) {
+        newItems.push({
+          ...currentItem,
+          quantity: currentItem.quantity - printedQuantity,
+        });
+      }
     });
-
     setItemsToPrint(newItems);
   }, [order.items, printedKitchenItems]);
 
@@ -156,47 +175,37 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
 
   const updateItemQuantity = (itemToUpdate: OrderItem, delta: number) => {
-    const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
     let updatedItems = [...order.items];
-    let itemFound = false;
+    const keyToUpdate = `${itemToUpdate.menuItem.id}-${itemToUpdate.comment || ''}`;
 
-    // First, try to find an exact match to update quantity or remove
-    updatedItems = updatedItems.map(item => {
-        if (`${item.menuItem.id}-${item.comment || ''}` === keyToUpdate) {
-            itemFound = true;
-            return { ...item, quantity: item.quantity + delta };
+    if (delta === 0) { // Remove all items of this kind
+        updatedItems = updatedItems.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
+    } else {
+        const existingItemIndex = updatedItems.findIndex(item => `${item.menuItem.id}-${item.comment || ''}` === keyToUpdate);
+
+        if (existingItemIndex > -1) {
+            const newQuantity = updatedItems[existingItemIndex].quantity + delta;
+            if (newQuantity > 0) {
+                updatedItems[existingItemIndex].quantity = newQuantity;
+            } else {
+                updatedItems.splice(existingItemIndex, 1);
+            }
+        } else if (delta > 0) {
+            // This case should not happen if we add through menu picker, but as a fallback
+            updatedItems.push({ ...itemToUpdate, quantity: delta });
         }
-        return item;
-    }).filter(item => item.quantity > 0);
-
-    // If adding a new item and it wasn't found, push it to the array
-    if (!itemFound && delta > 0) {
-        updatedItems.push({
-            id: crypto.randomUUID(), // Ensure a unique ID for each new item instance
-            menuItem: itemToUpdate.menuItem,
-            quantity: delta,
-            comment: itemToUpdate.comment || '',
-        });
-    }
-
-    // Special case to remove all of a kind (e.g., trash icon)
-    if (delta === 0) {
-        updatedItems = order.items.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
     }
     
     onUpdateOrder({ ...order, items: updatedItems });
 };
   
   const addItemToOrder = useCallback((menuItem: MenuItem) => {
-    const key = `${menuItem.id}-`; // Key for item without comment
     let items = [...order.items];
+    const key = `${menuItem.id}-`; // Key for item without comment
     const existingItemIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === key);
 
     if (existingItemIndex > -1) {
-        items[existingItemIndex] = {
-            ...items[existingItemIndex],
-            quantity: items[existingItemIndex].quantity + 1
-        };
+        items[existingItemIndex].quantity += 1;
     } else {
         items.push({
             id: crypto.randomUUID(),
@@ -216,26 +225,31 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const handleSaveComment = (newComment: string) => {
     if (!editingItem) return;
 
-    let itemsWithoutOld = order.items.filter(i => {
-        const oldKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
-        const currentKey = `${i.menuItem.id}-${i.comment || ''}`;
-        return oldKey !== currentKey;
-    });
-
-    const keyWithNewComment = `${editingItem.menuItem.id}-${newComment || ''}`;
-    const existingItemIndexWithNewComment = itemsWithoutOld.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === keyWithNewComment);
+    let items = [...order.items];
+    const oldKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
+    const newKey = `${editingItem.menuItem.id}-${newComment || ''}`;
     
-    let finalItems = [];
+    // Find the item we are editing
+    const itemToEditIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === oldKey && i.quantity === editingItem.quantity);
+    
+    if (itemToEditIndex > -1) {
+      // Temporarily remove the item to be edited
+      const [itemToMove] = items.splice(itemToEditIndex, 1);
+      
+      // Check if an item with the new comment already exists
+      const existingWithNewCommentIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === newKey);
 
-    if (existingItemIndexWithNewComment > -1) {
-        itemsWithoutOld[existingItemIndexWithNewComment].quantity += editingItem.quantity;
-        finalItems = itemsWithoutOld;
-    } else {
-        const updatedItemWithNewComment = { ...editingItem, comment: newComment };
-        finalItems = [...itemsWithoutOld, updatedItemWithNewComment];
+      if (existingWithNewCommentIndex > -1) {
+        // Merge quantities
+        items[existingWithNewCommentIndex].quantity += itemToMove.quantity;
+      } else {
+        // Add back the item with the new comment
+        itemToMove.comment = newComment;
+        items.push(itemToMove);
+      }
     }
   
-    onUpdateOrder({ ...order, items: finalItems });
+    onUpdateOrder({ ...order, items: items });
     setEditingItem(null);
   };
 
@@ -307,7 +321,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       document.body.appendChild(clonedPrintArea);
       window.print();
       document.body.removeChild(clonedPrintArea);
-      onSetPrintedItems(Array.from(groupOrderItems(order.items).values()));
+      onSetPrintedItems(getGroupedItems(order.items));
     }
   };
   
@@ -325,15 +339,24 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     }
   };
 
+  const {displayIdentifier, displayObservation} = useMemo(() => {
+    if (order.type === 'table') {
+        return { displayIdentifier: `Mesa ${order.identifier}`, displayObservation: order.customer_name };
+    }
+    // For 'name' type
+    const match = order.customer_name?.match(/^(.*?)\s*\((.*?)\)$/);
+    if (match) {
+        return { displayIdentifier: match[1], displayObservation: match[2] };
+    }
+    return { displayIdentifier: order.identifier, displayObservation: null };
+}, [order]);
+
+
   const sheetTitle = () => {
     let baseTitle = isPaid ? 'Comprovante' : 'Comanda';
     if (isFromBeforeToday && !isPaid) baseTitle = 'Caderneta';
     
-    const identifier = order.type === 'table' && order.customer_name
-      ? `Mesa ${order.identifier} (${order.customer_name})`
-      : `${order.type === 'table' ? 'Mesa ' : ''}${order.identifier}`;
-      
-    let finalTitle = `${baseTitle}: ${identifier}`;
+    let finalTitle = `${baseTitle}: ${displayIdentifier}`;
 
     if (isFromBeforeToday && !isPaid) {
       finalTitle += ` - ${format(new Date(order.created_at), 'dd/MM/yyyy')}`;
@@ -354,7 +377,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
               {sheetTitle()}
             </SheetTitle>
             <SheetDescription>
-              {isPaid ? getFormattedPaidAt() : 'Visualize, adicione ou remova itens da comanda.'}
+              {displayObservation ? <span className="italic">{displayObservation}</span> : (isPaid ? getFormattedPaidAt() : 'Visualize, adicione ou remova itens da comanda.')}
             </SheetDescription>
           </SheetHeader>
           
@@ -397,7 +420,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 {groupedItemsForDisplay.length > 0 ? (
                   <div className="pr-6">
                     {groupedItemsForDisplay.map((item, index) => (
-                      <div key={`${item.id}-${index}`} className="flex items-center gap-4 py-3">
+                      <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
                         <Image
                           src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                           alt={item.menuItem.name}

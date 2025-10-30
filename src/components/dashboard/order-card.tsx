@@ -18,6 +18,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { useMemo } from "react";
 
 
 interface OrderCardProps {
@@ -57,9 +58,21 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
 
   const displayAmount = isPaid ? total : remainingAmount;
 
-  const cardTitle = order.type === 'table' && order.customer_name
-    ? `${order.identifier} - ${order.customer_name}`
-    : order.identifier;
+  const {displayIdentifier, displayObservation} = useMemo(() => {
+    if (order.type === 'table') {
+        return { displayIdentifier: order.identifier, displayObservation: order.customer_name };
+    }
+    // For 'name' type
+    const match = order.customer_name?.match(/^(.*?)\s*\((.*?)\)$/);
+    if (match) {
+        return { displayIdentifier: match[1], displayObservation: match[2] };
+    }
+    return { displayIdentifier: order.identifier, displayObservation: null };
+}, [order.customer_name, order.identifier, order.type]);
+
+  const cardTitle = order.type === 'table' && displayObservation
+    ? `${order.identifier} - ${displayObservation}`
+    : displayIdentifier;
 
 
   return (
@@ -70,7 +83,7 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
         <CardTitle className="text-base font-medium flex items-center gap-2">
           {order.type === 'table' ? <Table2 className="h-5 w-5 text-muted-foreground" /> : <User className="h-5 w-5 text-muted-foreground" />}
-          <span className="break-words">{cardTitle}</span>
+          <span className="break-all">{cardTitle}</span>
         </CardTitle>
         <div className="flex flex-col items-end gap-1 text-right">
             {isPaid && <Badge variant="secondary">Pago</Badge>}
@@ -85,6 +98,11 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
         <div className="text-sm text-muted-foreground">
           {itemCount} {itemCount === 1 ? 'item' : 'itens'}
         </div>
+        {displayObservation && order.type === 'name' && (
+            <div className="text-xs italic text-muted-foreground mt-1 truncate">
+                Obs: {displayObservation}
+            </div>
+        )}
         {isPartiallyPaid && (
              <div className="text-xs text-muted-foreground mt-1">
                 Pago R$ {paidAmount.toFixed(2).replace('.', ',')} de R$ {total.toFixed(2).replace('.', ',')}

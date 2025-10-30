@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Client, User, Order, ClientCredit } from "@/lib/types";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Textarea } from "@/components/ui/textarea";
 
 interface NewOrderDialogProps {
   isOpen: boolean;
@@ -34,6 +35,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
   const [tableCustomerName, setTableCustomerName] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [phone, setPhone] = useState('');
+  const [observation, setObservation] = useState('');
   const [showResults, setShowResults] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientDebt, setClientDebt] = useState<number>(0);
@@ -46,6 +48,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
             setTableCustomerName('');
             setCustomerName('');
             setPhone('');
+            setObservation('');
             setActiveTab('table');
             setShowResults(false);
             setSelectedClient(null);
@@ -116,7 +119,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
     e.preventDefault();
     if (customerName) {
         const identifier = selectedClient ? selectedClient.name : customerName;
-        onCreateOrder('name', identifier.toUpperCase(), identifier.toUpperCase(), phone);
+        const finalCustomerName = observation ? `${identifier.toUpperCase()} (${observation})` : identifier.toUpperCase();
+        onCreateOrder('name', identifier.toUpperCase(), finalCustomerName, phone);
     }
   }
   
@@ -208,41 +212,54 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
         </TabsContent>
         <TabsContent value="name" className="pt-4">
              <form onSubmit={handleNameOrderSubmit}>
-                <div className="relative">
-                  <Label htmlFor="customer-name">Nome do Cliente</Label>
-                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        id="customer-name" 
-                        placeholder="Buscar ou digitar novo nome..."
-                        onChange={handleInputChange}
-                        value={customerName}
-                        autoFocus
-                        autoComplete="off"
-                        className="pl-10"
-                        onBlur={handleInputBlur}
-                        onFocus={handleInputFocus}
-                    />
+                <div className="space-y-4">
+                  <div className="relative">
+                    <Label htmlFor="customer-name">Nome do Cliente</Label>
+                     <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                          id="customer-name" 
+                          placeholder="Buscar ou digitar novo nome..."
+                          onChange={handleInputChange}
+                          value={customerName}
+                          autoFocus
+                          autoComplete="off"
+                          className="pl-10"
+                          onBlur={handleInputBlur}
+                          onFocus={handleInputFocus}
+                      />
+                    </div>
+
+                    {showResults && filteredClients.length > 0 && (
+                      <div data-results-list className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
+                          {filteredClients.map((client) => (
+                            <button
+                              type="button"
+                              key={client.id}
+                              onClick={() => handleSelectClient(client)}
+                              className="flex w-full text-left items-center p-2 text-sm hover:bg-accent rounded-md"
+                            >
+                              <div>
+                                <p>{client.name}</p>
+                                <p className="text-xs text-muted-foreground">{client.phone}</p>
+                              </div>
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
-                  {showResults && filteredClients.length > 0 && (
-                    <div data-results-list className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
-                        {filteredClients.map((client) => (
-                          <button
-                            type="button"
-                            key={client.id}
-                            onClick={() => handleSelectClient(client)}
-                            className="flex w-full text-left items-center p-2 text-sm hover:bg-accent rounded-md"
-                          >
-                            <div>
-                              <p>{client.name}</p>
-                              <p className="text-xs text-muted-foreground">{client.phone}</p>
-                            </div>
-                          </button>
-                        ))}
+                   <div>
+                      <Label htmlFor="observation">Observação (Opcional)</Label>
+                      <Textarea
+                          id="observation"
+                          placeholder="Ex: Mesa perto da janela, etc."
+                          value={observation}
+                          onChange={(e) => setObservation(e.target.value)}
+                      />
                     </div>
-                  )}
                 </div>
+
 
                 {clientDebt < 0 && (
                   <Alert variant="destructive" className="mt-4">
@@ -282,3 +299,5 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
     </Dialog>
   );
 }
+
+    
