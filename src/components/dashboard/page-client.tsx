@@ -182,6 +182,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       status: updatedOrder.status,
       paid_at: updatedOrder.paidAt,
       customer_name: updatedOrder.customer_name,
+      observation: updatedOrder.observation,
     };
   
     if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
@@ -221,7 +222,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     } 
   };
   
-const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => {
+const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string, observation?: string) => {
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
         return;
@@ -268,6 +269,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         type, 
         identifier: String(finalIdentifier),
         customer_name: customerName,
+        observation: observation,
         status: 'open',
         user_id: user.id,
        })
@@ -785,5 +787,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    

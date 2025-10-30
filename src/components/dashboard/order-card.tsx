@@ -62,13 +62,9 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
     if (order.type === 'table') {
         return { displayIdentifier: order.identifier, displayObservation: order.customer_name };
     }
-    // For 'name' type
-    const match = order.customer_name?.match(/^(.*?)\s*\((.*?)\)$/);
-    if (match) {
-        return { displayIdentifier: match[1], displayObservation: match[2] };
-    }
-    return { displayIdentifier: order.identifier, displayObservation: null };
-}, [order.customer_name, order.identifier, order.type]);
+    
+    return { displayIdentifier: order.identifier, displayObservation: order.observation };
+}, [order]);
 
   const cardTitle = order.type === 'table' && displayObservation
     ? `${order.identifier} - ${displayObservation}`
@@ -98,7 +94,7 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
         <div className="text-sm text-muted-foreground">
           {itemCount} {itemCount === 1 ? 'item' : 'itens'}
         </div>
-        {displayObservation && order.type === 'name' && (
+        {displayObservation && (
             <div className="text-xs italic text-muted-foreground mt-1 truncate">
                 Obs: {displayObservation}
             </div>
@@ -151,5 +147,3 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
     </Card>
   );
 }
-
-    

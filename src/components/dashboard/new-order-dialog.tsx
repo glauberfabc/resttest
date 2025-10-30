@@ -22,7 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 interface NewOrderDialogProps {
   isOpen: boolean;
   onOpenChange: (isOpen: boolean) => void;
-  onCreateOrder: (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => void;
+  onCreateOrder: (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string, observation?: string) => void;
   clients: Client[];
   user: User;
   orders: Order[];
@@ -119,8 +119,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
     e.preventDefault();
     if (customerName) {
         const identifier = selectedClient ? selectedClient.name : customerName;
-        const finalCustomerName = observation ? `${identifier.toUpperCase()} (${observation})` : identifier.toUpperCase();
-        onCreateOrder('name', identifier.toUpperCase(), finalCustomerName, phone);
+        onCreateOrder('name', identifier.toUpperCase(), identifier.toUpperCase(), phone, observation);
     }
   }
   
@@ -299,5 +298,3 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
     </Dialog>
   );
 }
-
-    

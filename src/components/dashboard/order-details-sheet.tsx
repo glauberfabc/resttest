@@ -343,12 +343,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     if (order.type === 'table') {
         return { displayIdentifier: `Mesa ${order.identifier}`, displayObservation: order.customer_name };
     }
-    // For 'name' type
-    const match = order.customer_name?.match(/^(.*?)\s*\((.*?)\)$/);
-    if (match) {
-        return { displayIdentifier: match[1], displayObservation: match[2] };
-    }
-    return { displayIdentifier: order.identifier, displayObservation: null };
+    return { displayIdentifier: order.identifier, displayObservation: order.observation };
 }, [order]);
 
 
@@ -586,5 +581,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
-    

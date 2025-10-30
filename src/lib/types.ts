@@ -35,6 +35,7 @@ export interface Order {
   type: 'table' | 'name';
   identifier: string | number;
   customer_name?: string | null;
+  observation?: string | null;
   items: OrderItem[];
   status: 'open' | 'paying' | 'paid';
   created_at: Date;
