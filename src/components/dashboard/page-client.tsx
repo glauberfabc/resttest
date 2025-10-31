@@ -182,7 +182,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       status: updatedOrder.status,
       paid_at: updatedOrder.paidAt,
       customer_name: updatedOrder.customer_name,
-      observation: updatedOrder.observation,
     };
   
     if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
@@ -263,13 +262,16 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         }
     }
 
+    const finalCustomerName = customerName && observation
+    ? `${customerName} (${observation})`
+    : customerName;
+
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({ 
         type, 
         identifier: String(finalIdentifier),
-        customer_name: customerName,
-        observation: observation,
+        customer_name: finalCustomerName,
         status: 'open',
         user_id: user.id,
        })

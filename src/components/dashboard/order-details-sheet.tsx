@@ -343,8 +343,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     if (order.type === 'table') {
         return { displayIdentifier: `Mesa ${order.identifier}`, displayObservation: order.customer_name };
     }
-    return { displayIdentifier: order.identifier, displayObservation: order.observation };
-}, [order]);
+    
+    const nameMatch = order.identifier?.match(/^(.*?)\s*\((.*)\)$/);
+    if (nameMatch) {
+      return { displayIdentifier: nameMatch[1], displayObservation: nameMatch[2] };
+    }
+    
+    return { displayIdentifier: order.identifier, displayObservation: null };
+  }, [order]);
 
 
   const sheetTitle = () => {

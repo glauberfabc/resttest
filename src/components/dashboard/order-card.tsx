@@ -63,7 +63,13 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
         return { displayIdentifier: order.identifier, displayObservation: order.customer_name };
     }
     
-    return { displayIdentifier: order.identifier, displayObservation: order.observation };
+    // For 'name' type, extract observation from customer_name
+    const nameMatch = order.customer_name?.match(/^(.*?)\s*\((.*)\)$/);
+    if (nameMatch) {
+      return { displayIdentifier: nameMatch[1], displayObservation: nameMatch[2] };
+    }
+    
+    return { displayIdentifier: order.identifier, displayObservation: null };
 }, [order]);
 
   const cardTitle = order.type === 'table' && displayObservation
