@@ -342,7 +342,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
                     <TableRow key={client.id} className={balance < 0 ? "bg-destructive/10" : ""}>
                         <TableCell 
                             className="font-medium cursor-pointer hover:underline whitespace-nowrap"
-                            onClick={() => router.push(`/dashboard?search=${encodeURIComponent(client.name)}`)}
+                            onClick={() => handleCreateOrderForClient(client.name)}
                         >
                             {client.name}
                         </TableCell>
