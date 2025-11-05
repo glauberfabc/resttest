@@ -368,11 +368,11 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                 .reduce((sum, c) => sum + c.amount, 0);
 
             const clientOrderDebt = allFreshOrders
-                .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid')
+                .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier) // All orders, not just unpaid
                 .reduce((sum, o) => {
                     const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-                    const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                    return sum + (orderTotal - orderPaid);
+                    // The debt of an order is its full value, payments are part of the credit balance.
+                    return sum + orderTotal;
                 }, 0);
             
             totalDebt = clientOrderDebt - clientCreditBalance;
@@ -386,7 +386,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
     if (totalDebt <= 0.01) { // If total debt is paid off
         const paidAt = new Date().toISOString();
-        const orderIdsToUpdate = (clientIdentifier ? clientOpenOrders.map(o => o.id) : [orderId]);
+        const orderIdsToUpdate = (clientIdentifier ? allFreshOrders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier).map(o => o.id) : [orderId]);
         
         if (orderIdsToUpdate.length > 0) {
             const { error: updateError } = await supabase
@@ -746,7 +746,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       <Tabs defaultValue="abertas" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="abertas">Abertas ({openOrdersToday.length})</TabsTrigger>
-          <TabsTrigger value="caderneta">Caderneta ({notebookOrders.length})</TabsTrigger>
+          <TabsTrigger value="caderneta" onClick={() => router.push('/dashboard/clients')}>Caderneta ({notebookOrders.length})</TabsTrigger>
           <TabsTrigger value="fechadas">Fechadas ({paidOrders.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="abertas" className="mt-4">

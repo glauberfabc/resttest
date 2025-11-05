@@ -107,20 +107,24 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
       balanceMap.set(client.id, 0);
     });
 
-    // Add credits
+    // Add all credits (positive) and debits (negative payments/adjustments)
     credits.forEach(credit => {
       balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
     });
+    
+    // Find all orders for each client and subtract their total value
+    clients.forEach(client => {
+      const clientOrders = orders.filter(o => 
+          o.type === 'name' && (o.identifier as string).toUpperCase() === client.name.toUpperCase()
+      );
 
-    // Subtract debts from open orders
-    const openNameOrders = orders.filter(o => o.type === 'name' && o.status !== 'paid');
-    openNameOrders.forEach(order => {
-      const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
-      if (client) {
-        const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-        const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-        const remainingDebt = orderTotal - paidAmount;
-        balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebt);
+      const totalConsumed = clientOrders.reduce((total, order) => {
+          const orderValue = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+          return total + orderValue;
+      }, 0);
+
+      if (totalConsumed > 0) {
+        balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - totalConsumed);
       }
     });
 
@@ -338,13 +342,13 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
                     <TableRow key={client.id} className={balance < 0 ? "bg-destructive/10" : ""}>
                         <TableCell 
                             className="font-medium cursor-pointer hover:underline whitespace-nowrap"
-                            onClick={() => handleCreateOrderForClient(client.name)}
+                            onClick={() => router.push(`/dashboard?search=${encodeURIComponent(client.name)}`)}
                         >
                             {client.name}
                         </TableCell>
                         <TableCell className="whitespace-nowrap">{client.phone || client.document || "-"}</TableCell>
                         <TableCell className={`text-right font-mono font-semibold whitespace-nowrap ${balanceColor}`}>
-                            {balance !== 0 ? `R$ ${balance.toFixed(2).replace('.', ',')}` : "-"}
+                            {balance.toFixed(2) !== '0.00' ? `R$ ${balance.toFixed(2).replace('.', ',')}` : "-"}
                         </TableCell>
                         <TableCell>
                              <DropdownMenu>
@@ -400,5 +404,3 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
-
-    
