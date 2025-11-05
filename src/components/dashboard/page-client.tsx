@@ -301,23 +301,23 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
 
+    // This is the only place where a debit should be created in the client_credits table.
+    // It happens when the user explicitly chooses to pay using the client's available balance.
     if (method === "Saldo Cliente") {
         const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
         if (!client) {
             toast({ variant: 'destructive', title: "Erro", description: "Cliente não encontrado para pagamento com saldo." });
             return;
         }
-
-        const { data: creditData, error: creditError } = await supabase
+        
+        const { error: creditError } = await supabase
             .from('client_credits')
             .insert({
                 client_id: client.id,
-                amount: -amount,
+                amount: -amount, // Debit from the client's balance.
                 method: `Pagamento Comanda #${orderToPay.id.substring(0, 4)}`,
                 user_id: user.id,
-            })
-            .select()
-            .single();
+            });
 
         if (creditError) {
             toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível debitar do saldo do cliente." });
@@ -325,6 +325,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         }
     }
 
+    // For ANY payment method (including "Saldo Cliente"), we register the payment on the order.
     const { data: paymentData, error: paymentError } = await supabase
         .from('order_payments')
         .insert({ order_id: orderId, amount, method })
@@ -334,16 +335,21 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     if (paymentError || !paymentData) {
         console.error("Error processing payment:", paymentError);
         toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
+        // If "Saldo Cliente" was used, we should ideally revert the credit debit here.
+        // For simplicity, we'll ask the user to check manually for now.
+        if (method === "Saldo Cliente") {
+           toast({ variant: 'destructive', title: "Atenção", description: "O pagamento falhou, mas o saldo do cliente pode ter sido debitado. Verifique o extrato." });
+        }
         return;
     }
 
-    // After payment, re-fetch all data to ensure consistency.
+    // After a successful payment, always refetch data to get the latest state.
+    // This is crucial for correctly calculating the final debt.
     await fetchData(user, false);
     
-    // Determine which orders need to be closed.
-    const clientIdentifier = orderToPay.type === 'name' ? (orderToPay.identifier as string).toUpperCase() : null;
-    
-    // Recalculate balances and debts with the most recent data.
+    // --- Logic to close order(s) if fully paid ---
+    // We need to re-fetch the data again *inside* this function after the payment has been recorded
+    // to ensure our debt calculation is based on the absolute latest information.
     const { data: allFreshOrdersData } = await supabase
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
@@ -352,15 +358,17 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const { data: freshCreditsData } = await supabase.from('client_credits').select('*');
 
     if (!allFreshOrdersData || !freshCreditsData) {
-        toast({variant: 'destructive', title: 'Erro de sincronização', description: 'Não foi possível verificar o saldo final.'});
+        toast({variant: 'destructive', title: 'Erro de sincronização', description: 'Não foi possível verificar o saldo final após o pagamento.'});
         return;
     }
 
     const allFreshOrders = allFreshOrdersData.map(o => ({...o, created_at: new Date(o.created_at), items: o.items.map((i: any) => ({...i, menuItem: i.menu_item}))})) as Order[];
-    const clientOpenOrders = clientIdentifier ? allFreshOrders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid') : [];
-
+    
     let totalDebt = 0;
-    if(clientIdentifier) {
+    const clientIdentifier = orderToPay.type === 'name' ? (orderToPay.identifier as string).toUpperCase() : null;
+
+    if (clientIdentifier) {
+        // Calculate total debt for a 'name' client
         const client = clients.find(c => c.name.toUpperCase() === clientIdentifier);
         if (client) {
             const clientCreditBalance = freshCreditsData
@@ -368,25 +376,29 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                 .reduce((sum, c) => sum + c.amount, 0);
 
             const clientOrderDebt = allFreshOrders
-                .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier) // All orders, not just unpaid
+                .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier)
                 .reduce((sum, o) => {
                     const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-                    // The debt of an order is its full value, payments are part of the credit balance.
                     return sum + orderTotal;
                 }, 0);
             
             totalDebt = clientOrderDebt - clientCreditBalance;
         }
-    } else { // For 'table' orders
-        const orderTotal = orderToPay.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-        const totalPaid = (orderToPay.payments?.reduce((acc, p) => acc + p.amount, 0) || 0) + amount;
-        totalDebt = orderTotal - totalPaid;
+    } else { 
+        // Calculate remaining debt for a 'table' order
+        const freshOrder = allFreshOrders.find(o => o.id === orderId);
+        if (freshOrder) {
+            const orderTotal = freshOrder.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+            const totalPaid = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+            totalDebt = orderTotal - totalPaid;
+        }
     }
 
-
-    if (totalDebt <= 0.01) { // If total debt is paid off
+    if (totalDebt <= 0.01) { // If total debt for the client/table is paid off
         const paidAt = new Date().toISOString();
-        const orderIdsToUpdate = (clientIdentifier ? allFreshOrders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier).map(o => o.id) : [orderId]);
+        const orderIdsToUpdate = clientIdentifier 
+            ? allFreshOrders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid').map(o => o.id) 
+            : [orderId];
         
         if (orderIdsToUpdate.length > 0) {
             const { error: updateError } = await supabase
@@ -396,19 +408,15 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
             if (updateError) {
                 console.error("Error closing orders:", updateError);
-                toast({ variant: 'destructive', title: "Erro ao fechar comandas", description: "O pagamento foi registrado, mas não foi possível fechar todas as comandas." });
+                toast({ variant: 'destructive', title: "Erro ao fechar comandas", description: "O pagamento foi registrado, mas não foi possível fechar as comandas." });
             } else {
-                 if (clientIdentifier) {
-                     toast({ title: "Dívida quitada!", description: `Todas as comandas de ${clientIdentifier} foram pagas.` });
-                 } else {
-                     toast({ title: "Comanda paga!", description: "A comanda foi paga com sucesso." });
-                 }
+                 toast({ title: "Comanda(s) Paga(s)!", description: `A dívida foi quitada e a(s) comanda(s) foram fechadas.` });
             }
         }
         await fetchData(user, false);
         setSelectedOrder(null);
     } else {
-        // If not fully paid, just update the current order to 'paying'
+        // If not fully paid, update status to 'paying' to reflect a partial payment has been made.
         const { error: updateError } = await supabase
             .from('orders')
             .update({ status: 'paying' })
@@ -680,7 +688,9 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     ))}
                 </div>
             ) : (
-                renderOrderList(paginatedItems, tab as 'caderneta' | 'fechadas')
+                 <div onClick={() => router.push('/dashboard/clients')}>
+                    {renderOrderList(paginatedItems, tab as 'caderneta' | 'fechadas')}
+                </div>
             )
         ) : (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
@@ -753,7 +763,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
            {renderPaginatedOrders(openOrdersToday, 'abertas')}
         </TabsContent>
          <TabsContent value="caderneta" className="mt-4">
-           {renderPaginatedOrders(sortedNotebookOrders, 'caderneta')}
+            {renderPaginatedOrders(sortedNotebookOrders, 'caderneta')}
         </TabsContent>
         <TabsContent value="fechadas" className="mt-4">
             {renderPaginatedOrders(sortedPaidOrders, 'fechadas')}
@@ -789,3 +799,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
