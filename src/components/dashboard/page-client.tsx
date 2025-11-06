@@ -301,9 +301,19 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
 
-    // This is the only place where a debit should be created in the client_credits table.
-    // It happens when the user explicitly chooses to pay using the client's available balance.
-    if (method === "Saldo Cliente") {
+    if (method !== "Saldo Cliente") {
+        const { data: paymentData, error: paymentError } = await supabase
+            .from('order_payments')
+            .insert({ order_id: orderId, amount, method })
+            .select()
+            .single();
+
+        if (paymentError || !paymentData) {
+            console.error("Error processing payment:", paymentError);
+            toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
+            return;
+        }
+    } else { // Paying with client balance
         const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
         if (!client) {
             toast({ variant: 'destructive', title: "Erro", description: "Cliente não encontrado para pagamento com saldo." });
@@ -323,33 +333,15 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
             toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível debitar do saldo do cliente." });
             return;
         }
+         // Also record the payment on the order itself for history
+        await supabase.from('order_payments').insert({ order_id: orderId, amount, method });
     }
 
-    // For ANY payment method (including "Saldo Cliente"), we register the payment on the order.
-    const { data: paymentData, error: paymentError } = await supabase
-        .from('order_payments')
-        .insert({ order_id: orderId, amount, method })
-        .select()
-        .single();
-
-    if (paymentError || !paymentData) {
-        console.error("Error processing payment:", paymentError);
-        toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
-        // If "Saldo Cliente" was used, we should ideally revert the credit debit here.
-        // For simplicity, we'll ask the user to check manually for now.
-        if (method === "Saldo Cliente") {
-           toast({ variant: 'destructive', title: "Atenção", description: "O pagamento falhou, mas o saldo do cliente pode ter sido debitado. Verifique o extrato." });
-        }
-        return;
-    }
 
     // After a successful payment, always refetch data to get the latest state.
-    // This is crucial for correctly calculating the final debt.
     await fetchData(user, false);
     
     // --- Logic to close order(s) if fully paid ---
-    // We need to re-fetch the data again *inside* this function after the payment has been recorded
-    // to ensure our debt calculation is based on the absolute latest information.
     const { data: allFreshOrdersData } = await supabase
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
@@ -688,9 +680,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     ))}
                 </div>
             ) : (
-                 <div onClick={() => router.push('/dashboard/clients')}>
-                    {renderOrderList(paginatedItems, tab as 'caderneta' | 'fechadas')}
-                </div>
+                renderOrderList(paginatedItems, tab as 'caderneta' | 'fechadas')
             )
         ) : (
           <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-12 text-center mt-4">
@@ -756,7 +746,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       <Tabs defaultValue="abertas" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="abertas">Abertas ({openOrdersToday.length})</TabsTrigger>
-          <TabsTrigger value="caderneta" onClick={() => router.push('/dashboard/clients')}>Caderneta ({notebookOrders.length})</TabsTrigger>
+          <TabsTrigger value="caderneta">Caderneta ({notebookOrders.length})</TabsTrigger>
           <TabsTrigger value="fechadas">Fechadas ({paidOrders.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="abertas" className="mt-4">
@@ -799,5 +789,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
