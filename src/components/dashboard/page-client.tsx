@@ -262,16 +262,13 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         }
     }
 
-    const finalCustomerName = customerName && observation
-    ? `${customerName} (${observation})`
-    : customerName;
-
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({ 
         type, 
         identifier: String(finalIdentifier),
-        customer_name: finalCustomerName,
+        customer_name: customerName,
+        observation: observation,
         status: 'open',
         user_id: user.id,
        })
@@ -369,9 +366,12 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
 
             const clientOrderDebt = allFreshOrders
                 .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier)
+                 // Exclude orders that are already paid from the debt calculation, as their value is already accounted for in the credit/debit history
+                .filter(o => o.status !== 'paid')
                 .reduce((sum, o) => {
                     const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-                    return sum + orderTotal;
+                    const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                    return sum + orderTotal - orderPaid;
                 }, 0);
             
             totalDebt = clientOrderDebt - clientCreditBalance;
@@ -509,7 +509,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   }, [openOrders]);
 
 
-  const paidOrders = filteredOrders.filter(o => o.status === 'paid');
+  const paidOrders = filteredOrders.filter(o => o.status === 'paid' && o.type === 'name');
 
   const sortedNotebookOrders = useMemo(() => {
     return [...notebookOrders].sort((a, b) => {
