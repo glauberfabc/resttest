@@ -121,3 +121,21 @@ export async function getClientCredits(): Promise<ClientCredit[]> {
         created_at: new Date(credit.created_at)
     })) as ClientCredit[];
 }
+
+
+export async function getAdminUserId(): Promise<string | null> {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1)
+        .single();
+    
+    if (error || !data) {
+        console.error('Could not fetch admin user ID:', error);
+        return null;
+    }
+
+    return data.id;
+}

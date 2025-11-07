@@ -34,7 +34,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { getAdminUserId } from "@/lib/user-actions";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -222,15 +223,15 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     } 
   };
   
-const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string, observation?: string) => {
+const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => {
+    const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
+    const finalCustomerName = customerName ? `${customerName}` : null;
+    
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
         return;
     }
 
-    const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
-
-    // Check for existing open orders FOR TODAY for the same identifier
     const openOrdersToday = orders.filter(o => o.status !== 'paid' && new Date(o.created_at) >= startOfToday());
     const existingOrderToday = openOrdersToday.find(o => 
         o.type === type && String(o.identifier).toUpperCase() === String(finalIdentifier).toUpperCase()
@@ -242,6 +243,14 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         setIsNewOrderDialogOpen(false);
         return;
     }
+    
+    const adminUserId = await getAdminUserId();
+    const userIdToAssign = user.role === 'admin' ? user.id : adminUserId;
+
+    if (!userIdToAssign) {
+        toast({ variant: 'destructive', title: "Erro de Configuração", description: "Não foi possível encontrar um usuário administrador para associar a comanda." });
+        return;
+    }
 
     if (type === 'name' && phone !== undefined) {
         const clientName = String(finalIdentifier);
@@ -250,7 +259,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         if (!clientExists) {
             const { data: newClientData, error: clientError } = await supabase
                 .from('clients')
-                .insert({ name: clientName, phone: phone || null, user_id: user.id })
+                .insert({ name: clientName, phone: phone || null, user_id: userIdToAssign })
                 .select()
                 .single();
             
@@ -268,10 +277,9 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       .insert({ 
         type, 
         identifier: String(finalIdentifier),
-        customer_name: customerName,
-        observation: observation,
+        customer_name: finalCustomerName,
         status: 'open',
-        user_id: user.id,
+        user_id: userIdToAssign,
        })
       .select()
       .single();
