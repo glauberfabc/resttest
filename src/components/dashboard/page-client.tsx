@@ -79,10 +79,11 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (!currentUser) return;
     setIsFetching(true);
     
-    const { data: ordersData, error: ordersError } = await supabase
+    let query = supabase
         .from('orders')
-        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
-        .order('created_at', { ascending: false });
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`);
+
+    const { data: ordersData, error: ordersError } = await query.order('created_at', { ascending: false });
 
     if (ordersData) {
         const formattedOrders = ordersData.map(order => ({
@@ -262,17 +263,13 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         }
     }
 
-    let customerNameToSave = customerName;
-    if (type === 'name' && observation) {
-      customerNameToSave = `${customerName} (${observation})`;
-    }
-
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({ 
         type, 
         identifier: String(finalIdentifier),
-        customer_name: customerNameToSave,
+        customer_name: customerName,
+        observation: observation,
         status: 'open',
         user_id: user.id,
        })
@@ -363,7 +360,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     .reduce((sum, c) => sum + c.amount, 0);
 
                 const clientOrderDebt = allFreshOrders
-                    .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid')
+                    .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid' && o.id !== orderId)
                     .reduce((sum, o) => {
                         const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
                         const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
@@ -731,7 +728,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       <Tabs defaultValue="abertas" className="w-full">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="abertas">Abertas ({openOrdersToday.length})</TabsTrigger>
-          <TabsTrigger value="caderneta">Caderneta ({notebookOrders.length})</TabsTrigger>
+          <TabsTrigger value="caderneta" >Caderneta ({notebookOrders.length})</TabsTrigger>
           <TabsTrigger value="fechadas">Fechadas ({paidOrders.length})</TabsTrigger>
         </TabsList>
         <TabsContent value="abertas" className="mt-4">
@@ -774,5 +771,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
-
-    
