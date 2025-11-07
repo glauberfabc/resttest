@@ -35,7 +35,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getAdminUserId } from "@/lib/user-actions";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -163,6 +162,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleSelectOrder = (order: Order) => {
     setSelectedOrder(order);
+    handleSetPrintedItems(order.id, order.items);
   };
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
@@ -223,9 +223,13 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     } 
   };
   
-const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string) => {
+const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, observation?: string) => {
     const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
-    const finalCustomerName = customerName ? `${customerName}` : null;
+    let finalCustomerName = customerName || null;
+
+    if (type === 'name' && observation) {
+        finalCustomerName = `${customerName} (${observation})`;
+    }
     
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
@@ -244,14 +248,14 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         return;
     }
 
-    if (type === 'name' && phone !== undefined) {
+    if (type === 'name' && customerName) {
         const clientName = String(finalIdentifier);
         const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
 
         if (!clientExists) {
             const { data: newClientData, error: clientError } = await supabase
                 .from('clients')
-                .insert({ name: clientName, phone: phone || null, user_id: user.id })
+                .insert({ name: clientName, phone: null, user_id: user.id })
                 .select()
                 .single();
             
@@ -771,3 +775,5 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     </div>
   );
 }
+
+    
