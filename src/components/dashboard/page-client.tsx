@@ -167,69 +167,100 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
-    const originalOrder = originalOrders.find(o => o.id === updatedOrder.id);
-  
-    const newOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-    setOrders(newOrders);
-    if (selectedOrder?.id === updatedOrder.id) {
-      setSelectedOrder(updatedOrder);
-    }
-  
-    const wasInNotebook = originalOrder && isBefore(new Date(originalOrder.created_at), startOfToday());
-    const originalTotalQuantity = originalOrder?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
-    const updatedTotalQuantity = updatedOrder.items.reduce((sum, item) => sum + item.quantity, 0);
-    const itemWasAddedOrQuantityIncreased = updatedTotalQuantity > originalTotalQuantity;
-    
-    let finalOrderDataForUpdate: Partial<Order> = {
-      status: updatedOrder.status,
-      paid_at: updatedOrder.paidAt,
-      customer_name: updatedOrder.customer_name,
-    };
-  
-    if (wasInNotebook && itemWasAddedOrQuantityIncreased) {
-      finalOrderDataForUpdate.created_at = new Date().toISOString();
-    }
-  
-    const { error: orderError } = await supabase
-      .from('orders')
-      .update(finalOrderDataForUpdate)
-      .eq('id', updatedOrder.id);
-  
+
+    // First, delete all existing items for the order
     const { error: deleteError } = await supabase
-      .from('order_items')
-      .delete()
-      .eq('order_id', updatedOrder.id);
-  
-    const itemsToInsert = updatedOrder.items.map(item => ({
-      order_id: updatedOrder.id,
-      menu_item_id: item.menuItem.id, // Ensure menuItem.id is used
-      quantity: item.quantity,
-      comment: item.comment || null,
-    }));
-  
-    let itemsError = null;
-    if (itemsToInsert.length > 0) {
-      const { error } = await supabase.from('order_items').insert(itemsToInsert);
-      itemsError = error;
+        .from('order_items')
+        .delete()
+        .eq('order_id', updatedOrder.id);
+
+    if (deleteError) {
+        console.error("Error deleting old order items:", deleteError);
+        toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível remover os itens antigos." });
+        setOrders(originalOrders); // Rollback UI on error
+        return;
     }
-  
-    if (orderError || deleteError || itemsError) {
-      console.error("Error updating order:", orderError || deleteError || itemsError);
-      toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações." });
-      setOrders(originalOrders); 
-      if (selectedOrder?.id === updatedOrder.id) {
-        setSelectedOrder(originalOrders.find(o => o.id === updatedOrder.id) || null);
-      }
-    } 
+
+    // Then, insert the new list of items, if any
+    if (updatedOrder.items.length > 0) {
+        const itemsToInsert = updatedOrder.items.map(item => ({
+            order_id: updatedOrder.id,
+            menu_item_id: item.menuItem.id,
+            quantity: item.quantity,
+            comment: item.comment || null,
+        }));
+
+        const { error: insertError } = await supabase.from('order_items').insert(itemsToInsert);
+
+        if (insertError) {
+            console.error("Error inserting new order items:", insertError);
+            toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível adicionar os novos itens." });
+            // Attempt to restore original items might be complex, a refetch is safer
+            await fetchData(user, false);
+            return;
+        }
+    }
+
+    // Finally, update the order itself (e.g., status, dates)
+    const { error: orderError } = await supabase
+        .from('orders')
+        .update({
+            status: updatedOrder.status,
+            paid_at: updatedOrder.paidAt,
+            customer_name: updatedOrder.customer_name,
+            created_at: updatedOrder.created_at.toISOString(),
+        })
+        .eq('id', updatedOrder.id);
+
+    if (orderError) {
+        console.error("Error updating order:", orderError);
+        toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações da comanda." });
+        await fetchData(user, false); // Refetch to sync state
+        return;
+    }
+
+    // After all DB operations are successful, refetch data to update the UI
+    await fetchData(user, false);
+    
+    // Update the selected order in the sheet
+    const { data: freshlyUpdatedOrder } = await supabase
+        .from('orders')
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .eq('id', updatedOrder.id)
+        .single();
+    
+    if (freshlyUpdatedOrder) {
+        const formattedOrder: Order = {
+            ...freshlyUpdatedOrder,
+            items: freshlyUpdatedOrder.items.map((item: any) => ({
+                id: item.id || crypto.randomUUID(),
+                quantity: item.quantity,
+                comment: item.comment || '',
+                menuItem: {
+                    ...item.menu_item,
+                    id: item.menu_item.id || crypto.randomUUID(),
+                    imageUrl: item.menu_item.image_url,
+                    lowStockThreshold: item.menu_item.low_stock_threshold,
+                }
+            })),
+            created_at: new Date(freshlyUpdatedOrder.created_at),
+            paid_at: freshlyUpdatedOrder.paid_at ? new Date(freshlyUpdatedOrder.paid_at) : undefined,
+            createdAt: new Date(freshlyUpdatedOrder.created_at),
+            paidAt: freshlyUpdatedOrder.paid_at ? new Date(freshlyUpdatedOrder.paid_at) : undefined,
+        };
+        setSelectedOrder(formattedOrder);
+        // If the order becomes empty, close the sheet
+        if (formattedOrder.items.length === 0 && !isNewOrderDialogOpen) {
+            handleDeleteOrder(formattedOrder.id);
+        }
+
+    } else {
+         setSelectedOrder(null);
+    }
   };
   
 const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, observation?: string) => {
     const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
-    let finalCustomerName = customerName || null;
-
-    if (type === 'name' && observation) {
-        finalCustomerName = `${customerName} (${observation})`;
-    }
     
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
@@ -273,9 +304,10 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
       .insert({ 
         type, 
         identifier: String(finalIdentifier),
-        customer_name: finalCustomerName,
+        customer_name: customerName,
         status: 'open',
         user_id: user.id,
+        observation: observation,
        })
       .select()
       .single();
@@ -303,27 +335,42 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
 
-    const { error: paymentError } = await supabase
-        .from('order_payments')
-        .insert({ order_id: orderId, amount, method });
+    if (method === 'Saldo Cliente') {
+        const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        if (client) {
+            const { error: creditError } = await supabase.from('client_credits').insert({
+                client_id: client.id,
+                amount: -amount, // Debit from client's balance
+                method: 'Consumo',
+                user_id: user.id,
+            });
+            if (creditError) {
+                toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível abater o saldo do cliente." });
+                return;
+            }
+        }
+    } else {
+        const { error: paymentError } = await supabase
+            .from('order_payments')
+            .insert({ order_id: orderId, amount, method });
 
-    if (paymentError) {
-        console.error("Error processing payment:", paymentError);
-        toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
-        return;
+        if (paymentError) {
+            console.error("Error processing payment:", paymentError);
+            toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
+            return;
+        }
     }
 
-    // --- Data refetch and status update logic ---
     await fetchData(user, false); 
     
-    // Use a slight delay to allow Supabase replication to catch up before checking balances.
     setTimeout(async () => {
         const { data: allFreshOrdersData } = await supabase
             .from('orders')
             .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`);
         const { data: freshCreditsData } = await supabase.from('client_credits').select('*');
+        const { data: freshClientsData } = await supabase.from('clients').select('*');
 
-        if (!allFreshOrdersData || !freshCreditsData) {
+        if (!allFreshOrdersData || !freshCreditsData || !freshClientsData) {
             toast({variant: 'destructive', title: 'Erro de sincronização', description: 'Não foi possível verificar o saldo final.'});
             return;
         }
@@ -332,33 +379,32 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         
         let totalDebt = 0;
         const clientIdentifier = orderToPay.type === 'name' ? (orderToPay.identifier as string).toUpperCase() : null;
-
+        let client: Client | undefined;
         if (clientIdentifier) {
-            const client = clients.find(c => c.name.toUpperCase() === clientIdentifier);
-            if (client) {
-                const clientCreditBalance = freshCreditsData
-                    .filter(c => c.client_id === client.id)
-                    .reduce((sum, c) => sum + c.amount, 0);
+           client = (freshClientsData as Client[]).find(c => c.name.toUpperCase() === clientIdentifier);
+        }
 
-                const clientOrderDebt = allFreshOrders
-                    .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid')
-                     // Exclude the current order being paid from debt calculation to avoid race conditions
-                    .filter(o => o.id !== orderId)
-                    .reduce((sum, o) => {
-                        const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-                        const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                        return sum + (orderTotal - orderPaid);
-                    }, 0);
-                
-                totalDebt = clientOrderDebt - clientCreditBalance;
+        if (client) {
+            const clientCreditBalance = freshCreditsData
+                .filter(c => c.client_id === client?.id)
+                .reduce((sum, c) => sum + c.amount, 0);
+
+            const clientOrderDebt = allFreshOrders
+                .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && (o.status === 'open' || o.status === 'paying'))
+                .reduce((sum, o) => {
+                    const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+                    const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                    return sum + (orderTotal - orderPaid);
+                }, 0);
+            
+            totalDebt = clientOrderDebt - clientCreditBalance;
+        } else {
+            const freshOrder = allFreshOrders.find(o => o.id === orderId);
+            if (freshOrder) {
+                const orderTotal = freshOrder.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+                const totalPaid = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                totalDebt = (orderTotal - totalPaid);
             }
-        } 
-        
-        const freshOrder = allFreshOrders.find(o => o.id === orderId);
-        if (freshOrder) {
-            const orderTotal = freshOrder.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-            const totalPaid = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-            totalDebt += (orderTotal - totalPaid);
         }
         
         if (totalDebt <= 0.01) {
@@ -755,3 +801,4 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   );
 }
 
+    

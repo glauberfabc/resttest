@@ -57,13 +57,16 @@ const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
     return grouped;
   }
   items.forEach(item => {
-    const key = `${item.menuItem.id}-${item.comment || ''}`;
-    const existing = grouped.get(key);
-    if (existing) {
-      existing.quantity += item.quantity;
-    } else {
-      // Ensure we're creating a new object to avoid mutation issues
-      grouped.set(key, { ...item, quantity: item.quantity }); 
+    // Ensure item and menuItem are valid objects before accessing properties
+    if (item && item.menuItem) {
+        const key = `${item.menuItem.id}-${item.comment || ''}`;
+        const existing = grouped.get(key);
+        if (existing) {
+            existing.quantity += item.quantity;
+        } else {
+            // Ensure we're creating a new object to avoid mutation issues
+            grouped.set(key, { ...item, quantity: item.quantity }); 
+        }
     }
   });
   return grouped;
@@ -85,13 +88,15 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     if (!Array.isArray(items)) return [];
   
     items.forEach(item => {
-      const key = `${item.menuItem.id}-${item.comment || ''}`;
-      const existing = groupedMap.get(key);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        groupedMap.set(key, { ...item });
-      }
+        if (item && item.menuItem) {
+            const key = `${item.menuItem.id}-${item.comment || ''}`;
+            const existing = groupedMap.get(key);
+            if (existing) {
+                existing.quantity += item.quantity;
+            } else {
+                groupedMap.set(key, { ...item });
+            }
+        }
     });
   
     return Array.from(groupedMap.values());
@@ -181,18 +186,22 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     if (delta === 0) { // Remove all items of this kind
         updatedItems = updatedItems.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
     } else {
-        const existingItemIndex = updatedItems.findIndex(item => `${item.menuItem.id}-${item.comment || ''}` === keyToUpdate);
+        const itemIndexes = updatedItems.map((item, index) => `${item.menuItem.id}-${item.comment || ''}` === keyToUpdate ? index : -1).filter(index => index !== -1);
+        
+        if (itemIndexes.length > 0) {
+            // For simplicity, let's just update the first found item and remove others to avoid complex merging logic on the client.
+            // The onUpdateOrder will handle the proper grouping and saving.
+            const firstIndex = itemIndexes[0];
+            const newQuantity = updatedItems[firstIndex].quantity + delta;
 
-        if (existingItemIndex > -1) {
-            const newQuantity = updatedItems[existingItemIndex].quantity + delta;
             if (newQuantity > 0) {
-                updatedItems[existingItemIndex].quantity = newQuantity;
+                 // Create a new array with the updated item
+                const newUpdatedItems = updatedItems.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
+                newUpdatedItems.push({ ...updatedItems[firstIndex], quantity: newQuantity });
+                updatedItems = newUpdatedItems;
             } else {
-                updatedItems.splice(existingItemIndex, 1);
+                updatedItems = updatedItems.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
             }
-        } else if (delta > 0) {
-            // This case should not happen if we add through menu picker, but as a fallback
-            updatedItems.push({ ...itemToUpdate, quantity: delta });
         }
     }
     
@@ -202,10 +211,15 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const addItemToOrder = useCallback((menuItem: MenuItem) => {
     let items = [...order.items];
     const key = `${menuItem.id}-`; // Key for item without comment
-    const existingItemIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === key);
+    const existingItemIndex = items.findIndex(i => i.menuItem && `${i.menuItem.id}-${i.comment || ''}` === key);
 
     if (existingItemIndex > -1) {
-        items[existingItemIndex].quantity += 1;
+        // Create a new array with the updated item to ensure re-render
+        items = items.map((item, index) => 
+            index === existingItemIndex 
+            ? { ...item, quantity: item.quantity + 1 } 
+            : item
+        );
     } else {
         items.push({
             id: crypto.randomUUID(),
@@ -229,24 +243,26 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const oldKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
     const newKey = `${editingItem.menuItem.id}-${newComment || ''}`;
     
-    // Find the item we are editing
-    const itemToEditIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === oldKey && i.quantity === editingItem.quantity);
-    
-    if (itemToEditIndex > -1) {
-      // Temporarily remove the item to be edited
-      const [itemToMove] = items.splice(itemToEditIndex, 1);
-      
-      // Check if an item with the new comment already exists
-      const existingWithNewCommentIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === newKey);
+    // Find all items that match the old key
+    const itemsToMove = items.filter(i => `${i.menuItem.id}-${i.comment || ''}` === oldKey);
+    const totalQuantityToMove = itemsToMove.reduce((sum, i) => sum + i.quantity, 0);
 
-      if (existingWithNewCommentIndex > -1) {
-        // Merge quantities
-        items[existingWithNewCommentIndex].quantity += itemToMove.quantity;
-      } else {
-        // Add back the item with the new comment
-        itemToMove.comment = newComment;
-        items.push(itemToMove);
-      }
+    // Remove all items with the old comment
+    items = items.filter(i => `${i.menuItem.id}-${i.comment || ''}` !== oldKey);
+    
+    // Check if an item with the new comment already exists
+    const existingWithNewCommentIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === newKey);
+
+    if (existingWithNewCommentIndex > -1) {
+      // Merge quantities
+      items[existingWithNewCommentIndex].quantity += totalQuantityToMove;
+    } else {
+      // Add a single new item with the new comment and merged quantity
+      items.push({
+        ...editingItem,
+        comment: newComment,
+        quantity: totalQuantityToMove,
+      });
     }
   
     onUpdateOrder({ ...order, items: items });
@@ -344,12 +360,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         return { displayIdentifier: `Mesa ${order.identifier}`, displayObservation: order.customer_name };
     }
     
-    const nameMatch = order.identifier?.match(/^(.*?)\s*\((.*)\)$/);
-    if (nameMatch) {
-      return { displayIdentifier: nameMatch[1], displayObservation: nameMatch[2] };
-    }
-    
-    return { displayIdentifier: order.identifier, displayObservation: null };
+    return { displayIdentifier: order.identifier, displayObservation: order.observation };
   }, [order]);
 
 
@@ -587,3 +598,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    
