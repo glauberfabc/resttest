@@ -202,7 +202,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   
     const itemsToInsert = updatedOrder.items.map(item => ({
       order_id: updatedOrder.id,
-      menu_item_id: item.menuItem.id,
+      menu_item_id: item.menuItem.id, // Ensure menuItem.id is used
       quantity: item.quantity,
       comment: item.comment || null,
     }));
@@ -303,37 +303,14 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
 
-    if (method !== "Saldo Cliente") {
-        const { error: paymentError } = await supabase
-            .from('order_payments')
-            .insert({ order_id: orderId, amount, method });
+    const { error: paymentError } = await supabase
+        .from('order_payments')
+        .insert({ order_id: orderId, amount, method });
 
-        if (paymentError) {
-            console.error("Error processing payment:", paymentError);
-            toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
-            return;
-        }
-    } else { 
-        const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
-        if (!client) {
-            toast({ variant: 'destructive', title: "Erro", description: "Cliente não encontrado para pagamento com saldo." });
-            return;
-        }
-        
-        const { error: creditError } = await supabase
-            .from('client_credits')
-            .insert({
-                client_id: client.id,
-                amount: -amount, 
-                method: `Pagamento Comanda #${orderToPay.id.substring(0, 4)}`,
-                user_id: user.id,
-            });
-
-        if (creditError) {
-            toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível debitar do saldo do cliente." });
-            return;
-        }
-        await supabase.from('order_payments').insert({ order_id: orderId, amount, method });
+    if (paymentError) {
+        console.error("Error processing payment:", paymentError);
+        toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
+        return;
     }
 
     // --- Data refetch and status update logic ---
@@ -364,7 +341,9 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                     .reduce((sum, c) => sum + c.amount, 0);
 
                 const clientOrderDebt = allFreshOrders
-                    .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid' && o.id !== orderId)
+                    .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid')
+                     // Exclude the current order being paid from debt calculation to avoid race conditions
+                    .filter(o => o.id !== orderId)
                     .reduce((sum, o) => {
                         const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
                         const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
@@ -373,13 +352,13 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
                 
                 totalDebt = clientOrderDebt - clientCreditBalance;
             }
-        } else { 
-            const freshOrder = allFreshOrders.find(o => o.id === orderId);
-            if (freshOrder) {
-                const orderTotal = freshOrder.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-                const totalPaid = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                totalDebt = orderTotal - totalPaid;
-            }
+        } 
+        
+        const freshOrder = allFreshOrders.find(o => o.id === orderId);
+        if (freshOrder) {
+            const orderTotal = freshOrder.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+            const totalPaid = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+            totalDebt += (orderTotal - totalPaid);
         }
         
         if (totalDebt <= 0.01) {
@@ -776,4 +755,3 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   );
 }
 
-    
