@@ -243,14 +243,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         setIsNewOrderDialogOpen(false);
         return;
     }
-    
-    const adminUserId = await getAdminUserId();
-    const userIdToAssign = user.role === 'admin' ? user.id : adminUserId;
-
-    if (!userIdToAssign) {
-        toast({ variant: 'destructive', title: "Erro de Configuração", description: "Não foi possível encontrar um usuário administrador para associar a comanda." });
-        return;
-    }
 
     if (type === 'name' && phone !== undefined) {
         const clientName = String(finalIdentifier);
@@ -259,7 +251,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         if (!clientExists) {
             const { data: newClientData, error: clientError } = await supabase
                 .from('clients')
-                .insert({ name: clientName, phone: phone || null, user_id: userIdToAssign })
+                .insert({ name: clientName, phone: phone || null, user_id: user.id })
                 .select()
                 .single();
             
@@ -279,7 +271,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         identifier: String(finalIdentifier),
         customer_name: finalCustomerName,
         status: 'open',
-        user_id: userIdToAssign,
+        user_id: user.id,
        })
       .select()
       .single();
