@@ -223,7 +223,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     } else {
         items.push({
             id: crypto.randomUUID(),
-            menuItem,
+            menuItem: menuItem,
             quantity: 1,
             comment: '',
         });
