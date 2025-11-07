@@ -81,7 +81,7 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
         <DialogHeader>
           <DialogTitle>Finalizar Pagamento</DialogTitle>
           <DialogDescription>
-            Comanda {order.type === 'table' ? 'Mesa' : ''} {order.identifier}
+            Comanda {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}
           </DialogDescription>
         </DialogHeader>
         
@@ -123,3 +123,5 @@ export function PaymentDialog({ order, total: totalAmountDue, isOpen, onOpenChan
     </Dialog>
   );
 }
+
+    

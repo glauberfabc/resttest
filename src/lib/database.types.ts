@@ -220,6 +220,7 @@ export type Database = {
           customer_name: string | null
           id: string
           identifier: string
+          observation: string | null
           paid_at: string | null
           status: string
           type: string
@@ -230,6 +231,7 @@ export type Database = {
           customer_name?: string | null
           id?: string
           identifier: string
+          observation?: string | null
           paid_at?: string | null
           status?: string
           type: string
@@ -240,6 +242,7 @@ export type Database = {
           customer_name?: string | null
           id?: string
           identifier?: string
+          observation?: string | null
           paid_at?: string | null
           status?: string
           type?: string
@@ -379,3 +382,5 @@ export type Enums<
   : PublicEnumNameOrOptions extends keyof Database["public"]["Enums"]
     ? Database["public"]["Enums"][PublicEnumNameOrOptions]
     : never
+
+    
