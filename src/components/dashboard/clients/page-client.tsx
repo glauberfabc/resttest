@@ -102,34 +102,33 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const clientBalances = useMemo(() => {
     const balanceMap = new Map<string, number>();
 
-    // Initialize all clients with 0 balance
+    // 1. Initialize all clients with 0 balance
     clients.forEach(client => {
       balanceMap.set(client.id, 0);
     });
 
-    // Add all credits (positive) and debits (negative payments/adjustments)
+    // 2. Apply all credits and direct debits from the client_credits table
     credits.forEach(credit => {
       balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
     });
     
-    // Find all orders for each client and subtract their total value
-    clients.forEach(client => {
-      const clientOrders = orders.filter(o => 
-          o.type === 'name' && (o.identifier as string).toUpperCase() === client.name.toUpperCase()
-      );
+    // 3. Subtract the value of all *unpaid* orders
+    const openOrders = orders.filter(o => o.status !== 'paid' && o.type === 'name');
 
-      const totalConsumed = clientOrders.reduce((total, order) => {
-          const orderValue = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-          return total + orderValue;
-      }, 0);
+    openOrders.forEach(order => {
+        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
+        if (client) {
+            const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+            const totalPaidForOrder = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+            const remainingDebtForOrder = orderTotal - totalPaidForOrder;
 
-      if (totalConsumed > 0) {
-        balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - totalConsumed);
-      }
+            balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebtForOrder);
+        }
     });
 
     return balanceMap;
   }, [orders, clients, credits]);
+
 
   const sortedClients = useMemo(() => {
     const filteredByBalance = clients.filter(client => {
@@ -404,3 +403,5 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     </div>
   );
 }
+
+    
