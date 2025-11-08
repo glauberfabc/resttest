@@ -340,7 +340,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
           order_id: orderId, 
           amount, 
           method,
-          user_id: user.id,
         })
         .select()
         .single();
@@ -491,6 +490,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
         if (client) {
            const balance = clientBalances.get(client.id) || 0;
+           // The total debt for a client order is their entire balance.
            totalDebt = balance;
         }
       }

@@ -134,7 +134,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const { previousDebt, dailyConsumption } = useMemo(() => {
     let debt = 0;
-    const consumption = isToday(new Date(order.created_at)) ? total : 0;
+    const consumption = total;
 
     if (order.type === 'name') {
         const clientName = (order.identifier as string).toUpperCase();
@@ -160,10 +160,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     return sum + (orderTotal - orderPaid);
                 }, 0);
             
-            // If the current order is old, its value is part of the previous debt
-            const currentOrderDebtContribution = !isToday(new Date(order.created_at)) ? (total - paidAmount) : 0;
-
-            debt = otherOpenOrdersDebt - clientCredits + currentOrderDebtContribution;
+            debt = otherOpenOrdersDebt - clientCredits;
         }
     }
     
@@ -171,7 +168,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       previousDebt: debt,
       dailyConsumption: consumption
     };
-  }, [order, allOrders, allClients, allCredits, total, paidAmount]);
+  }, [order, allOrders, allClients, allCredits, total]);
 
   
   const groupedItemsForDisplay = useMemo(() => {
@@ -513,7 +510,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
                             <span className={previousDebt < 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
-                                R$ {previousDebt.toFixed(2).replace('.', ',')}
+                                R$ {(previousDebt).toFixed(2).replace('.', ',')}
                             </span>
                         </div>
                     )}
@@ -530,7 +527,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     {paidAmount > 0 && (
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                         <span>Total Pago Hoje</span>
-                        <span className="font-medium text-green-600">R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                        <span className="font-medium text-green-600">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
                         </div>
                     )}
                     {(previousDebt !== 0 || dailyConsumption > 0 || paidAmount > 0) && <Separator />}
