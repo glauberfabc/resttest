@@ -351,47 +351,59 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       }
     }
   
-    setTimeout(async () => {
-      await fetchData(false);
-      const { data: updatedOrderData } = await client.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
+    // Fetch fresh data for the specific order to check if it's fully paid
+    const { data: updatedOrderData, error: fetchError } = await client.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
       
-      if(updatedOrderData) {
-        const freshOrder: Order = {
-            ...(updatedOrderData as any),
-            items: updatedOrderData.items.map((item: any) => ({
-                id: item.id || crypto.randomUUID(),
-                quantity: item.quantity,
-                comment: item.comment || '',
-                menuItem: { ...item.menu_item, id: item.menu_item.id || crypto.randomUUID(), imageUrl: item.menu_item.image_url, lowStockThreshold: item.menu_item.low_stock_threshold }
-            })),
-            created_at: new Date(updatedOrderData.created_at), paid_at: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
-            createdAt: new Date(updatedOrderData.created_at), paidAt: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
-        };
+    if(fetchError || !updatedOrderData) {
+        toast({ variant: 'destructive', title: "Erro ao atualizar", description: "Pagamento salvo, mas não foi possível buscar dados atualizados." });
+        await fetchData(false); // Fallback to full refresh
+        return;
+    }
 
-        const total = freshOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-        const paidAmount = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-        
-        if (paidAmount >= total - 0.01) { // Tolerance for float issues
-           const { error: updateError } = await client
-            .from('orders')
-            .update({ status: 'paid', paid_at: new Date().toISOString() })
-            .eq('id', freshOrder.id);
+    const freshOrder: Order = {
+        ...(updatedOrderData as any),
+        items: updatedOrderData.items.map((item: any) => ({
+            id: item.id || crypto.randomUUID(),
+            quantity: item.quantity,
+            comment: item.comment || '',
+            menuItem: { ...item.menu_item, id: item.menu_item.id || crypto.randomUUID(), imageUrl: item.menu_item.image_url, lowStockThreshold: item.menu_item.low_stock_threshold }
+        })),
+        created_at: new Date(updatedOrderData.created_at), paid_at: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
+        createdAt: new Date(updatedOrderData.created_at), paidAt: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
+    };
 
-            if(updateError) {
-                toast({ variant: 'destructive', title: "Erro ao fechar", description: "Pagamento salvo, mas não foi possível fechar a comanda." });
-            } else {
-                 toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
-            }
-            await fetchData(false);
-            setSelectedOrder(null);
-        } else {
-            await client.from('orders').update({ status: 'paying' }).eq('id', orderId);
-            await fetchData(false);
-            setSelectedOrder(freshOrder);
+    const orderTotal = freshOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+    const orderPaidAmount = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+
+    let totalDebt = orderTotal - orderPaidAmount;
+    if (orderToPay.type === 'name') {
+        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        if (clientRecord) {
+            const balance = (credits.filter(c => c.client_id === clientRecord.id).reduce((sum, c) => sum + c.amount, 0)) - amount;
+            totalDebt = (orderTotal - orderPaidAmount) - balance;
         }
-      }
+    }
+    
+    if (totalDebt < 0.01) { // Paid in full
+       const { error: updateError } = await client
+        .from('orders')
+        .update({ status: 'paid', paid_at: new Date().toISOString() })
+        .eq('id', freshOrder.id);
 
-    }, 500); // Delay
+        if(updateError) {
+            toast({ variant: 'destructive', title: "Erro ao fechar", description: "Pagamento salvo, mas não foi possível fechar a comanda." });
+        } else {
+             toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
+             // Optimistically update the UI
+             setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...freshOrder, status: 'paid', paid_at: new Date(), paidAt: new Date() } : o));
+             setSelectedOrder(null);
+        }
+    } else { // Partially paid
+        await client.from('orders').update({ status: 'paying' }).eq('id', orderId);
+        // Optimistically update the UI
+        setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...freshOrder, status: 'paying' } : o));
+        setSelectedOrder(freshOrder);
+    }
   };
 
 
