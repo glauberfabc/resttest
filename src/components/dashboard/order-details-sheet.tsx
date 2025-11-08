@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -373,9 +374,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
     return finalTitle;
   };
-
-  const totalDebt = previousDebt < 0 ? previousDebt : 0;
-  const totalToPay = Math.abs(totalDebt) + dailyConsumption - paidAmount;
+  
+  const totalDebt = previousDebt + (-dailyConsumption);
+  const totalToPay = Math.abs(totalDebt) - paidAmount;
 
 
   return (
@@ -511,7 +512,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
                             <span className={"font-medium text-destructive"}>
-                                - R$ {Math.abs(previousDebt).toFixed(2).replace('.', ',')}
+                                R$ {previousDebt.toFixed(2).replace('.', ',')}
                             </span>
                         </div>
                     )}
@@ -525,7 +526,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         </div>
                       </>
                     )}
-                    {paidAmount > 0 && (
+                    {paidAmount > 0 && order.type === 'name' && (
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                         <span>Total Pago Hoje</span>
                         <span className="font-medium text-green-600">+ R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
@@ -596,3 +597,4 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
