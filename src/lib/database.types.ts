@@ -189,7 +189,6 @@ export type Database = {
           method: string
           order_id: string
           paid_at: string
-          user_id: string | null
         }
         Insert: {
           amount: number
@@ -197,7 +196,6 @@ export type Database = {
           method: string
           order_id: string
           paid_at?: string
-          user_id?: string | null
         }
         Update: {
           amount?: number
@@ -205,7 +203,6 @@ export type Database = {
           method?: string
           order_id?: string
           paid_at?: string
-          user_id?: string | null
         }
         Relationships: [
           {
@@ -214,14 +211,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "public_order_payments_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
+          }
         ]
       }
       orders: {
@@ -392,5 +382,7 @@ export type Enums<
   : PublicEnumNameOrOptions extends keyof Database["public"]["Enums"]
     ? Database["public"]["Enums"][PublicEnumNameOrOptions]
     : never
+
+    
 
     

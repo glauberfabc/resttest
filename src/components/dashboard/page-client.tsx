@@ -344,7 +344,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
           order_id: orderId, 
           amount, 
           method,
-          user_id: user.id
         });
   
       if (error) {
@@ -741,3 +740,5 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
+
+    
