@@ -59,7 +59,7 @@ export async function getClients(): Promise<Client[]> {
     return data as Client[];
 }
 
-export async function getOrders(user: User): Promise<Order[]> {
+export async function getOrders(): Promise<Order[]> {
     const supabase = await createClient();
 
     let query = supabase

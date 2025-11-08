@@ -35,6 +35,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { getAdminUserId } from "@/lib/user-actions";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -75,8 +76,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     fechadas: { currentPage: 1 },
   });
 
-  const fetchData = useCallback(async (currentUser: User | null, showToast: boolean = false) => {
-    if (!currentUser) return;
+  const fetchData = useCallback(async (showToast: boolean = false) => {
     setIsFetching(true);
     
     const client = createClient();
@@ -134,12 +134,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   }, [searchParams]);
 
   const handleRealtimeUpdate = useCallback(() => {
-    fetchData(user, false);
-  }, [user, fetchData]);
+    fetchData(false);
+  }, [fetchData]);
 
   useEffect(() => {
-    if (!user) return;
-
     const client = createClient();
     const channel = client
       .channel('public-db-changes')
@@ -159,7 +157,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, supabase, toast, handleRealtimeUpdate]);
+  }, [supabase, toast, handleRealtimeUpdate]);
 
 
   const handleSelectOrder = (order: Order) => {
@@ -168,16 +166,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   };
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
-    const originalOrders = [...orders];
     const client = createClient();
     
-    // UI optimistic update
-    const updatedOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
-    setOrders(updatedOrders);
-    if(selectedOrder && selectedOrder.id === updatedOrder.id) {
-        setSelectedOrder(updatedOrder);
-    }
-
     // First, delete all existing items for the order
     const { error: deleteError } = await client
         .from('order_items')
@@ -187,7 +177,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (deleteError) {
         console.error("Error deleting old order items:", deleteError);
         toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível remover os itens antigos." });
-        await fetchData(user, false); // Rollback UI on error
+        await fetchData(false); // Rollback UI on error
         return;
     }
 
@@ -205,13 +195,13 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         if (insertError) {
             console.error("Error inserting new order items:", insertError);
             toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível adicionar os novos itens." });
-            await fetchData(user, false);
+            await fetchData(false);
             return;
         }
     }
     
     // After all DB operations are successful, refetch data to ensure UI consistency
-    await fetchData(user, false);
+    await fetchData(false);
     
     const { data: freshlyUpdatedOrderData } = await client
         .from('orders')
@@ -257,6 +247,13 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
         return;
     }
+    
+    const adminUserId = await getAdminUserId();
+    if (!adminUserId) {
+        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível encontrar um usuário administrador." });
+        return;
+    }
+
 
     const openOrdersToday = orders.filter(o => o.status !== 'paid' && new Date(o.created_at) >= startOfToday());
     const existingOrderToday = openOrdersToday.find(o => 
@@ -277,7 +274,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         if (!clientExists) {
             const { data: newClientData, error: clientError } = await client
                 .from('clients')
-                .insert({ name: clientName, phone: phone || null, user_id: user.id })
+                .insert({ name: clientName, phone: phone || null, user_id: adminUserId })
                 .select()
                 .single();
             
@@ -294,7 +291,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         type, 
         identifier: String(finalIdentifier),
         status: 'open',
-        user_id: user.id,
+        user_id: adminUserId,
     };
 
     if (type === 'name') {
@@ -334,6 +331,12 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     const client = createClient();
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
+    
+    const adminUserId = await getAdminUserId();
+    if (!adminUserId) {
+      toast({ variant: 'destructive', title: "Erro de Permissão", description: "Usuário administrador não encontrado." });
+      return;
+    }
   
     // Handle payment using client balance
     if (method === 'Saldo Cliente' && orderToPay.type === 'name') {
@@ -343,7 +346,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
           client_id: clientRecord.id,
           amount: -amount,
           method: 'Consumo',
-          user_id: user.id,
+          user_id: adminUserId,
         });
         if (error) {
           toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível abater o saldo do cliente." });
@@ -354,18 +357,18 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       // Handle standard payment methods
       const { error } = await client
         .from('order_payments')
-        .insert({ order_id: orderId, amount, method, user_id: user.id });
+        .insert({ order_id: orderId, amount, method, user_id: adminUserId });
   
       if (error) {
         console.error("Error processing payment:", error);
-        toast({ variant: 'destructive', title: "Erro no pagamento", description: "Não foi possível registrar o pagamento." });
+        toast({ variant: 'destructive', title: "Erro no pagamento", description: error.message });
         return;
       }
     }
   
     // Use a small delay to allow database replication before checking the final status
     setTimeout(async () => {
-      await fetchData(user, false);
+      await fetchData(false);
       const { data: updatedOrderData } = await client.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
       
       if(updatedOrderData) {
@@ -395,11 +398,11 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
             } else {
                  toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
             }
-            await fetchData(user, false);
+            await fetchData(false);
             setSelectedOrder(null);
         } else {
             await client.from('orders').update({ status: 'paying' }).eq('id', orderId);
-            await fetchData(user, false);
+            await fetchData(false);
             setSelectedOrder(freshOrder);
         }
       }
@@ -685,7 +688,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       <div className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
         <h2 className="text-2xl font-bold tracking-tight">Comandas</h2>
         <div className="flex items-center gap-2 w-full sm:w-auto">
-            <Button variant="outline" size="icon" onClick={() => fetchData(user, true)} disabled={isFetching}>
+            <Button variant="outline" size="icon" onClick={() => fetchData(true)} disabled={isFetching}>
                 <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
             </Button>
             <Button onClick={() => setIsNewOrderDialogOpen(true)} className="w-full">
