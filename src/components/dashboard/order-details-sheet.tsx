@@ -141,24 +141,27 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         const client = allClients.find(c => c.name.toUpperCase() === clientName);
         
         if (client) {
+            // Somar todos os créditos e débitos diretos do cliente
             const clientCreditsAndDebits = allCredits
                 .filter(c => c.client_id === client.id)
                 .reduce((sum, c) => sum + c.amount, 0);
 
-            const allOpenOrdersDebt = allOrders
+            // Somar o valor total de todas as outras comandas abertas do cliente (excluindo a atual)
+            const allOtherOpenOrdersDebt = allOrders
                 .filter(o => 
                     o.type === 'name' &&
                     o.status !== 'paid' &&
-                    o.id !== order.id && // Exclude the current order from this part of the calculation
+                    o.id !== order.id &&
                     (o.identifier as string).toUpperCase() === clientName
                 )
                 .reduce((sum, o) => {
                     const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
                     const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                    return sum + (orderTotal - orderPaid);
+                    return sum + (orderTotal - orderPaid); // Somando a dívida de cada comanda
                 }, 0);
             
-            debt = allOpenOrdersDebt - clientCreditsAndDebits;
+            // Dívida anterior = Saldo de créditos/débitos - Dívida de outras comandas
+            debt = clientCreditsAndDebits - allOtherOpenOrdersDebt;
         }
     }
     
@@ -266,7 +269,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const handleWhatsAppShare = () => {
     let message = '';
-    const totalDebt = previousDebt + dailyConsumption;
+    const totalDebt = previousDebt - dailyConsumption;
     
     if (isFromBeforeToday) {
         const dateStr = format(new Date(order.created_at), 'dd/MM/yyyy');
@@ -280,7 +283,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         if (balanceBeforeThisOrder < 0) {
             message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
-        message += `\n*DÍVIDA TOTAL: R$ ${(totalDebt).toFixed(2).replace('.', ',')}*`;
+        message += `\n*DÍVIDA TOTAL: R$ ${(total - totalDebt).toFixed(2).replace('.', ',')}*`;
 
     } else {
         const headerIdentifier = order.type === 'table' && order.customer_name
@@ -300,7 +303,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
              message += `\n\n*Saldo Anterior: R$ ${previousDebt.toFixed(2).replace('.', ',')}*`;
         }
 
-        const totalToPay = dailyConsumption + previousDebt;
+        const totalToPay = dailyConsumption - previousDebt;
         message += `\n*Total: R$ ${totalToPay.toFixed(2).replace('.', ',')}*`;
 
 
@@ -372,7 +375,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
 
-  const totalToDisplay = previousDebt + dailyConsumption - paidAmount;
+  const totalToPay = Math.abs(previousDebt - dailyConsumption + paidAmount);
 
 
   return (
@@ -507,7 +510,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     {previousDebt !== 0 && (
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
-                            <span className={"text-destructive font-medium"}>
+                            <span className={"font-medium " + (previousDebt > 0 ? "text-green-600" : "text-destructive")}>
                                 R$ {previousDebt.toFixed(2).replace('.', ',')}
                             </span>
                         </div>
@@ -516,8 +519,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       <>
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                           <span>Consumo do Dia</span>
-                          <span>
-                              R$ {dailyConsumption.toFixed(2).replace('.', ',')}
+                          <span className="text-destructive font-medium">
+                              - R$ {dailyConsumption.toFixed(2).replace('.', ',')}
                           </span>
                         </div>
                       </>
@@ -525,13 +528,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     {paidAmount > 0 && (
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                         <span>Total Pago Hoje</span>
-                        <span className="font-medium text-green-600">- R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                        <span className="font-medium text-green-600">+ R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
                         </div>
                     )}
                     {(previousDebt !== 0 || dailyConsumption > 0 || paidAmount > 0) && <Separator />}
                     <div className="flex justify-between items-center text-xl font-bold">
                         <span>{'Total Geral'}</span>
-                        <span>R$ {totalToDisplay.toFixed(2).replace('.', ',')}</span>
+                        <span>R$ {totalToPay.toFixed(2).replace('.', ',')}</span>
                     </div>
                     
                     <div className="flex gap-2">
@@ -541,7 +544,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         <Button variant="outline" size="icon" onClick={handleKitchenPrint} disabled={itemsToPrint.length === 0}>
                             <Printer className="h-4 w-4" />
                         </Button>
-                        <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={totalToDisplay < 0.01}>
+                        <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={totalToPay < 0.01}>
                             <Wallet className="mr-2 h-4 w-4" />
                             Pagar
                         </Button>
@@ -572,7 +575,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             {isPaymentDialogOpen && (
                 <PaymentDialog
                 order={order}
-                total={totalToDisplay}
+                total={totalToPay}
                 isOpen={isPaymentDialogOpen}
                 onOpenChange={setIsPaymentDialogOpen}
                 onConfirmPayment={handlePayment}
@@ -593,5 +596,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
-    
