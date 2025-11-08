@@ -141,12 +141,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         const client = allClients.find(c => c.name.toUpperCase() === clientName);
         
         if (client) {
-            // Somar todos os créditos e débitos diretos do cliente
             const clientCreditsAndDebits = allCredits
                 .filter(c => c.client_id === client.id)
                 .reduce((sum, c) => sum + c.amount, 0);
 
-            // Somar o valor total de todas as outras comandas abertas do cliente (excluindo a atual)
             const allOtherOrdersDebt = allOrders
                 .filter(o => 
                     o.id !== order.id &&
@@ -157,10 +155,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 .reduce((sum, o) => {
                     const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
                     const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                    return sum + (orderTotal - orderPaid); // Somando a dívida de cada comanda
+                    return sum + (orderTotal - orderPaid);
                 }, 0);
             
-            // Dívida anterior = Saldo de créditos/débitos - Dívida de outras comandas
             debt = clientCreditsAndDebits - allOtherOrdersDebt;
         }
     }
@@ -187,13 +184,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         const itemIndexes = updatedItems.map((item, index) => `${item.menuItem.id}-${item.comment || ''}` === keyToUpdate ? index : -1).filter(index => index !== -1);
         
         if (itemIndexes.length > 0) {
-            // For simplicity, let's just update the first found item and remove others to avoid complex merging logic on the client.
-            // The onUpdateOrder will handle the proper grouping and saving.
             const firstIndex = itemIndexes[0];
             const newQuantity = updatedItems[firstIndex].quantity + delta;
 
             if (newQuantity > 0) {
-                 // Create a new array with the updated item
                 const newUpdatedItems = updatedItems.filter(item => `${item.menuItem.id}-${item.comment || ''}` !== keyToUpdate);
                 newUpdatedItems.push({ ...updatedItems[firstIndex], quantity: newQuantity });
                 updatedItems = newUpdatedItems;
@@ -212,7 +206,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const existingItemIndex = items.findIndex(i => i.menuItem && `${i.menuItem.id}-${i.comment || ''}` === key);
 
     if (existingItemIndex > -1) {
-        // Create a new array with the updated item to ensure re-render
         items = items.map((item, index) => 
             index === existingItemIndex 
             ? { ...item, quantity: item.quantity + 1 } 
@@ -241,21 +234,16 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const oldKey = `${editingItem.menuItem.id}-${editingItem.comment || ''}`;
     const newKey = `${editingItem.menuItem.id}-${newComment || ''}`;
     
-    // Find all items that match the old key
     const itemsToMove = items.filter(i => `${i.menuItem.id}-${i.comment || ''}` === oldKey);
     const totalQuantityToMove = itemsToMove.reduce((sum, i) => sum + i.quantity, 0);
 
-    // Remove all items with the old comment
     items = items.filter(i => `${i.menuItem.id}-${i.comment || ''}` !== oldKey);
     
-    // Check if an item with the new comment already exists
     const existingWithNewCommentIndex = items.findIndex(i => `${i.menuItem.id}-${i.comment || ''}` === newKey);
 
     if (existingWithNewCommentIndex > -1) {
-      // Merge quantities
       items[existingWithNewCommentIndex].quantity += totalQuantityToMove;
     } else {
-      // Add a single new item with the new comment and merged quantity
       items.push({
         ...editingItem,
         comment: newComment,
@@ -375,7 +363,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
   
-  const totalDebt = previousDebt + (-dailyConsumption);
+  const totalDebt = (previousDebt < 0 ? previousDebt : 0) - dailyConsumption;
   const totalToPay = Math.abs(totalDebt) - paidAmount;
 
 
@@ -597,4 +585,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
