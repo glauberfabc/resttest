@@ -79,7 +79,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (!currentUser) return;
     setIsFetching(true);
     
-    let query = supabase
+    const client = createClient();
+    let query = client
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`);
 
@@ -107,23 +108,23 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         setOrders(formattedOrders);
     }
     
-    const { data: menuItemsData } = await supabase.from('menu_items').select('*');
+    const { data: menuItemsData } = await client.from('menu_items').select('*');
     if (menuItemsData) {
         const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
         setMenuItems(formattedItems);
     }
 
-    const { data: clientsData } = await supabase.from('clients').select('*');
+    const { data: clientsData } = await client.from('clients').select('*');
     if (clientsData) setClients(clientsData as Client[]);
 
-    const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
+    const { data: creditsData } = await client.from('client_credits').select('*').order('created_at', { ascending: false });
     if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
 
     setIsFetching(false);
     if (showToast) {
         toast({ title: 'Dados atualizados!', description: 'As comandas foram sincronizadas.'});
     }
-  }, [supabase, toast]);
+  }, [toast]);
 
   useEffect(() => {
     const search = searchParams.get('search');
@@ -139,7 +140,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   useEffect(() => {
     if (!user) return;
 
-    const channel = supabase
+    const client = createClient();
+    const channel = client
       .channel('public-db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, handleRealtimeUpdate)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, handleRealtimeUpdate)
@@ -167,6 +169,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const originalOrders = [...orders];
+    const client = createClient();
     
     // UI optimistic update
     const updatedOrders = orders.map(o => o.id === updatedOrder.id ? updatedOrder : o);
@@ -176,7 +179,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     }
 
     // First, delete all existing items for the order
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await client
         .from('order_items')
         .delete()
         .eq('order_id', updatedOrder.id);
@@ -184,7 +187,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (deleteError) {
         console.error("Error deleting old order items:", deleteError);
         toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível remover os itens antigos." });
-        setOrders(originalOrders); // Rollback UI on error
+        await fetchData(user, false); // Rollback UI on error
         return;
     }
 
@@ -197,48 +200,29 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             comment: item.comment || null,
         }));
 
-        const { error: insertError } = await supabase.from('order_items').insert(itemsToInsert);
+        const { error: insertError } = await client.from('order_items').insert(itemsToInsert);
 
         if (insertError) {
             console.error("Error inserting new order items:", insertError);
             toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível adicionar os novos itens." });
-            // Attempt to restore original items might be complex, a refetch is safer
             await fetchData(user, false);
             return;
         }
     }
-
-    // Finally, update the order itself (e.g., status, dates)
-    const { error: orderError } = await supabase
-        .from('orders')
-        .update({
-            status: updatedOrder.status,
-            paid_at: updatedOrder.paidAt,
-            customer_name: updatedOrder.customer_name,
-        })
-        .eq('id', updatedOrder.id);
-
-    if (orderError) {
-        console.error("Error updating order:", orderError);
-        toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível salvar as alterações da comanda." });
-        await fetchData(user, false); // Refetch to sync state
-        return;
-    }
-
+    
     // After all DB operations are successful, refetch data to ensure UI consistency
     await fetchData(user, false);
     
-    // Update the selected order in the sheet
-    const { data: freshlyUpdatedOrder } = await supabase
+    const { data: freshlyUpdatedOrderData } = await client
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
         .eq('id', updatedOrder.id)
         .single();
     
-    if (freshlyUpdatedOrder) {
+    if (freshlyUpdatedOrderData) {
         const formattedOrder: Order = {
-            ...freshlyUpdatedOrder,
-            items: freshlyUpdatedOrder.items.map((item: any) => ({
+            ...freshlyUpdatedOrderData,
+            items: freshlyUpdatedOrderData.items.map((item: any) => ({
                 id: item.id || crypto.randomUUID(),
                 quantity: item.quantity,
                 comment: item.comment || '',
@@ -249,26 +233,25 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
                     lowStockThreshold: item.menu_item.low_stock_threshold,
                 }
             })),
-            created_at: new Date(freshlyUpdatedOrder.created_at),
-            paid_at: freshlyUpdatedOrder.paid_at ? new Date(freshlyUpdatedOrder.paid_at) : undefined,
-            createdAt: new Date(freshlyUpdatedOrder.created_at),
-            paidAt: freshlyUpdatedOrder.paid_at ? new Date(freshlyUpdatedOrder.paid_at) : undefined,
+            created_at: new Date(freshlyUpdatedOrderData.created_at),
+            paid_at: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
+            createdAt: new Date(freshlyUpdatedOrderData.created_at),
+            paidAt: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
         };
         setSelectedOrder(formattedOrder);
-        // If the order becomes empty, it means we deleted the last item.
-        // We can either close the sheet or delete the order. Deleting seems more intuitive.
-        if (formattedOrder.items.length === 0 && !isNewOrderDialogOpen) {
-            handleDeleteOrder(formattedOrder.id);
-        }
 
+        if (formattedOrder.items.length === 0) {
+           setSelectedOrder(null);
+           await handleDeleteOrder(formattedOrder.id);
+        }
     } else {
-         // The order might have been deleted (e.g. last item removed), so close the sheet.
          setSelectedOrder(null);
     }
   };
   
 const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string, observation?: string) => {
     const finalIdentifier = typeof identifier === 'string' ? identifier.toUpperCase() : identifier;
+    const client = createClient();
     
     if (!user) {
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
@@ -292,7 +275,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
 
         if (!clientExists) {
-            const { data: newClientData, error: clientError } = await supabase
+            const { data: newClientData, error: clientError } = await client
                 .from('clients')
                 .insert({ name: clientName, phone: phone || null, user_id: user.id })
                 .select()
@@ -322,7 +305,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
     }
 
 
-    const { data: orderData, error: orderError } = await supabase
+    const { data: orderData, error: orderError } = await client
       .from('orders')
       .insert(insertData)
       .select()
@@ -348,15 +331,16 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
   };
   
 const handleProcessPayment = async (orderId: string, amount: number, method: string) => {
+    const client = createClient();
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
   
     // Handle payment using client balance
     if (method === 'Saldo Cliente' && orderToPay.type === 'name') {
-      const client = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
-      if (client) {
-        const { error } = await supabase.from('client_credits').insert({
-          client_id: client.id,
+      const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+      if (clientRecord) {
+        const { error } = await client.from('client_credits').insert({
+          client_id: clientRecord.id,
           amount: -amount,
           method: 'Consumo',
           user_id: user.id,
@@ -368,9 +352,9 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       }
     } else {
       // Handle standard payment methods
-      const { error } = await supabase
+      const { error } = await client
         .from('order_payments')
-        .insert({ order_id: orderId, amount, method });
+        .insert({ order_id: orderId, amount, method, user_id: user.id });
   
       if (error) {
         console.error("Error processing payment:", error);
@@ -381,95 +365,45 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
   
     // Use a small delay to allow database replication before checking the final status
     setTimeout(async () => {
-      // Refetch all necessary data to get the most up-to-date state
-      const { data: allFreshOrdersData } = await supabase.from('orders').select('*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)');
-      const { data: freshCreditsData } = await supabase.from('client_credits').select('*');
-      const { data: freshClientsData } = await supabase.from('clients').select('*');
-  
-      if (!allFreshOrdersData || !freshCreditsData || !freshClientsData) {
-        toast({ variant: 'destructive', title: 'Erro de sincronização', description: 'Não foi possível verificar o saldo final.' });
-        return;
-      }
+      await fetchData(user, false);
+      const { data: updatedOrderData } = await client.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
       
-      const allFreshOrders = allFreshOrdersData as unknown as Order[];
-      const allFreshCredits = freshCreditsData as unknown as ClientCredit[];
-      
-      let totalDebt = 0;
-      const clientIdentifier = orderToPay.type === 'name' ? (orderToPay.identifier as string).toUpperCase() : null;
-  
-      if (clientIdentifier) {
-        const client = (freshClientsData as Client[]).find(c => c.name.toUpperCase() === clientIdentifier);
-        if (client) {
-          const clientCreditBalance = allFreshCredits
-            .filter(c => c.client_id === client.id)
-            .reduce((sum, c) => sum + c.amount, 0);
-  
-          const clientOrderDebt = allFreshOrders
-            .filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.id !== orderId)
-            .reduce((sum, o) => {
-              const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-              const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-              return sum + (orderTotal - orderPaid);
-            }, 0);
-  
-          totalDebt = clientOrderDebt - clientCreditBalance;
-        }
-      }
-      
-      // Calculate debt for the current order
-      const freshCurrentOrder = allFreshOrders.find(o => o.id === orderId);
-      if (freshCurrentOrder) {
-        const currentOrderTotal = freshCurrentOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-        const currentOrderPaid = freshCurrentOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-        totalDebt += (currentOrderTotal - currentOrderPaid);
-      }
-  
-      if (totalDebt <= 0.01) { // Paid in full
-        const paidAt = new Date().toISOString();
-        const orderIdsToUpdate = clientIdentifier 
-          ? allFreshOrders.filter(o => o.type === 'name' && (o.identifier as string).toUpperCase() === clientIdentifier && o.status !== 'paid').map(o => o.id) 
-          : [orderId];
-  
-        if (orderIdsToUpdate.length > 0) {
-          const { error: updateError } = await supabase
-            .from('orders')
-            .update({ status: 'paid', paid_at: paidAt })
-            .in('id', orderIdsToUpdate);
-  
-          if (updateError) {
-            toast({ variant: 'destructive', title: "Erro ao fechar", description: "Pagamento salvo, mas não foi possível fechar as comandas." });
-          } else {
-            toast({ title: "Comanda(s) Paga(s)!", description: `A dívida foi quitada.` });
-          }
-        }
-        await fetchData(user, false);
-        setSelectedOrder(null);
-      } else { // Partially paid
-        await supabase.from('orders').update({ status: 'paying' }).eq('id', orderId);
-        await fetchData(user, false);
-        const { data: updatedOrderData } = await supabase.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
-        if (updatedOrderData) {
-          const formattedOrder: Order = {
+      if(updatedOrderData) {
+        const freshOrder: Order = {
             ...(updatedOrderData as any),
             items: updatedOrderData.items.map((item: any) => ({
-              id: item.id || crypto.randomUUID(),
-              quantity: item.quantity,
-              comment: item.comment || '',
-              menuItem: {
-                ...item.menu_item,
-                id: item.menu_item.id || crypto.randomUUID(),
-                imageUrl: item.menu_item.image_url,
-                lowStockThreshold: item.menu_item.low_stock_threshold,
-              }
+                id: item.id || crypto.randomUUID(),
+                quantity: item.quantity,
+                comment: item.comment || '',
+                menuItem: { ...item.menu_item, id: item.menu_item.id || crypto.randomUUID(), imageUrl: item.menu_item.image_url, lowStockThreshold: item.menu_item.low_stock_threshold }
             })),
-            created_at: new Date(updatedOrderData.created_at),
-            paid_at: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
-            createdAt: new Date(updatedOrderData.created_at),
-            paidAt: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
-          };
-          setSelectedOrder(formattedOrder);
+            created_at: new Date(updatedOrderData.created_at), paid_at: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
+            createdAt: new Date(updatedOrderData.created_at), paidAt: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
+        };
+
+        const total = freshOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+        const paidAmount = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+        
+        if (paidAmount >= total) {
+           const { error: updateError } = await client
+            .from('orders')
+            .update({ status: 'paid', paid_at: new Date().toISOString() })
+            .eq('id', freshOrder.id);
+
+            if(updateError) {
+                toast({ variant: 'destructive', title: "Erro ao fechar", description: "Pagamento salvo, mas não foi possível fechar a comanda." });
+            } else {
+                 toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
+            }
+            await fetchData(user, false);
+            setSelectedOrder(null);
+        } else {
+            await client.from('orders').update({ status: 'paying' }).eq('id', orderId);
+            await fetchData(user, false);
+            setSelectedOrder(freshOrder);
         }
       }
+
     }, 500); // Delay
   };
 
@@ -477,6 +411,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
   const handleDeleteOrder = async (orderId: string) => {
     const orderToDelete = orders.find(o => o.id === orderId);
     if (!orderToDelete) return;
+    const client = createClient();
 
     const isEmpty = orderToDelete.items.length === 0;
     const isPaid = orderToDelete.status === 'paid';
@@ -494,10 +429,10 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     setOrders(orders.filter(o => o.id !== orderId));
     setSelectedOrder(null);
 
-    await supabase.from('order_payments').delete().eq('order_id', orderId);
-    await supabase.from('order_items').delete().eq('order_id', orderId);
+    await client.from('order_payments').delete().eq('order_id', orderId);
+    await client.from('order_items').delete().eq('order_id', orderId);
 
-    const { error } = await supabase
+    const { error } = await client
       .from('orders')
       .delete()
       .eq('id', orderId);
@@ -816,5 +751,3 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
-
-    
