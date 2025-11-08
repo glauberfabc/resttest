@@ -35,7 +35,6 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getAdminUserId } from "@/lib/user-actions";
 
 const ITEMS_PER_PAGE = 20;
 
@@ -200,7 +199,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         }
     }
     
-    // After all DB operations are successful, refetch data to ensure UI consistency
     await fetchData(false);
     
     const { data: freshlyUpdatedOrderData } = await client
@@ -229,13 +227,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             paidAt: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
         };
         setSelectedOrder(formattedOrder);
-
-        if (formattedOrder.items.length === 0) {
-           setSelectedOrder(null);
-           await handleDeleteOrder(formattedOrder.id);
-        }
     } else {
-         setSelectedOrder(null);
+        setSelectedOrder(null);
     }
   };
   
@@ -247,13 +240,6 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
         return;
     }
-    
-    const adminUserId = await getAdminUserId();
-    if (!adminUserId) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível encontrar um usuário administrador." });
-        return;
-    }
-
 
     const openOrdersToday = orders.filter(o => o.status !== 'paid' && new Date(o.created_at) >= startOfToday());
     const existingOrderToday = openOrdersToday.find(o => 
@@ -274,7 +260,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         if (!clientExists) {
             const { data: newClientData, error: clientError } = await client
                 .from('clients')
-                .insert({ name: clientName, phone: phone || null, user_id: adminUserId })
+                .insert({ name: clientName, phone: phone || null, user_id: user.id })
                 .select()
                 .single();
             
@@ -291,7 +277,7 @@ const handleCreateOrder = async (type: 'table' | 'name', identifier: string | nu
         type, 
         identifier: String(finalIdentifier),
         status: 'open',
-        user_id: adminUserId,
+        user_id: user.id,
     };
 
     if (type === 'name') {
@@ -331,12 +317,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     const client = createClient();
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
-    
-    const adminUserId = await getAdminUserId();
-    if (!adminUserId) {
-      toast({ variant: 'destructive', title: "Erro de Permissão", description: "Usuário administrador não encontrado." });
-      return;
-    }
   
     // Handle payment using client balance
     if (method === 'Saldo Cliente' && orderToPay.type === 'name') {
@@ -346,7 +326,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
           client_id: clientRecord.id,
           amount: -amount,
           method: 'Consumo',
-          user_id: adminUserId,
+          user_id: user.id,
         });
         if (error) {
           toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível abater o saldo do cliente." });
@@ -357,7 +337,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       // Handle standard payment methods
       const { error } = await client
         .from('order_payments')
-        .insert({ order_id: orderId, amount, method, user_id: adminUserId });
+        .insert({ order_id: orderId, amount, method });
   
       if (error) {
         console.error("Error processing payment:", error);
@@ -387,7 +367,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         const total = freshOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
         const paidAmount = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
         
-        if (paidAmount >= total) {
+        if (paidAmount >= total - 0.01) { // Tolerance for float issues
            const { error: updateError } = await client
             .from('orders')
             .update({ status: 'paid', paid_at: new Date().toISOString() })
