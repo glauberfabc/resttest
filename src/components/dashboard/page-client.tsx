@@ -491,7 +491,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         if (client) {
            const balance = clientBalances.get(client.id) || 0;
            // The total debt for a client order is their entire balance.
-           totalDebt = balance;
+           totalDebt = Math.abs(balance);
         }
       }
       return { ...order, totalDebt };

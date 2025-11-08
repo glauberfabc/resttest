@@ -147,11 +147,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 .reduce((sum, c) => sum + c.amount, 0);
 
             // Somar o valor total de todas as outras comandas abertas do cliente (excluindo a atual)
-            const allOtherOpenOrdersDebt = allOrders
+            const allOtherOrdersDebt = allOrders
                 .filter(o => 
+                    o.id !== order.id &&
                     o.type === 'name' &&
                     o.status !== 'paid' &&
-                    o.id !== order.id &&
                     (o.identifier as string).toUpperCase() === clientName
                 )
                 .reduce((sum, o) => {
@@ -161,7 +161,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 }, 0);
             
             // Dívida anterior = Saldo de créditos/débitos - Dívida de outras comandas
-            debt = clientCreditsAndDebits - allOtherOpenOrdersDebt;
+            debt = clientCreditsAndDebits - allOtherOrdersDebt;
         }
     }
     
@@ -375,7 +375,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
 
-  const totalToPay = Math.abs(previousDebt - dailyConsumption + paidAmount);
+  const totalToDisplay = previousDebt - dailyConsumption;
+  const totalToPay = Math.abs(totalToDisplay + paidAmount);
 
 
   return (
@@ -507,11 +508,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
               <SheetFooter className="mt-auto pt-4">
                 <div className="w-full space-y-4">
-                    {previousDebt !== 0 && (
+                    {previousDebt < 0 && (
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
-                            <span className={"font-medium " + (previousDebt > 0 ? "text-green-600" : "text-destructive")}>
-                                R$ {previousDebt.toFixed(2).replace('.', ',')}
+                            <span className={"font-medium text-destructive"}>
+                                - R$ {Math.abs(previousDebt).toFixed(2).replace('.', ',')}
                             </span>
                         </div>
                     )}
