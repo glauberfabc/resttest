@@ -546,7 +546,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         <Button variant="outline" size="icon" onClick={handleKitchenPrint} disabled={itemsToPrint.length === 0}>
                             <Printer className="h-4 w-4" />
                         </Button>
-                        <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={order.items.length === 0 || totalToDisplay < 0.01}>
+                        <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={totalToDisplay < 0.01}>
                             <Wallet className="mr-2 h-4 w-4" />
                             Pagar
                         </Button>
@@ -598,5 +598,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
-    

@@ -455,9 +455,58 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
   const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
   
+  const clientBalances = useMemo(() => {
+    const balanceMap = new Map<string, number>();
+
+    clients.forEach(client => {
+      balanceMap.set(client.id, 0);
+    });
+
+    credits.forEach(credit => {
+      balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
+    });
+    
+    const openNameOrders = orders.filter(o => o.type === 'name' && o.status !== 'paid');
+
+    openNameOrders.forEach(order => {
+        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
+        if (client) {
+            const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+            const totalPaidForOrder = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+            const remainingDebtForOrder = orderTotal - totalPaidForOrder;
+
+            balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebtForOrder);
+        }
+    });
+
+    return balanceMap;
+  }, [orders, clients, credits]);
+
+
   const notebookOrders = useMemo(() => {
-    return openOrders.filter(o => isBefore(new Date(o.created_at), todayStart) && o.items.length > 0);
-  }, [openOrders]);
+    const oldOpenOrders = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart) && o.items.length > 0);
+    
+    return oldOpenOrders.map(order => {
+      let totalDebt = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+
+      if (order.type === 'name') {
+        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
+        if (client) {
+           const balance = clientBalances.get(client.id) || 0;
+           // The balance already includes the debt of all open orders. We need to isolate debt from *other* orders.
+           const currentOrderValue = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+           const currentOrderPaid = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+           const currentOrderDebt = currentOrderValue - currentOrderPaid;
+           
+           const totalClientBalance = balance;
+           const otherOrdersDebt = totalClientBalance - currentOrderDebt;
+
+           totalDebt = currentOrderDebt + otherOrdersDebt;
+        }
+      }
+      return { ...order, totalDebt };
+    });
+  }, [openOrders, clients, clientBalances]);
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
@@ -566,7 +615,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
                     {ordersToRender.map((order) => {
                          const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
                          const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                         const remainingAmount = total - paidAmount;
+                         const remainingAmount = order.totalDebt !== undefined ? order.totalDebt : total - paidAmount;
                          const displayAmount = order.status === 'paid' ? total : remainingAmount;
                          const paymentStatus = getPaymentStatus(order);
                          const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
