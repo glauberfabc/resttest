@@ -118,8 +118,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
   const handleNameOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (customerName) {
-        const identifier = selectedClient ? selectedClient.name : customerName;
-        onCreateOrder('name', identifier.toUpperCase(), identifier.toUpperCase(), phone, observation);
+        const identifier = customerName.toUpperCase();
+        onCreateOrder('name', identifier, identifier, phone, observation);
     }
   }
   
