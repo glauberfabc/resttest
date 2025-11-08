@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -375,8 +374,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
 
-  const totalToDisplay = previousDebt - dailyConsumption;
-  const totalToPay = Math.abs(totalToDisplay + paidAmount);
+  const totalDebt = previousDebt < 0 ? previousDebt : 0;
+  const totalToPay = Math.abs(totalDebt) + dailyConsumption - paidAmount;
 
 
   return (
