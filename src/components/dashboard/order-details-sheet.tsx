@@ -141,17 +141,15 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         const client = allClients.find(c => c.name.toUpperCase() === clientName);
         
         if (client) {
-            // Sum all credits for the client
-            const clientCredits = allCredits
+            const clientCreditsAndDebits = allCredits
                 .filter(c => c.client_id === client.id)
                 .reduce((sum, c) => sum + c.amount, 0);
-            
-            // Sum debt from all open orders for this client, excluding the current one
-            const otherOpenOrdersDebt = allOrders
+
+            const allOpenOrdersDebt = allOrders
                 .filter(o => 
                     o.type === 'name' &&
                     o.status !== 'paid' &&
-                    o.id !== order.id &&
+                    o.id !== order.id && // Exclude the current order from this part of the calculation
                     (o.identifier as string).toUpperCase() === clientName
                 )
                 .reduce((sum, o) => {
@@ -160,7 +158,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     return sum + (orderTotal - orderPaid);
                 }, 0);
             
-            debt = otherOpenOrdersDebt - clientCredits;
+            debt = allOpenOrdersDebt - clientCreditsAndDebits;
         }
     }
     
@@ -168,7 +166,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       previousDebt: debt,
       dailyConsumption: consumption
     };
-  }, [order, allOrders, allClients, allCredits, total]);
+}, [order, allOrders, allClients, allCredits, total]);
 
   
   const groupedItemsForDisplay = useMemo(() => {
@@ -509,8 +507,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     {previousDebt !== 0 && (
                          <div className="flex justify-between items-center text-sm">
                             <span className="text-muted-foreground">Saldo Anterior</span>
-                            <span className={previousDebt < 0 ? "text-destructive font-medium" : "text-green-600 font-medium"}>
-                                R$ {(previousDebt).toFixed(2).replace('.', ',')}
+                            <span className={"text-destructive font-medium"}>
+                                R$ {previousDebt.toFixed(2).replace('.', ',')}
                             </span>
                         </div>
                     )}
@@ -595,3 +593,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    
