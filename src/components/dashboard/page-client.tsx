@@ -740,5 +740,3 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
-
-    
