@@ -166,7 +166,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const handleUpdateOrder = async (updatedOrder: Order) => {
     const client = createClient();
     
-    // First, delete all existing items for the order
     const { error: deleteError } = await client
         .from('order_items')
         .delete()
@@ -175,11 +174,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (deleteError) {
         console.error("Error deleting old order items:", deleteError);
         toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "Não foi possível remover os itens antigos." });
-        await fetchData(false); // Rollback UI on error
+        await fetchData(false); 
         return;
     }
 
-    // Then, insert the new list of items, if any
     if (updatedOrder.items.length > 0) {
         const itemsToInsert = updatedOrder.items.map(item => ({
             order_id: updatedOrder.id,
@@ -198,7 +196,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         }
     }
     
-    // Force a refetch and update the selected order state
     await fetchData(false); 
     const { data: freshlyUpdatedOrderData } = await client
         .from('orders')
@@ -227,7 +224,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         };
         setSelectedOrder(formattedOrder);
     } else {
-        // The order might have been deleted (e.g. if it was empty)
         setSelectedOrder(null);
     }
   };
@@ -338,13 +334,16 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
          return;
       }
     } else {
-      const { error } = await client
+      const { data, error } = await client
         .from('order_payments')
         .insert({ 
           order_id: orderId, 
           amount, 
           method,
-        });
+          user_id: user.id,
+        })
+        .select()
+        .single();
   
       if (error) {
         console.error("Error processing payment:", error);
@@ -451,9 +450,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
 
 
   const todayStart = startOfToday();
-
-  const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
-  const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
   
   const clientBalances = useMemo(() => {
     const balanceMap = new Map<string, number>();
@@ -483,30 +479,27 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
   }, [orders, clients, credits]);
 
 
-  const notebookOrders = useMemo(() => {
-    const oldOpenOrders = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart) && o.items.length > 0);
+  const openOrders = useMemo(() => {
+    const rawOpenOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
     
-    return oldOpenOrders.map(order => {
-      let totalDebt = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+    return rawOpenOrders.map(order => {
+      const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+      const orderPaidAmount = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+      let totalDebt = orderTotal - orderPaidAmount;
 
       if (order.type === 'name') {
         const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
         if (client) {
            const balance = clientBalances.get(client.id) || 0;
-           // The balance already includes the debt of all open orders. We need to isolate debt from *other* orders.
-           const currentOrderValue = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-           const currentOrderPaid = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-           const currentOrderDebt = currentOrderValue - currentOrderPaid;
-           
-           const totalClientBalance = balance;
-           const otherOrdersDebt = totalClientBalance - currentOrderDebt;
-
-           totalDebt = currentOrderDebt + otherOrdersDebt;
+           totalDebt = balance;
         }
       }
       return { ...order, totalDebt };
     });
-  }, [openOrders, clients, clientBalances]);
+  }, [filteredOrders, clients, clientBalances]);
+
+  const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
+  const notebookOrders = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart));
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
