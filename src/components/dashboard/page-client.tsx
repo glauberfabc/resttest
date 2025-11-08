@@ -79,11 +79,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     setIsFetching(true);
     
     const client = createClient();
-    let query = client
+    const { data: ordersData, error: ordersError } = await client
         .from('orders')
-        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`);
-
-    const { data: ordersData, error: ordersError } = await query.order('created_at', { ascending: false });
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .order('created_at', { ascending: false });
 
     if (ordersData) {
         const formattedOrders = ordersData.map(order => ({
@@ -199,8 +198,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         }
     }
     
-    await fetchData(false);
-    
+    // Force a refetch and update the selected order state
+    await fetchData(false); 
     const { data: freshlyUpdatedOrderData } = await client
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
@@ -228,6 +227,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         };
         setSelectedOrder(formattedOrder);
     } else {
+        // The order might have been deleted (e.g. if it was empty)
         setSelectedOrder(null);
     }
   };
@@ -318,26 +318,34 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
   
-    // Handle payment using client balance
-    if (method === 'Saldo Cliente' && orderToPay.type === 'name') {
-      const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
-      if (clientRecord) {
-        const { error } = await client.from('client_credits').insert({
-          client_id: clientRecord.id,
-          amount: -amount,
-          method: 'Consumo',
-          user_id: user.id,
-        });
-        if (error) {
-          toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível abater o saldo do cliente." });
-          return;
+    if (method === 'Saldo Cliente') {
+      if (orderToPay.type === 'name') {
+        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        if (clientRecord) {
+          const { error } = await client.from('client_credits').insert({
+            client_id: clientRecord.id,
+            amount: -amount,
+            method: 'Consumo',
+            user_id: user.id,
+          });
+          if (error) {
+            toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível abater o saldo do cliente." });
+            return;
+          }
         }
+      } else {
+         toast({ variant: 'destructive', title: "Operação não permitida", description: "Pagamento com saldo de cliente só é válido para comandas de cliente." });
+         return;
       }
     } else {
-      // Handle standard payment methods
       const { error } = await client
         .from('order_payments')
-        .insert({ order_id: orderId, amount, method });
+        .insert({ 
+          order_id: orderId, 
+          amount, 
+          method,
+          user_id: user.id
+        });
   
       if (error) {
         console.error("Error processing payment:", error);
@@ -346,7 +354,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       }
     }
   
-    // Use a small delay to allow database replication before checking the final status
     setTimeout(async () => {
       await fetchData(false);
       const { data: updatedOrderData } = await client.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
@@ -454,7 +461,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
   }, [openOrders]);
 
 
-  const paidOrders = filteredOrders.filter(o => o.status === 'paid' && o.type === 'name');
+  const paidOrders = filteredOrders.filter(o => o.status === 'paid');
 
   const sortedNotebookOrders = useMemo(() => {
     return [...notebookOrders].sort((a, b) => {
@@ -479,7 +486,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         if (key === 'identifier') {
             return a.identifier.toString().localeCompare(b.identifier.toString()) * direction;
         } else { // date
-            return (new Date(aDate).getTime() - new Date(bDate).getTime()) * direction;
+            return (new Date(bDate).getTime() - new Date(aDate).getTime()) * direction;
         }
     });
   }, [paidOrders, sortConfig.fechadas]);
