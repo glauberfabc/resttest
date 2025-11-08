@@ -351,12 +351,11 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       }
     }
   
-    // Fetch fresh data for the specific order to check if it's fully paid
     const { data: updatedOrderData, error: fetchError } = await client.from('orders').select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`).eq('id', orderId).single();
       
     if(fetchError || !updatedOrderData) {
         toast({ variant: 'destructive', title: "Erro ao atualizar", description: "Pagamento salvo, mas não foi possível buscar dados atualizados." });
-        await fetchData(false); // Fallback to full refresh
+        await fetchData(false);
         return;
     }
 
@@ -372,19 +371,34 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         createdAt: new Date(updatedOrderData.created_at), paidAt: updatedOrderData.paid_at ? new Date(updatedOrderData.paid_at) : undefined,
     };
 
-    const orderTotal = freshOrder.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-    const orderPaidAmount = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-
-    let totalDebt = orderTotal - orderPaidAmount;
+    let totalToPay = 0;
+    const dailyConsumption = freshOrder.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+    const paidAmount = freshOrder.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+    let previousDebt = 0;
+    
     if (orderToPay.type === 'name') {
-        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        const clientName = (orderToPay.identifier as string).toUpperCase();
+        const clientRecord = clients.find(c => c.name.toUpperCase() === clientName);
         if (clientRecord) {
-            const balance = (credits.filter(c => c.client_id === clientRecord.id).reduce((sum, c) => sum + c.amount, 0)) - amount;
-            totalDebt = (orderTotal - orderPaidAmount) - balance;
+            const clientCreditsAndDebits = credits
+                .filter(c => c.client_id === clientRecord.id)
+                .reduce((sum, c) => sum + c.amount, 0);
+
+            const allOtherOrdersDebt = orders
+                .filter(o => o.id !== orderToPay.id && o.type === 'name' && o.status !== 'paid' && (o.identifier as string).toUpperCase() === clientName)
+                .reduce((sum, o) => {
+                    const orderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+                    const orderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                    return sum + (orderTotal - orderPaid);
+                }, 0);
+            
+            previousDebt = clientCreditsAndDebits - allOtherOrdersDebt;
         }
     }
     
-    if (totalDebt < 0.01) { // Paid in full
+    totalToPay = (dailyConsumption - previousDebt) - paidAmount;
+    
+    if (totalToPay < 0.01) { // Paid in full
        const { error: updateError } = await client
         .from('orders')
         .update({ status: 'paid', paid_at: new Date().toISOString() })
@@ -394,14 +408,11 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
             toast({ variant: 'destructive', title: "Erro ao fechar", description: "Pagamento salvo, mas não foi possível fechar a comanda." });
         } else {
              toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
-             // Optimistically update the UI
-             setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...freshOrder, status: 'paid', paid_at: new Date(), paidAt: new Date() } : o));
              setSelectedOrder(null);
+             await fetchData(false); // Refetch all data to update UI
         }
     } else { // Partially paid
         await client.from('orders').update({ status: 'paying' }).eq('id', orderId);
-        // Optimistically update the UI
-        setOrders(prevOrders => prevOrders.map(o => o.id === orderId ? { ...freshOrder, status: 'paying' } : o));
         setSelectedOrder(freshOrder);
     }
   };
@@ -494,19 +505,18 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     const rawOpenOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
     
     return rawOpenOrders.map(order => {
-      const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-      const orderPaidAmount = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-      let totalDebt = orderTotal - orderPaidAmount;
+        const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+        const orderPaidAmount = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+        let totalDebt = orderTotal - orderPaidAmount;
 
-      if (order.type === 'name') {
-        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
-        if (client) {
-           const balance = clientBalances.get(client.id) || 0;
-           // The total debt for a client order is their entire balance.
-           totalDebt = Math.abs(balance);
+        if (order.type === 'name') {
+            const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
+            if (client) {
+                // The total debt for a client order is their entire balance.
+                totalDebt = Math.abs(clientBalances.get(client.id) || 0);
+            }
         }
-      }
-      return { ...order, totalDebt };
+        return { ...order, totalDebt };
     });
   }, [filteredOrders, clients, clientBalances]);
 
