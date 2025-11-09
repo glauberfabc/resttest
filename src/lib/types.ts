@@ -42,7 +42,6 @@ export interface Order {
   payments?: Payment[];
   user_id: string;
   observation?: string | null;
-  totalDebt?: number;
   // Compatibility with frontend components that might use camelCase
   createdAt?: Date;
   paidAt?: Date;
@@ -73,5 +72,3 @@ export interface User {
   name: string;
   role: UserRole;
 }
-
-    

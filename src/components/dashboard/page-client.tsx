@@ -313,15 +313,36 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     const client = createClient();
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
-  
-    // Determine the final status based on whether the payment covers the full amount.
+
+    // Recalculate everything inside the function to be safe
     const orderTotal = orderToPay.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
     const paidAmount = orderToPay.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-    const remainingAmount = orderTotal - paidAmount;
+    
+    // For client orders, add their previous balance to the current order's total
+    let totalDue = orderTotal;
+    if (orderToPay.type === 'name') {
+        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        if (clientRecord) {
+            const clientCreditsTotal = credits
+                .filter(c => c.client_id === clientRecord.id)
+                .reduce((sum, c) => sum + c.amount, 0);
 
-    const isPayingInFull = amount >= remainingAmount - 0.01; // Tolerance for float issues
+            const otherOrdersDebt = orders
+                .filter(o => o.id !== orderId && o.type === 'name' && (o.identifier as string).toUpperCase() === clientRecord.name.toUpperCase() && o.status !== 'paid')
+                .reduce((sum, o) => {
+                    const otherOrderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
+                    const otherOrderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
+                    return sum + (otherOrderTotal - otherOrderPaid);
+                }, 0);
+            
+            totalDue += (otherOrdersDebt - clientCreditsTotal);
+        }
+    }
+    
+    const remainingAmount = totalDue - paidAmount;
+    const isPayingInFull = amount >= remainingAmount - 0.01;
     const newStatus = isPayingInFull ? 'paid' : 'paying';
-
+  
     if (method === 'Saldo Cliente') {
       if (orderToPay.type === 'name') {
         const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
@@ -357,7 +378,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
       }
     }
   
-    // Update order status if it's being paid in full or for the first time
     if (newStatus !== orderToPay.status) {
          const { error: updateError } = await client
             .from('orders')
@@ -375,7 +395,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
     }
 
-    // Refetch all data to ensure UI is in sync.
     await fetchData(false);
     setSelectedOrder(null);
   };
@@ -436,53 +455,9 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
 
   const todayStart = startOfToday();
   
-  const clientBalances = useMemo(() => {
-    const balanceMap = new Map<string, number>();
-
-    clients.forEach(client => {
-      balanceMap.set(client.id, 0);
-    });
-
-    credits.forEach(credit => {
-      balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
-    });
-    
-    const openNameOrders = orders.filter(o => o.type === 'name' && o.status !== 'paid');
-
-    openNameOrders.forEach(order => {
-        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
-        if (client) {
-            const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-            const totalPaidForOrder = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-            const remainingDebtForOrder = orderTotal - totalPaidForOrder;
-
-            balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebtForOrder);
-        }
-    });
-
-    return balanceMap;
-  }, [orders, clients, credits]);
-
-
   const openOrders = useMemo(() => {
-    const rawOpenOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
-    
-    return rawOpenOrders.map(order => {
-        if (order.type === 'name') {
-            const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
-            if (client) {
-                // The total debt for a client order is their entire balance.
-                const totalDebt = clientBalances.get(client.id) || 0;
-                return { ...order, totalDebt };
-            }
-        }
-        // For table orders, totalDebt is not applicable in the same way.
-        // It will be calculated based on items and payments in the OrderCard itself.
-        const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-        const orderPaidAmount = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-        return { ...order, totalDebt: orderTotal - orderPaidAmount };
-    });
-  }, [filteredOrders, clients, clientBalances]);
+    return filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
+  }, [filteredOrders]);
 
   const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
   const notebookOrders = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart));
@@ -594,7 +569,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
                     {ordersToRender.map((order) => {
                          const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
                          const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                         const remainingAmount = order.totalDebt !== undefined ? order.totalDebt : total - paidAmount;
+                         const remainingAmount = total - paidAmount;
                          const displayAmount = order.status === 'paid' ? total : remainingAmount;
                          const paymentStatus = getPaymentStatus(order);
                          const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);

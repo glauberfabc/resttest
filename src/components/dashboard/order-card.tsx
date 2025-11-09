@@ -30,7 +30,7 @@ interface OrderCardProps {
 export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProps) {
   const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
   const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-  const remainingAmount = order.totalDebt !== undefined ? order.totalDebt : total - paidAmount;
+  const remainingAmount = total - paidAmount;
   const itemCount = order.items.reduce((acc, item) => acc + item.quantity, 0);
   const isPartiallyPaid = paidAmount > 0 && remainingAmount > 0.01;
   const isPaid = order.status === 'paid';
