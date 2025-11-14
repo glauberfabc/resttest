@@ -257,7 +257,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
   const handleWhatsAppShare = () => {
     let message = '';
-    const totalDebt = previousDebt - dailyConsumption;
+    const totalDebtValue = (previousDebt > 0 ? 0 : previousDebt) - dailyConsumption;
     
     if (isFromBeforeToday) {
         const dateStr = format(new Date(order.created_at), 'dd/MM/yyyy');
@@ -271,7 +271,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
         if (balanceBeforeThisOrder < 0) {
             message += `\n*Saldo Anterior: R$ ${balanceBeforeThisOrder.toFixed(2).replace('.', ',')}*`;
         }
-        message += `\n*DÍVIDA TOTAL: R$ ${(total - totalDebt).toFixed(2).replace('.', ',')}*`;
+        message += `\n*DÍVIDA TOTAL: R$ ${Math.abs(totalDebtValue).toFixed(2).replace('.', ',')}*`;
 
     } else {
         const headerIdentifier = order.type === 'table' && order.customer_name
@@ -291,14 +291,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
              message += `\n\n*Saldo Anterior: R$ ${previousDebt.toFixed(2).replace('.', ',')}*`;
         }
 
-        const totalToPay = dailyConsumption - previousDebt;
-        message += `\n*Total: R$ ${totalToPay.toFixed(2).replace('.', ',')}*`;
+        const totalToPayValue = Math.abs(totalDebtValue);
+        message += `\n*Total: R$ ${totalToPayValue.toFixed(2).replace('.', ',')}*`;
 
 
         if (paidAmount > 0) {
             message += `\n*Pago: R$ ${paidAmount.toFixed(2).replace('.', ',')}*`;
             if (!isPaid) {
-                message += `\n*Restante: R$ ${(totalToPay - paidAmount).toFixed(2).replace('.', ',')}*`;
+                message += `\n*Restante: R$ ${(totalToPayValue - paidAmount).toFixed(2).replace('.', ',')}*`;
             }
         }
     }
@@ -363,7 +363,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     return finalTitle;
   };
   
-  const totalDebt = (previousDebt < 0 ? previousDebt : 0) - dailyConsumption;
+  const totalDebt = (previousDebt > 0 ? 0 : previousDebt) - dailyConsumption;
   const totalToPay = Math.abs(totalDebt) - paidAmount;
 
 
@@ -585,3 +585,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    

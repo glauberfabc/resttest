@@ -314,89 +314,78 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     const orderToPay = orders.find((o) => o.id === orderId);
     if (!orderToPay || !user) return;
 
-    // Recalculate everything inside the function to be safe
-    const orderTotal = orderToPay.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-    const paidAmount = orderToPay.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-    
-    // For client orders, add their previous balance to the current order's total
-    let totalDue = orderTotal;
+    let allOrdersForClient: Order[] = [];
+    let totalClientDebt = 0;
+    let isPayingFullDebt = false;
+
     if (orderToPay.type === 'name') {
-        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
-        if (clientRecord) {
-            const clientCreditsTotal = credits
-                .filter(c => c.client_id === clientRecord.id)
-                .reduce((sum, c) => sum + c.amount, 0);
+        const clientName = (orderToPay.identifier as string).toUpperCase();
+        allOrdersForClient = orders.filter(o => o.status !== 'paid' && o.type === 'name' && (o.identifier as string).toUpperCase() === clientName);
+        
+        const clientRecord = clients.find(c => c.name.toUpperCase() === clientName);
+        const clientCreditBalance = clientRecord ? credits.filter(c => c.client_id === clientRecord.id).reduce((sum, c) => sum + c.amount, 0) : 0;
+        
+        totalClientDebt = allOrdersForClient.reduce((debt, o) => {
+            const orderTotal = o.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+            const orderPaid = o.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+            return debt + (orderTotal - orderPaid);
+        }, 0) - clientCreditBalance;
 
-            const otherOrdersDebt = orders
-                .filter(o => o.id !== orderId && o.type === 'name' && (o.identifier as string).toUpperCase() === clientRecord.name.toUpperCase() && o.status !== 'paid')
-                .reduce((sum, o) => {
-                    const otherOrderTotal = o.items.reduce((acc, item) => acc + (item.menuItem.price * item.quantity), 0);
-                    const otherOrderPaid = o.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-                    return sum + (otherOrderTotal - otherOrderPaid);
-                }, 0);
-            
-            totalDue += (otherOrdersDebt - clientCreditsTotal);
-        }
+        isPayingFullDebt = amount >= totalClientDebt - 0.01;
     }
-    
-    const remainingAmount = totalDue - paidAmount;
-    const isPayingInFull = amount >= remainingAmount - 0.01;
-    const newStatus = isPayingInFull ? 'paid' : 'paying';
-  
-    if (method === 'Saldo Cliente') {
-      if (orderToPay.type === 'name') {
-        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
-        if (clientRecord) {
-          const { error } = await client.from('client_credits').insert({
-            client_id: clientRecord.id,
-            amount: -amount,
-            method: 'Consumo',
-            user_id: user.id,
-          });
-          if (error) {
-            toast({ variant: 'destructive', title: "Erro no Pagamento", description: "Não foi possível abater o saldo do cliente." });
-            return;
-          }
-        }
-      } else {
-         toast({ variant: 'destructive', title: "Operação não permitida", description: "Pagamento com saldo de cliente só é válido para comandas de cliente." });
-         return;
-      }
-    } else {
-      const { error } = await client
+
+    // Insert payment record
+    const { error: paymentError } = await client
         .from('order_payments')
-        .insert({ 
-          order_id: orderId, 
-          amount, 
-          method,
-        });
-  
-      if (error) {
-        console.error("Error processing payment:", error);
-        toast({ variant: 'destructive', title: "Erro no pagamento", description: error.message });
-        return;
-      }
-    }
-  
-    if (newStatus !== orderToPay.status) {
-         const { error: updateError } = await client
-            .from('orders')
-            .update({ status: newStatus, paid_at: isPayingInFull ? new Date().toISOString() : orderToPay.paid_at })
-            .eq('id', orderId);
+        .insert({ order_id: orderId, amount, method });
 
-        if(updateError) {
-             toast({ variant: 'destructive', title: "Erro ao atualizar", description: "Pagamento salvo, mas não foi possível atualizar o status da comanda." });
+    if (paymentError) {
+        toast({ variant: 'destructive', title: "Erro no Pagamento", description: paymentError.message });
+        return;
+    }
+
+    if (isPayingFullDebt && allOrdersForClient.length > 0) {
+        // Paying off all debts for the client
+        const orderIdsToUpdate = allOrdersForClient.map(o => o.id);
+        const { error: updateError } = await client
+            .from('orders')
+            .update({ status: 'paid', paid_at: new Date().toISOString() })
+            .in('id', orderIdsToUpdate);
+
+        if (updateError) {
+            toast({ variant: 'destructive', title: "Erro ao quitar comandas", description: "O pagamento foi registrado, mas houve um erro ao fechar todas as comandas do cliente." });
+        } else {
+            toast({ title: "Dívida Quitada!", description: `Todas as comandas de ${orderToPay.identifier} foram pagas.` });
+        }
+
+    } else {
+        // Standard payment for a single order (or partial payment)
+        const orderTotal = orderToPay.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
+        const totalPaidForOrder = (orderToPay.payments?.reduce((sum, p) => sum + p.amount, 0) || 0) + amount;
+        
+        const isOrderPaid = totalPaidForOrder >= orderTotal - 0.01;
+        const newStatus = isOrderPaid ? 'paid' : 'paying';
+
+        if (newStatus !== orderToPay.status || isOrderPaid) {
+            const { error: updateError } = await client
+                .from('orders')
+                .update({ status: newStatus, paid_at: isOrderPaid ? new Date().toISOString() : null })
+                .eq('id', orderId);
+
+            if (updateError) {
+                toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
+            }
+        }
+        
+        if (isOrderPaid) {
+            toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
+        } else {
+            toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
         }
     }
     
-    if (newStatus === 'paid') {
-        toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
-    } else {
-        toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
-    }
-
-    await fetchData(false);
     setSelectedOrder(null);
+    await fetchData(false);
   };
 
 
@@ -743,3 +732,5 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
+
+    
