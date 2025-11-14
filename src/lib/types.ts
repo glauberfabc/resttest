@@ -45,6 +45,7 @@ export interface Order {
   // Compatibility with frontend components that might use camelCase
   createdAt?: Date;
   paidAt?: Date;
+  otherOpenOrdersCount?: number;
 }
 
 export interface Client {

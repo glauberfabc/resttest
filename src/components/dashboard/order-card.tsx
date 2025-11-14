@@ -100,7 +100,12 @@ export function OrderCard({ order, onSelectOrder, onDeleteOrder }: OrderCardProp
         <div className="text-sm text-muted-foreground">
           {itemCount} {itemCount === 1 ? 'item' : 'itens'}
         </div>
-        {displayObservation && (
+        {order.otherOpenOrdersCount && order.otherOpenOrdersCount > 0 && (
+          <div className="text-xs text-destructive font-semibold mt-1">
+            {order.otherOpenOrdersCount} {order.otherOpenOrdersCount === 1 ? 'outra comanda aberta' : 'outras comandas abertas'}
+          </div>
+        )}
+        {displayObservation && !order.otherOpenOrdersCount && (
             <div className="text-xs italic text-muted-foreground mt-1 truncate">
                 Obs: {displayObservation}
             </div>

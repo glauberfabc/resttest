@@ -125,6 +125,10 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   }, [toast]);
 
   useEffect(() => {
+    fetchData();
+  }, []);
+
+  useEffect(() => {
     const search = searchParams.get('search');
     if(search) {
         setSearchTerm(search);
@@ -318,6 +322,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     let totalClientDebt = 0;
     let isPayingFullDebt = false;
 
+    // This logic now only applies to 'name' type orders for full debt settlement
     if (orderToPay.type === 'name') {
         const clientName = (orderToPay.identifier as string).toUpperCase();
         allOrdersForClient = orders.filter(o => o.status !== 'paid' && o.type === 'name' && (o.identifier as string).toUpperCase() === clientName);
@@ -334,7 +339,7 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         isPayingFullDebt = amount >= totalClientDebt - 0.01;
     }
 
-    // Insert payment record
+    // Insert payment record for the specific order being paid
     const { error: paymentError } = await client
         .from('order_payments')
         .insert({ order_id: orderId, amount, method });
@@ -344,8 +349,8 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         return;
     }
 
+    // If it's a full debt payment for a client, update all their orders
     if (isPayingFullDebt && allOrdersForClient.length > 0) {
-        // Paying off all debts for the client
         const orderIdsToUpdate = allOrdersForClient.map(o => o.id);
         const { error: updateError } = await client
             .from('orders')
@@ -357,33 +362,37 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         } else {
             toast({ title: "Dívida Quitada!", description: `Todas as comandas de ${orderToPay.identifier} foram pagas.` });
         }
-
     } else {
-        // Standard payment for a single order (or partial payment)
+        // Standard payment logic for a single order (table or name)
         const orderTotal = orderToPay.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-        const totalPaidForOrder = (orderToPay.payments?.reduce((sum, p) => sum + p.amount, 0) || 0) + amount;
+        const totalPaidForThisOrder = (orderToPay.payments?.reduce((sum, p) => sum + p.amount, 0) || 0) + amount;
         
-        const isOrderPaid = totalPaidForOrder >= orderTotal - 0.01;
-        const newStatus = isOrderPaid ? 'paid' : 'paying';
+        const isOrderNowPaid = totalPaidForThisOrder >= orderTotal - 0.01;
 
-        if (newStatus !== orderToPay.status || isOrderPaid) {
-            const { error: updateError } = await client
+        if (isOrderNowPaid) {
+             const { error: updateError } = await client
                 .from('orders')
-                .update({ status: newStatus, paid_at: isOrderPaid ? new Date().toISOString() : null })
+                .update({ status: 'paid', paid_at: new Date().toISOString() })
                 .eq('id', orderId);
-
-            if (updateError) {
-                toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
-            }
-        }
-        
-        if (isOrderPaid) {
-            toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
+             if (updateError) {
+                 toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
+             } else {
+                 toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
+             }
         } else {
-            toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
+             const { error: updateError } = await client
+                .from('orders')
+                .update({ status: 'paying' })
+                .eq('id', orderId);
+             if (updateError) {
+                toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
+             } else {
+                toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
+             }
         }
     }
     
+    // Close the sheet and refresh data from the server to ensure UI consistency
     setSelectedOrder(null);
     await fetchData(false);
   };
@@ -447,9 +456,23 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
   const openOrders = useMemo(() => {
     return filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
   }, [filteredOrders]);
-
-  const openOrdersToday = openOrders.filter(o => new Date(o.created_at) >= todayStart);
+  
   const notebookOrders = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart));
+  
+  const openOrdersToday = useMemo(() => {
+      const todayOrders = openOrders.filter(o => new Date(o.created_at) >= todayStart);
+      
+      // Count other open orders for each client
+      return todayOrders.map(order => {
+          if (order.type === 'name') {
+              const otherOpenOrders = openOrders.filter(
+                  other => other.id !== order.id && other.type === 'name' && other.identifier === order.identifier
+              );
+              return { ...order, otherOpenOrdersCount: otherOpenOrders.length };
+          }
+          return order;
+      });
+  }, [openOrders, todayStart]);
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
@@ -732,5 +755,3 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
-
-    
