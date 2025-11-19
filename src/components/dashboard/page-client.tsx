@@ -224,7 +224,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             created_at: new Date(freshlyUpdatedOrderData.created_at),
             paid_at: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
             createdAt: new Date(freshlyUpdatedOrderData.created_at),
-            paidAt: new Date(freshlyUpdatedOrderData.paid_at) : undefined,
+            paidAt: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
         };
         setSelectedOrder(formattedOrder);
     } else {
@@ -754,5 +754,3 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
-
-    
