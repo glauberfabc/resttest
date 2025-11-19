@@ -200,7 +200,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         }
     }
     
-    await fetchData(false); 
     const { data: freshlyUpdatedOrderData } = await client
         .from('orders')
         .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
@@ -230,6 +229,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     } else {
         setSelectedOrder(null);
     }
+    await fetchData(false); 
   };
   
 const handleCreateOrder = async (type: 'table' | 'name', identifier: string | number, customerName?: string, phone?: string, observation?: string) => {
@@ -339,7 +339,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         isPayingFullDebt = amount >= totalClientDebt - 0.01;
     }
 
-    // Handle "Saldo Cliente" payment by creating a negative credit record
     if (method === "Saldo Cliente") {
         const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
         if (clientRecord && user) {
