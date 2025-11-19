@@ -126,7 +126,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   useEffect(() => {
     const search = searchParams.get('search');
@@ -224,7 +224,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             created_at: new Date(freshlyUpdatedOrderData.created_at),
             paid_at: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
             createdAt: new Date(freshlyUpdatedOrderData.created_at),
-            paidAt: freshlyUpdatedOrderData.paid_at ? new Date(freshlyUpdatedOrderData.paid_at) : undefined,
+            paidAt: new Date(freshlyUpdatedOrderData.paid_at) : undefined,
         };
         setSelectedOrder(formattedOrder);
     } else {
@@ -322,7 +322,6 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     let totalClientDebt = 0;
     let isPayingFullDebt = false;
 
-    // This logic now only applies to 'name' type orders for full debt settlement
     if (orderToPay.type === 'name') {
         const clientName = (orderToPay.identifier as string).toUpperCase();
         allOrdersForClient = orders.filter(o => o.status !== 'paid' && o.type === 'name' && (o.identifier as string).toUpperCase() === clientName);
@@ -330,16 +329,34 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         const clientRecord = clients.find(c => c.name.toUpperCase() === clientName);
         const clientCreditBalance = clientRecord ? credits.filter(c => c.client_id === clientRecord.id).reduce((sum, c) => sum + c.amount, 0) : 0;
         
-        totalClientDebt = allOrdersForClient.reduce((debt, o) => {
+        const debtFromOrders = allOrdersForClient.reduce((debt, o) => {
             const orderTotal = o.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
             const orderPaid = o.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
             return debt + (orderTotal - orderPaid);
-        }, 0) - clientCreditBalance;
+        }, 0);
 
+        totalClientDebt = debtFromOrders - clientCreditBalance;
         isPayingFullDebt = amount >= totalClientDebt - 0.01;
     }
 
-    // Insert payment record for the specific order being paid
+    // Handle "Saldo Cliente" payment by creating a negative credit record
+    if (method === "Saldo Cliente") {
+        const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
+        if (clientRecord && user) {
+            const { error: creditError } = await client.from('client_credits').insert({
+                client_id: clientRecord.id,
+                amount: -amount, // Deduct from balance
+                method: "Consumo",
+                user_id: user.id
+            });
+            if (creditError) {
+                toast({ variant: 'destructive', title: "Erro no Saldo", description: "Não foi possível deduzir o valor do saldo do cliente." });
+                return;
+            }
+        }
+    }
+
+
     const { error: paymentError } = await client
         .from('order_payments')
         .insert({ order_id: orderId, amount, method });
@@ -349,50 +366,34 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
         return;
     }
 
-    // If it's a full debt payment for a client, update all their orders
     if (isPayingFullDebt && allOrdersForClient.length > 0) {
         const orderIdsToUpdate = allOrdersForClient.map(o => o.id);
-        const { error: updateError } = await client
+        await client
             .from('orders')
             .update({ status: 'paid', paid_at: new Date().toISOString() })
             .in('id', orderIdsToUpdate);
-
-        if (updateError) {
-            toast({ variant: 'destructive', title: "Erro ao quitar comandas", description: "O pagamento foi registrado, mas houve um erro ao fechar todas as comandas do cliente." });
-        } else {
-            toast({ title: "Dívida Quitada!", description: `Todas as comandas de ${orderToPay.identifier} foram pagas.` });
-        }
+        toast({ title: "Dívida Quitada!", description: `Todas as comandas de ${orderToPay.identifier} foram pagas.` });
     } else {
-        // Standard payment logic for a single order (table or name)
         const orderTotal = orderToPay.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
         const totalPaidForThisOrder = (orderToPay.payments?.reduce((sum, p) => sum + p.amount, 0) || 0) + amount;
         
         const isOrderNowPaid = totalPaidForThisOrder >= orderTotal - 0.01;
 
         if (isOrderNowPaid) {
-             const { error: updateError } = await client
+             await client
                 .from('orders')
                 .update({ status: 'paid', paid_at: new Date().toISOString() })
                 .eq('id', orderId);
-             if (updateError) {
-                 toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
-             } else {
-                 toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
-             }
+             toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
         } else {
-             const { error: updateError } = await client
+             await client
                 .from('orders')
                 .update({ status: 'paying' })
                 .eq('id', orderId);
-             if (updateError) {
-                toast({ variant: 'destructive', title: "Erro ao atualizar comanda", description: "O pagamento foi salvo, mas o status da comanda não foi atualizado." });
-             } else {
-                toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
-             }
+             toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
         }
     }
     
-    // Close the sheet and refresh data from the server to ensure UI consistency
     setSelectedOrder(null);
     await fetchData(false);
   };
@@ -453,26 +454,24 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
 
   const todayStart = startOfToday();
   
-  const openOrders = useMemo(() => {
-    return filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
-  }, [filteredOrders]);
-  
-  const notebookOrders = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart));
-  
-  const openOrdersToday = useMemo(() => {
-      const todayOrders = openOrders.filter(o => new Date(o.created_at) >= todayStart);
-      
-      // Count other open orders for each client
-      return todayOrders.map(order => {
-          if (order.type === 'name') {
-              const otherOpenOrders = openOrders.filter(
-                  other => other.id !== order.id && other.type === 'name' && other.identifier === order.identifier
-              );
-              return { ...order, otherOpenOrdersCount: otherOpenOrders.length };
-          }
-          return order;
-      });
-  }, [openOrders, todayStart]);
+  const { openOrdersToday, notebookOrders } = useMemo(() => {
+    const openOrders = filteredOrders.filter(o => o.status === 'open' || o.status === 'paying');
+    
+    const notebook = openOrders.filter(o => isBefore(new Date(o.created_at), todayStart));
+    const today = openOrders.filter(o => !isBefore(new Date(o.created_at), todayStart));
+
+    const todayWithCounts = today.map(order => {
+        if (order.type === 'name') {
+            const otherOpenOrders = openOrders.filter(
+                other => other.id !== order.id && other.type === 'name' && other.identifier === order.identifier
+            );
+            return { ...order, otherOpenOrdersCount: otherOpenOrders.length };
+        }
+        return order;
+    });
+
+    return { openOrdersToday: todayWithCounts, notebookOrders: notebook };
+  }, [filteredOrders, todayStart]);
 
 
   const paidOrders = filteredOrders.filter(o => o.status === 'paid');
@@ -755,3 +754,5 @@ const handleProcessPayment = async (orderId: string, amount: number, method: str
     </div>
   );
 }
+
+    
