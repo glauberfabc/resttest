@@ -28,7 +28,6 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MenuPicker } from "@/components/dashboard/menu-picker";
 import { PaymentDialog } from "@/components/dashboard/payment-dialog";
-import { PrintableReceipt } from "@/components/dashboard/printable-receipt";
 import { KitchenReceipt } from "@/components/dashboard/kitchen-receipt";
 import { CommentDialog } from "@/components/dashboard/comment-dialog";
 import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquarePlus, MessageSquareText } from "lucide-react";
@@ -360,6 +359,54 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const totalDebt = (previousDebt > 0 ? 0 : previousDebt) - dailyConsumption;
   const totalToPay = Math.abs(totalDebt) - paidAmount;
 
+  // This creates a simple text version of the receipt for printing.
+  const customerReceiptItems = useMemo((): OrderItem[] => {
+    if (!isPaid) return [];
+    
+    const textItems: OrderItem[] = [];
+    const formatCurrency = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+    const receiptDate = order.paid_at ? new Date(order.paid_at) : new Date();
+    const formattedDate = formatInTimeZone(receiptDate, timeZone, 'dd/MM/yyyy');
+    const formattedTime = formatInTimeZone(receiptDate, timeZone, 'HH:mm');
+    const paymentMethods = order.payments?.map(p => p.method).join(', ') || 'Pendente';
+    const identifierText = typeof order.identifier === 'string' ? order.identifier.toUpperCase() : order.identifier;
+    
+    // Header
+    textItems.push({ id: 'header1', menuItem: { name: 'CUPOM FISCAL', price: 0 } as MenuItem, quantity: 1, comment: '' });
+    textItems.push({ id: 'header2', menuItem: { name: 'SNOOKER BAR ARAMAÇAN', price: 0 } as MenuItem, quantity: 1, comment: '' });
+    textItems.push({ id: 'header3', menuItem: { name: `COMANDA: ${order.type === 'table' ? `MESA ${identifierText}` : identifierText}`, price: 0 } as MenuItem, quantity: 1, comment: '' });
+    textItems.push({ id: 'header4', menuItem: { name: `DATA: ${formattedDate} HORA: ${formattedTime}`, price: 0 } as MenuItem, quantity: 1, comment: '' });
+    textItems.push({ id: 'divider1', menuItem: { name: '----------------------------------------', price: 0 } as MenuItem, quantity: 1, comment: '' });
+    textItems.push({ id: 'header5', menuItem: { name: 'QTD | ITEM                        VALOR', price: 0 } as MenuItem, quantity: 1, comment: '' });
+    textItems.push({ id: 'divider2', menuItem: { name: '----------------------------------------', price: 0 } as MenuItem, quantity: 1, comment: '' });
+
+    // Items
+    groupedItemsForDisplay.forEach(item => {
+        const itemTotal = item.menuItem.price * item.quantity;
+        const itemName = `${item.quantity}x ${item.menuItem.name}`;
+        const itemPrice = formatCurrency(itemTotal);
+        const padding = ' '.repeat(Math.max(0, 32 - itemName.length - itemPrice.length));
+        textItems.push({ id: item.id, menuItem: { name: `${itemName}${padding}${itemPrice}`, price: 0 } as MenuItem, quantity: 1, comment: '' });
+        if (item.comment) {
+            textItems.push({ id: `${item.id}-comment`, menuItem: { name: `  - ${item.comment}`, price: 0 } as MenuItem, quantity: 1, comment: '' });
+        }
+    });
+
+    // Footer
+    textItems.push({ id: 'divider3', menuItem: { name: '----------------------------------------', price: 0 } as MenuItem, quantity: 1, comment: '' });
+    const totalStr = 'TOTAL';
+    const totalValue = formatCurrency(total);
+    const totalPadding = ' '.repeat(Math.max(0, 32 - totalStr.length - totalValue.length));
+    textItems.push({ id: 'footer1', menuItem: { name: `${totalStr}${totalPadding}${totalValue}`, price: 0 } as MenuItem, quantity: 1, comment: '' });
+
+    const paymentStr = 'FORMA DE PAGAMENTO:';
+    const paymentValue = paymentMethods;
+    const paymentPadding = ' '.repeat(Math.max(0, 32 - paymentStr.length - paymentValue.length));
+    textItems.push({ id: 'footer2', menuItem: { name: `${paymentStr}${paymentPadding}${paymentValue}`, price: 0 } as MenuItem, quantity: 1, comment: '' });
+
+    return textItems;
+  }, [isPaid, order, groupedItemsForDisplay, timeZone]);
+
 
   return (
     <>
@@ -376,8 +423,40 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           
           {isPaid ? (
             <>
-                <div className="flex-1 my-4 p-4 border rounded-md bg-white text-black overflow-y-auto font-mono">
-                    <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} className="!block !relative !w-full !p-0 !text-black !bg-white !shadow-none !border-none !text-sm" />
+                <div className="flex-1 my-4 p-4 border rounded-md bg-white text-black overflow-y-auto font-mono text-xs printable-receipt">
+                    <div>CUPOM FISCAL</div>
+                    <div>SNOOKER BAR ARAMAÇAN</div>
+                    <br />
+                    <div>COMANDA: {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}</div>
+                    <div>DATA: {formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}</div>
+                    <div>----------------------------------------</div>
+                    <div>QTD | ITEM                         VALOR</div>
+                    <div>----------------------------------------</div>
+                    {groupedItemsForDisplay.map(item => {
+                        const itemTotal = item.menuItem.price * item.quantity;
+                        const itemName = `${item.quantity}x ${item.menuItem.name}`;
+                        const itemPrice = `R$ ${itemTotal.toFixed(2).replace('.', ',')}`;
+                        const padding = ' '.repeat(Math.max(0, 38 - itemName.length - itemPrice.length));
+                        return (
+                            <div key={item.id}>
+                                <div>{itemName}{padding}{itemPrice}</div>
+                                {item.comment && <div className="pl-2">- {item.comment}</div>}
+                            </div>
+                        )
+                    })}
+                    <div>----------------------------------------</div>
+                    <div className="flex justify-between">
+                        <span>TOTAL</span>
+                        <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                     <div className="flex justify-between">
+                        <span>PAGO</span>
+                        <span>R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    <div className="flex justify-between">
+                        <span>PAGAMENTO</span>
+                        <span>{order.payments?.map(p => p.method).join(', ')}</span>
+                    </div>
                 </div>
                 <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2">
                     <Button variant="outline" className="w-full" onClick={() => window.print()}>
@@ -538,7 +617,12 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           )}
            <div className="print-area">
             {isPaid ? 
-                <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} /> :
+                <div className="printable-receipt uppercase">
+                  {customerReceiptItems.map((item, index) => (
+                      <div key={`${item.id}-${index}`}>{item.menuItem.name}</div>
+                  ))}
+                </div>
+                 :
                 <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
             }
           </div>
@@ -580,3 +664,4 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
