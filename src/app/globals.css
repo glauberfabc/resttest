@@ -98,23 +98,23 @@ body {
     color: black;
   }
 
-  /* Hide everything by default */
-  body > *:not(.print-area) {
-    display: none;
-  }
   .print-hide, .print-hide * {
       display: none !important;
   }
-
-  /* Show only the print area and its contents */
-  .print-area {
+  
+  .print-area, .print-area * {
     display: block !important;
+    visibility: visible !important;
+  }
+
+  .print-area {
     position: absolute;
     top: 0;
     left: 0;
+    width: 100%;
   }
 
-  .printable-receipt, .kitchen-receipt {
+  .kitchen-receipt, .text-receipt {
     display: block;
     width: 280px; /* Common thermal printer width */
     font-family: 'Courier New', Courier, monospace;
@@ -126,11 +126,12 @@ body {
     border: none;
     box-shadow: none;
   }
-  .printable-receipt {
-    font-size: 10px;
-    line-height: 1.4;
-  }
   .kitchen-receipt {
     font-size: 14px;
+  }
+  .text-receipt {
+    font-size: 10px;
+    line-height: 1.4;
+    white-space: pre-wrap; /* Ensures that the text wraps */
   }
 }

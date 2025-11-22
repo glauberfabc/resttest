@@ -344,8 +344,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
 
   const sheetTitle = () => {
-    let baseTitle = isPaid ? 'Comprovante' : 'Comanda';
-    if (isFromBeforeToday && !isPaid) baseTitle = 'Caderneta';
+    if (isPaid) return 'Comprovante';
+    
+    let baseTitle = 'Comanda';
+    if (isFromBeforeToday) baseTitle = 'Caderneta';
     
     let finalTitle = `${baseTitle}: ${displayIdentifier}`;
 
@@ -360,30 +362,41 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const totalToPay = Math.abs(totalDebt) - paidAmount;
 
   const generateCustomerReceiptText = () => {
-      const line = '-'.repeat(40);
-      let text = `CUPOM FISCAL\n`;
-      text += `SNOOKER BAR ARAMAÇAN\n\n`;
-      text += `COMANDA: ${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}\n`;
+      const LINE_LENGTH = 40;
+      const line = '-'.repeat(LINE_LENGTH);
+      
+      const center = (text: string) => text.padStart(text.length + Math.floor((LINE_LENGTH - text.length) / 2), ' ').padEnd(LINE_LENGTH, ' ');
+      const twoCols = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
+
+      let text = `${center('CUPOM FISCAL')}\n`;
+      text += `${center('SNOOKER BAR ARAMAÇAN')}\n\n`;
+      
+      const identifierText = order.type === 'table' ? `Mesa ${order.identifier}` : `${order.identifier}`;
+      text += `COMANDA: ${identifierText}\n`;
       text += `DATA: ${formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}\n`;
       text += `${line}\n`;
-      text += `QTD | ITEM                   VALOR\n`;
+      text += `${twoCols('QTD | ITEM', 'VALOR')}\n`;
       text += `${line}\n`;
 
       groupedItemsForDisplay.forEach(item => {
-          const itemTotal = (item.menuItem.price * item.quantity).toFixed(2).replace('.', ',');
+          const itemTotal = `R$ ${item.menuItem.price.toFixed(2).replace('.', ',')}`;
           const itemName = item.menuItem.name.substring(0, 22); // Truncate name
           const qty = `${item.quantity}x`;
-          text += `${qty.padEnd(4)} | ${itemName.padEnd(22)} R$ ${itemTotal.padStart(7)}\n`;
+          text += `${twoCols(`${qty.padEnd(4)} | ${itemName}`, itemTotal)}\n`;
           if (item.comment) {
               text += `    Obs: ${item.comment}\n`;
           }
       });
 
       text += `${line}\n`;
-      text += `TOTAL:                   R$ ${total.toFixed(2).replace('.', ',').padStart(7)}\n`;
-      text += `PAGO:                    R$ ${paidAmount.toFixed(2).replace('.', ',').padStart(7)}\n`;
+      text += `${twoCols('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`)}\n`;
+      if (paidAmount > 0) {
+        text += `${twoCols('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`)}\n`;
+      }
       const paymentMethods = order.payments?.map(p => p.method).join(', ') || '';
-      text += `PAGAMENTO:               ${paymentMethods}\n`;
+      if(paymentMethods){
+        text += `${twoCols('PAGAMENTO:', paymentMethods)}\n`;
+      }
 
       return text;
   };
@@ -392,23 +405,24 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-lg flex flex-col">
-          <div className="print-hide">
-            <SheetHeader>
-              <SheetTitle className="text-2xl">
-                {sheetTitle()}
-              </SheetTitle>
-              <SheetDescription>
-                {displayObservation ? <span className="italic">{displayObservation}</span> : (isPaid ? getFormattedPaidAt() : 'Visualize, adicione ou remova itens da comanda.')}
-              </SheetDescription>
-            </SheetHeader>
-          </div>
           
           {isPaid ? (
             <div className="flex flex-col flex-1">
-                <div className="flex-1 my-4 print-area">
+                <div className="print-hide">
+                  <SheetHeader>
+                    <SheetTitle className="text-2xl">Comprovante</SheetTitle>
+                    <SheetDescription>{getFormattedPaidAt()}</SheetDescription>
+                  </SheetHeader>
+                </div>
+                {/* On-screen preview */}
+                <div className="flex-1 my-4 print-hide">
                     <pre className="printable-receipt bg-white text-black p-2 rounded-md font-mono text-xs leading-normal">
                         {generateCustomerReceiptText()}
                     </pre>
+                </div>
+                {/* Print-only version */}
+                <div className="print-area hidden">
+                    <pre className="text-receipt">{generateCustomerReceiptText()}</pre>
                 </div>
 
                 <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
@@ -419,8 +433,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
                            <Button variant="destructive" size="icon" className="w-full">
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Excluir Comprovante
+                                <Trash2 />
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
@@ -440,6 +453,16 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             </div>
           ) : (
             <div className="flex flex-col flex-1">
+                <div className="print-hide">
+                  <SheetHeader>
+                    <SheetTitle className="text-2xl">
+                      {sheetTitle()}
+                    </SheetTitle>
+                    <SheetDescription>
+                      {displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.'}
+                    </SheetDescription>
+                  </SheetHeader>
+                </div>
                 <div className="print-hide">
                     <Separator />
                     <ScrollArea className="flex-1 -mr-6">
@@ -568,7 +591,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         </div>
                     </SheetFooter>
                 </div>
-                <div className="print-area">
+                <div className="print-area hidden">
                     <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
                 </div>
             </div>
