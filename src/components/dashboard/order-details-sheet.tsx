@@ -376,46 +376,49 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           
           {isPaid ? (
             <div className="flex flex-col flex-1">
-                <div className="flex-1 my-4 p-4 border rounded-md bg-white text-black font-mono text-xs printable-receipt">
-                    <div className="text-center">
-                        <p>CUPOM FISCAL</p>
-                        <p>SNOOKER BAR ARAMAÇAN</p>
-                        <br />
-                        <p>COMANDA: {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}</p>
-                        <p>DATA: {formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}</p>
-                    </div>
-                    <p>----------------------------------------</p>
-                    <div className="flex justify-between">
-                        <span>QTD | ITEM</span>
-                        <span>VALOR</span>
-                    </div>
-                    <p>----------------------------------------</p>
-                    {groupedItemsForDisplay.map(item => {
-                        const itemTotal = item.menuItem.price * item.quantity;
-                        return (
-                            <div key={item.id}>
-                                <div className="flex justify-between">
-                                    <span className="pr-2">{item.quantity}x {item.menuItem.name}</span>
-                                    <span>R$ {itemTotal.toFixed(2).replace('.', ',')}</span>
+                <div className="print-area flex-1 my-4">
+                    <div className="printable-receipt">
+                        <div className="text-center">
+                            <p>CUPOM FISCAL</p>
+                            <p>SNOOKER BAR ARAMAÇAN</p>
+                            <br />
+                            <p>COMANDA: {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}</p>
+                            <p>DATA: {formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}</p>
+                        </div>
+                        <p>----------------------------------------</p>
+                        <div className="flex justify-between">
+                            <span>QTD | ITEM</span>
+                            <span>VALOR</span>
+                        </div>
+                        <p>----------------------------------------</p>
+                        {groupedItemsForDisplay.map(item => {
+                            const itemTotal = item.menuItem.price * item.quantity;
+                            return (
+                                <div key={item.id}>
+                                    <div className="flex justify-between">
+                                        <span className="pr-2">{item.quantity}x {item.menuItem.name}</span>
+                                        <span>R$ {itemTotal.toFixed(2).replace('.', ',')}</span>
+                                    </div>
+                                    {item.comment && <div className="pl-2">- {item.comment}</div>}
                                 </div>
-                                {item.comment && <div className="pl-2">- {item.comment}</div>}
-                            </div>
-                        )
-                    })}
-                    <p>----------------------------------------</p>
-                    <div className="flex justify-between">
-                        <span>TOTAL</span>
-                        <span>R$ {total.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                     <div className="flex justify-between">
-                        <span>PAGO</span>
-                        <span>R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span>PAGAMENTO</span>
-                        <span>{order.payments?.map(p => p.method).join(', ')}</span>
+                            )
+                        })}
+                        <p>----------------------------------------</p>
+                        <div className="flex justify-between">
+                            <span>TOTAL</span>
+                            <span>R$ {total.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span>PAGO</span>
+                            <span>R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span>PAGAMENTO</span>
+                            <span>{order.payments?.map(p => p.method).join(', ')}</span>
+                        </div>
                     </div>
                 </div>
+
                 <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
                     <Button variant="outline" className="w-full" onClick={() => window.print()}>
                         <Printer className="mr-2 h-4 w-4" />
@@ -444,138 +447,140 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 </SheetFooter>
             </div>
           ) : (
-            <div className="flex flex-col flex-1 print-hide">
-              <Separator />
-              <ScrollArea className="flex-1 -mr-6">
-                {groupedItemsForDisplay.length > 0 ? (
-                  <div className="pr-6">
-                    {groupedItemsForDisplay.map((item, index) => (
-                      <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
-                        <Image
-                          src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
-                          alt={item.menuItem.name}
-                          width={64}
-                          height={64}
-                          className="rounded-md object-contain w-12 h-12 sm:w-16 sm:h-16"
-                          data-ai-hint="food drink"
-                        />
-                        <div className="flex-1">
-                          <p className="font-semibold">{item.menuItem.name}</p>
-                           <p className="text-sm text-muted-foreground">R$ {(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}</p>
-                           {item.comment ? (
-                              <p className="text-sm text-primary font-medium flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
-                                <MessageSquareText className="w-3 h-3" />
-                                {item.comment}
-                              </p>
-                            ) : (
-                               <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
-                                <MessageSquarePlus className="w-3 h-3" />
-                                Adicionar Obs.
-                              </p>
-                            )}
-                        </div>
-                          <div className="flex items-center gap-1 sm:gap-2">
-                             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <span className="font-bold w-6 text-center">{item.quantity}</span>
-                            <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
-                              <Plus className="h-4 w-4" />
-                            </Button>
-                          </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-center p-8 gap-4">
-                        <p className="text-muted-foreground">Nenhum item na comanda.</p>
-                        <div className="flex gap-2">
-                           <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
-                           <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
-                                        <Trash2 className="h-4 w-4 mr-2"/>
-                                        Excluir Comanda
+            <div className="flex flex-col flex-1">
+                <div className="print-hide">
+                    <Separator />
+                    <ScrollArea className="flex-1 -mr-6">
+                        {groupedItemsForDisplay.length > 0 ? (
+                        <div className="pr-6">
+                            {groupedItemsForDisplay.map((item, index) => (
+                            <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
+                                <Image
+                                src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
+                                alt={item.menuItem.name}
+                                width={64}
+                                height={64}
+                                className="rounded-md object-contain w-12 h-12 sm:w-16 sm:h-16"
+                                data-ai-hint="food drink"
+                                />
+                                <div className="flex-1">
+                                <p className="font-semibold">{item.menuItem.name}</p>
+                                <p className="text-sm text-muted-foreground">R$ {(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}</p>
+                                {item.comment ? (
+                                    <p className="text-sm text-primary font-medium flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
+                                        <MessageSquareText className="w-3 h-3" />
+                                        {item.comment}
+                                    </p>
+                                    ) : (
+                                    <p className="text-sm text-muted-foreground flex items-center gap-1 cursor-pointer" onClick={() => handleEditComment(item)}>
+                                        <MessageSquarePlus className="w-3 h-3" />
+                                        Adicionar Obs.
+                                    </p>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-1 sm:gap-2">
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 0)}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
                                     </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        Comandas vazias podem ser excluídas. Esta ação não pode ser desfeita.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, -1)}>
+                                    <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <span className="font-bold w-6 text-center">{item.quantity}</span>
+                                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => updateItemQuantity(item, 1)}>
+                                    <Plus className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                            ))}
                         </div>
-                    </div>
-                )}
-              </ScrollArea>
-              
-              <Separator />
-              <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full mt-2">
-                  <PlusCircle className="mr-2 h-4 w-4"/>
-                  Adicionar Itens
-              </Button>
-
-              <SheetFooter className="mt-auto pt-4">
-                <div className="w-full space-y-4">
-                    {previousDebt < 0 && (
-                         <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">Saldo Anterior</span>
-                            <span className={"font-medium text-destructive"}>
-                                R$ {previousDebt.toFixed(2).replace('.', ',')}
-                            </span>
-                        </div>
-                    )}
-                    {dailyConsumption > 0 && (
-                      <>
-                        <div className="flex justify-between items-center text-sm text-muted-foreground">
-                          <span>Consumo do Dia</span>
-                          <span className="text-destructive font-medium">
-                              - R$ {dailyConsumption.toFixed(2).replace('.', ',')}
-                          </span>
-                        </div>
-                      </>
-                    )}
-                    {paidAmount > 0 && order.type !== 'name' && (
-                        <div className="flex justify-between items-center text-sm text-muted-foreground">
-                        <span>Total Pago Hoje</span>
-                        <span className="font-medium text-green-600">+ R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                    )}
-                    {(previousDebt !== 0 || dailyConsumption > 0 || (paidAmount > 0 && order.type !== 'name')) && <Separator />}
-                    <div className="flex justify-between items-center text-xl font-bold">
-                        <span>{'Total Geral'}</span>
-                        <span>R$ {totalToPay.toFixed(2).replace('.', ',')}</span>
-                    </div>
+                        ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-center p-8 gap-4">
+                                <p className="text-muted-foreground">Nenhum item na comanda.</p>
+                                <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)}>Adicionar itens</Button>
+                                <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button variant="destructive" size="sm">
+                                                <Trash2 className="h-4 w-4 mr-2"/>
+                                                Excluir Comanda
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Comandas vazias podem ser excluídas. Esta ação não pode ser desfeita.
+                                            </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
+                                </div>
+                            </div>
+                        )}
+                    </ScrollArea>
                     
-                    <div className="flex gap-2">
-                        <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
-                            <Share className="h-4 w-4" />
-                        </Button>
-                        <Button variant="outline" size="icon" onClick={handleKitchenPrint} disabled={itemsToPrint.length === 0}>
-                            <Printer className="h-4 w-4" />
-                        </Button>
-                        <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={totalToPay < 0.01}>
-                            <Wallet className="mr-2 h-4 w-4" />
-                            Pagar
-                        </Button>
-                    </div>
+                    <Separator />
+                    <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full mt-2">
+                        <PlusCircle className="mr-2 h-4 w-4"/>
+                        Adicionar Itens
+                    </Button>
+
+                    <SheetFooter className="mt-auto pt-4">
+                        <div className="w-full space-y-4">
+                            {previousDebt < 0 && (
+                                <div className="flex justify-between items-center text-sm">
+                                    <span className="text-muted-foreground">Saldo Anterior</span>
+                                    <span className={"font-medium text-destructive"}>
+                                        R$ {previousDebt.toFixed(2).replace('.', ',')}
+                                    </span>
+                                </div>
+                            )}
+                            {dailyConsumption > 0 && (
+                            <>
+                                <div className="flex justify-between items-center text-sm text-muted-foreground">
+                                <span>Consumo do Dia</span>
+                                <span className="text-destructive font-medium">
+                                    - R$ {dailyConsumption.toFixed(2).replace('.', ',')}
+                                </span>
+                                </div>
+                            </>
+                            )}
+                            {paidAmount > 0 && order.type !== 'name' && (
+                                <div className="flex justify-between items-center text-sm text-muted-foreground">
+                                <span>Total Pago Hoje</span>
+                                <span className="font-medium text-green-600">+ R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
+                                </div>
+                            )}
+                            {(previousDebt !== 0 || dailyConsumption > 0 || (paidAmount > 0 && order.type !== 'name')) && <Separator />}
+                            <div className="flex justify-between items-center text-xl font-bold">
+                                <span>{'Total Geral'}</span>
+                                <span>R$ {totalToPay.toFixed(2).replace('.', ',')}</span>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
+                                    <Share className="h-4 w-4" />
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={handleKitchenPrint} disabled={itemsToPrint.length === 0}>
+                                    <Printer className="h-4 w-4" />
+                                </Button>
+                                <Button className="w-full" onClick={() => setIsPaymentDialogOpen(true)} disabled={totalToPay < 0.01}>
+                                    <Wallet className="mr-2 h-4 w-4" />
+                                    Pagar
+                                </Button>
+                            </div>
+                        </div>
+                    </SheetFooter>
                 </div>
-              </SheetFooter>
+                <div className="print-area">
+                    <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+                </div>
             </div>
           )}
-           <div className="print-area">
-              {!isPaid && <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />}
-          </div>
         </SheetContent>
       </Sheet>
 
@@ -614,4 +619,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
