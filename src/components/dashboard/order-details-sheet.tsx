@@ -317,14 +317,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
       return;
     }
-    const printArea = document.querySelector('.print-area');
-    if (printArea) {
-      const clonedPrintArea = printArea.cloneNode(true);
-      document.body.appendChild(clonedPrintArea);
-      window.print();
-      document.body.removeChild(clonedPrintArea);
-      onSetPrintedItems(getGroupedItems(order.items));
-    }
+    window.print();
+    onSetPrintedItems(getGroupedItems(order.items));
   };
   
   const getFormattedPaidAt = () => {
@@ -370,7 +364,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg flex flex-col">
+        <SheetContent className="w-full sm:max-w-lg flex flex-col print-hide">
           <SheetHeader>
             <SheetTitle className="text-2xl">
               {sheetTitle()}
@@ -514,13 +508,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         </div>
                       </>
                     )}
-                    {paidAmount > 0 && order.type === 'name' && (
+                    {paidAmount > 0 && order.type !== 'name' && (
                         <div className="flex justify-between items-center text-sm text-muted-foreground">
                         <span>Total Pago Hoje</span>
                         <span className="font-medium text-green-600">+ R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
                         </div>
                     )}
-                    {(previousDebt !== 0 || dailyConsumption > 0 || paidAmount > 0) && <Separator />}
+                    {(previousDebt !== 0 || dailyConsumption > 0 || (paidAmount > 0 && order.type !== 'name')) && <Separator />}
                     <div className="flex justify-between items-center text-xl font-bold">
                         <span>{'Total Geral'}</span>
                         <span>R$ {totalToPay.toFixed(2).replace('.', ',')}</span>
@@ -546,8 +540,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       </Sheet>
 
       <div className="print-area">
-        <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
-        {isPaid && <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} />}
+        {isPaid ? 
+            <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} /> :
+            <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+        }
       </div>
 
       {!isPaid && (
@@ -564,26 +560,4 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             {isPaymentDialogOpen && (
                 <PaymentDialog
                 order={order}
-                total={totalToPay}
-                isOpen={isPaymentDialogOpen}
-                onOpenChange={setIsPaymentDialogOpen}
-                onConfirmPayment={handlePayment}
-                clients={allClients}
-                credits={allCredits}
-                />
-            )}
-            {isCommentDialogOpen && editingItem && (
-              <CommentDialog
-                isOpen={isCommentDialogOpen}
-                onOpenChange={setIsCommentDialogOpen}
-                initialComment={editingItem.comment || ''}
-                onSave={handleSaveComment}
-              />
-            )}
-        </>
-      )}
-    </>
-  );
-}
-
-    
+                total={totalToP
