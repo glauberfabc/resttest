@@ -100,14 +100,15 @@ body {
     margin: 0;
     padding: 0;
   }
-  body * {
-    visibility: hidden;
+  body > *:not(.print-area) {
+    display: none;
   }
-  .print-area, .print-area * {
-    visibility: visible;
+  .print-area {
+    display: block;
+    top: 0;
+    left: 0;
   }
   .printable-receipt, .kitchen-receipt {
-    visibility: visible;
     display: block;
     width: 280px;
     font-family: 'Courier New', Courier, monospace;
@@ -123,22 +124,26 @@ body {
   .print-hide {
     display: none;
   }
+
+  /* Hide initially */
   .printable-receipt {
-    /* Only show if explicitly told to */
     display: none;
   }
   .kitchen-receipt {
     display: none;
   }
   
+  /* Show only the correct receipt within the print area */
   .print-area .kitchen-receipt,
   .print-area .printable-receipt {
     display: block;
   }
+  
   /* Show only kitchen receipt if order is not paid */
   .print-area:has(.kitchen-receipt:not(:has(~ .printable-receipt))) .printable-receipt {
      display: none;
   }
+  
   /* Show only printable receipt if order is paid */
    .print-area:has(.printable-receipt) .kitchen-receipt {
      display: none;
