@@ -118,6 +118,9 @@ body {
     padding: 0;
     font-weight: 700;
   }
+  .printable-receipt {
+    font-size: 12px;
+  }
   .print-hide {
     display: none;
   }
@@ -144,6 +147,7 @@ body {
 }
 
     
+
 
 
 
