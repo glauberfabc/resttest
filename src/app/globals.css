@@ -98,22 +98,18 @@ body {
     color: black;
   }
 
-  [data-radix-dialog-content] > *:not(.print-area) {
+  /* Hide everything in the sheet content except the print area */
+  [data-radix-dialog-content] > *:not(.print-area):not(.print-hide *) {
     display: none;
   }
   
+  .print-hide, .print-hide * {
+      display: none !important;
+  }
+
   .print-area, .print-area * {
     display: block !important;
     visibility: visible !important;
-  }
-  .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
-    padding: 20px;
-    background: white;
   }
 
   .printable-receipt, .kitchen-receipt {
