@@ -98,32 +98,37 @@ body {
     color: black;
   }
 
-  /* Hide everything in the sheet content except the print area */
-  [data-radix-dialog-content] > *:not(.print-area):not(.print-hide *) {
+  /* Hide everything by default */
+  body > *:not(.print-area) {
     display: none;
   }
-  
   .print-hide, .print-hide * {
       display: none !important;
   }
 
-  .print-area, .print-area * {
+  /* Show only the print area and its contents */
+  .print-area {
     display: block !important;
-    visibility: visible !important;
+    position: absolute;
+    top: 0;
+    left: 0;
   }
 
   .printable-receipt, .kitchen-receipt {
     display: block;
-    width: 280px;
+    width: 280px; /* Common thermal printer width */
     font-family: 'Courier New', Courier, monospace;
     font-weight: 700;
     color: black;
     background: white;
     padding: 0;
     margin: 0;
+    border: none;
+    box-shadow: none;
   }
   .printable-receipt {
-    font-size: 12px;
+    font-size: 10px;
+    line-height: 1.4;
   }
   .kitchen-receipt {
     font-size: 14px;

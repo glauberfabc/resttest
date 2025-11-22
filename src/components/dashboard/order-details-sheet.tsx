@@ -359,6 +359,35 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const totalDebt = (previousDebt > 0 ? 0 : previousDebt) - dailyConsumption;
   const totalToPay = Math.abs(totalDebt) - paidAmount;
 
+  const generateCustomerReceiptText = () => {
+      const line = '-'.repeat(40);
+      let text = `CUPOM FISCAL\n`;
+      text += `SNOOKER BAR ARAMAÇAN\n\n`;
+      text += `COMANDA: ${order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}\n`;
+      text += `DATA: ${formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}\n`;
+      text += `${line}\n`;
+      text += `QTD | ITEM                   VALOR\n`;
+      text += `${line}\n`;
+
+      groupedItemsForDisplay.forEach(item => {
+          const itemTotal = (item.menuItem.price * item.quantity).toFixed(2).replace('.', ',');
+          const itemName = item.menuItem.name.substring(0, 22); // Truncate name
+          const qty = `${item.quantity}x`;
+          text += `${qty.padEnd(4)} | ${itemName.padEnd(22)} R$ ${itemTotal.padStart(7)}\n`;
+          if (item.comment) {
+              text += `    Obs: ${item.comment}\n`;
+          }
+      });
+
+      text += `${line}\n`;
+      text += `TOTAL:                   R$ ${total.toFixed(2).replace('.', ',').padStart(7)}\n`;
+      text += `PAGO:                    R$ ${paidAmount.toFixed(2).replace('.', ',').padStart(7)}\n`;
+      const paymentMethods = order.payments?.map(p => p.method).join(', ') || '';
+      text += `PAGAMENTO:               ${paymentMethods}\n`;
+
+      return text;
+  };
+
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
@@ -376,47 +405,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
           
           {isPaid ? (
             <div className="flex flex-col flex-1">
-                <div className="print-area flex-1 my-4">
-                    <div className="printable-receipt">
-                        <div className="text-center">
-                            <p>CUPOM FISCAL</p>
-                            <p>SNOOKER BAR ARAMAÇAN</p>
-                            <br />
-                            <p>COMANDA: {order.type === 'table' ? `Mesa ${order.identifier}` : order.identifier}</p>
-                            <p>DATA: {formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}</p>
-                        </div>
-                        <p>----------------------------------------</p>
-                        <div className="flex justify-between">
-                            <span>QTD | ITEM</span>
-                            <span>VALOR</span>
-                        </div>
-                        <p>----------------------------------------</p>
-                        {groupedItemsForDisplay.map(item => {
-                            const itemTotal = item.menuItem.price * item.quantity;
-                            return (
-                                <div key={item.id}>
-                                    <div className="flex justify-between">
-                                        <span className="pr-2">{item.quantity}x {item.menuItem.name}</span>
-                                        <span>R$ {itemTotal.toFixed(2).replace('.', ',')}</span>
-                                    </div>
-                                    {item.comment && <div className="pl-2">- {item.comment}</div>}
-                                </div>
-                            )
-                        })}
-                        <p>----------------------------------------</p>
-                        <div className="flex justify-between">
-                            <span>TOTAL</span>
-                            <span>R$ {total.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span>PAGO</span>
-                            <span>R$ {paidAmount.toFixed(2).replace('.', ',')}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span>PAGAMENTO</span>
-                            <span>{order.payments?.map(p => p.method).join(', ')}</span>
-                        </div>
-                    </div>
+                <div className="flex-1 my-4 print-area">
+                    <pre className="printable-receipt bg-white text-black p-2 rounded-md font-mono text-xs leading-normal">
+                        {generateCustomerReceiptText()}
+                    </pre>
                 </div>
 
                 <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
@@ -426,7 +418,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     </Button>
                     <AlertDialog>
                         <AlertDialogTrigger asChild>
-                            <Button variant="destructive" className="w-full">
+                           <Button variant="destructive" size="icon" className="w-full">
                                 <Trash2 className="mr-2 h-4 w-4" />
                                 Excluir Comprovante
                             </Button>
