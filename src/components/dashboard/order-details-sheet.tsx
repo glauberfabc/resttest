@@ -364,7 +364,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg flex flex-col print-hide">
+        <SheetContent className="w-full sm:max-w-lg flex flex-col">
           <SheetHeader>
             <SheetTitle className="text-2xl">
               {sheetTitle()}
@@ -536,15 +536,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
               </SheetFooter>
             </>
           )}
+           <div className="print-area">
+            {isPaid ? 
+                <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} /> :
+                <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+            }
+          </div>
         </SheetContent>
       </Sheet>
-
-      <div className="print-area">
-        {isPaid ? 
-            <PrintableReceipt order={order} total={total} paidAmount={paidAmount} remainingAmount={total - paidAmount} /> :
-            <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
-        }
-      </div>
 
       {!isPaid && (
           <>
@@ -560,4 +559,24 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             {isPaymentDialogOpen && (
                 <PaymentDialog
                 order={order}
-                total={totalToP
+                total={totalToPay}
+                isOpen={isPaymentDialogOpen}
+                onOpenChange={setIsPaymentDialogOpen}
+                onConfirmPayment={handlePayment}
+                clients={allClients}
+                credits={allCredits}
+                />
+            )}
+            {isCommentDialogOpen && editingItem && (
+              <CommentDialog
+                isOpen={isCommentDialogOpen}
+                onOpenChange={setIsCommentDialogOpen}
+                initialComment={editingItem.comment}
+                onSave={handleSaveComment}
+              />
+            )}
+          </>
+      )}
+    </>
+  );
+}
