@@ -93,27 +93,19 @@ body {
 }
 
 @media print {
-  html, body {
-    width: initial !important;
-    height: initial !important;
-    overflow: initial !important;
+  body > *:not(.print-area) {
+    display: none;
   }
-  
-  .print-hide, .print-hide * {
-      display: none !important;
-  }
-  
-  .print-area, .print-area * {
-    visibility: visible !important;
-  }
-
   .print-area {
+    position: relative;
     display: block;
     width: auto;
     height: auto;
     overflow: visible;
   }
-
+  .print-area, .print-area * {
+    visibility: visible;
+  }
   .kitchen-receipt, .text-receipt {
     display: block;
     width: 280px; /* Common thermal printer width */
