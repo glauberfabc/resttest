@@ -93,11 +93,12 @@ body {
 }
 
 @media print {
-  body {
-    background: white;
-    color: black;
+  html, body {
+    width: initial !important;
+    height: initial !important;
+    overflow: initial !important;
   }
-
+  
   .print-hide, .print-hide * {
       display: none !important;
   }
@@ -108,6 +109,9 @@ body {
 
   .print-area {
     display: block;
+    width: auto;
+    height: auto;
+    overflow: visible;
   }
 
   .kitchen-receipt, .text-receipt {
@@ -121,6 +125,7 @@ body {
     margin: 0;
     border: none;
     box-shadow: none;
+    page-break-inside: avoid;
   }
   .kitchen-receipt {
     font-size: 14px;
