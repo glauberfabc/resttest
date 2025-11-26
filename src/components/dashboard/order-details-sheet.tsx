@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -366,7 +365,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const line = '-'.repeat(LINE_LENGTH);
     
     const center = (text: string) => text.padStart(text.length + Math.floor((LINE_LENGTH - text.length) / 2), ' ').padEnd(LINE_LENGTH, ' ');
-    const twoCols = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
+    const twoCols = (left: string, right: string) => {
+        const rightFormatted = `R$ ${parseFloat(right).toFixed(2).replace('.', ',')}`.padStart(10, ' ');
+        const leftTruncated = left.substring(0, LINE_LENGTH - rightFormatted.length - 1);
+        return leftTruncated.padEnd(LINE_LENGTH - rightFormatted.length, ' ') + rightFormatted;
+    }
+     const twoColsSimple = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
+
 
     let text = `${center('CUPOM FISCAL')}\n`;
     text += `${center('SNOOKER BAR ARAMAÇAN')}\n\n`;
@@ -375,28 +380,27 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     text += `COMANDA: ${identifierText}\n`;
     text += `DATA: ${formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}\n`;
     text += `${line}\n`;
-    text += `${twoCols('QTD | ITEM', 'VALOR')}\n`;
+    text += `${twoColsSimple('QTD | ITEM', 'VALOR')}\n`;
     text += `${line}\n`;
 
     groupedItemsForDisplay.forEach(item => {
         const itemPrice = item.menuItem.price * item.quantity;
         const itemTotal = `R$ ${itemPrice.toFixed(2).replace('.', ',')}`;
-        const itemName = item.menuItem.name.substring(0, 22); // Truncate name
-        const qty = `${item.quantity}x`;
-        text += `${twoCols(`${qty.padEnd(4)} | ${itemName}`, itemTotal)}\n`;
+        const itemName = `${item.quantity}x`.padEnd(5) + `| ${item.menuItem.name.substring(0, 22)}`;
+        text += `${twoColsSimple(itemName, itemTotal)}\n`;
         if (item.comment) {
             text += `    Obs: ${item.comment}\n`;
         }
     });
 
     text += `${line}\n`;
-    text += `${twoCols('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`)}\n`;
+    text += `${twoColsSimple('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`)}\n`;
     if (paidAmount > 0) {
-      text += `${twoCols('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`)}\n`;
+      text += `${twoColsSimple('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`)}\n`;
     }
     const paymentMethods = order.payments?.map(p => p.method).join(', ') || '';
     if(paymentMethods){
-      text += `${twoCols('PAGAMENTO:', paymentMethods)}\n`;
+      text += `${twoColsSimple('PAGAMENTO:', paymentMethods)}\n`;
     }
 
     return text;
@@ -406,30 +410,27 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
         <SheetContent className={`w-full sm:max-w-lg flex flex-col`}>
-          <div className="print-area">
-            {isPaid ? (
-              <div className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md my-4">
-                  <pre className="whitespace-pre-wrap">{generateCustomerReceiptText()}</pre>
-              </div>
-            ) : (
-                <div className="hidden">
-                    <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
-                </div>
-            )}
+          <div className="print-area hidden">
+             {isPaid ? (
+               <pre className="text-receipt">{generateCustomerReceiptText()}</pre>
+             ) : (
+               <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+             )}
           </div>
-          <div className="print-hide flex flex-col flex-1">
-              <SheetHeader>
-                <SheetTitle className="text-2xl">
-                  {sheetTitle()}
-                </SheetTitle>
-                <SheetDescription>
-                  {isPaid ? getFormattedPaidAt() : (displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.')}
-                </SheetDescription>
-              </SheetHeader>
+
+          <div className="flex flex-col flex-1">
+            <SheetHeader className="print-hide">
+              <SheetTitle className="text-2xl">
+                {sheetTitle()}
+              </SheetTitle>
+              <SheetDescription>
+                {isPaid ? getFormattedPaidAt() : (displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.')}
+              </SheetDescription>
+            </SheetHeader>
             
             {!isPaid ? (
             <>
-                <div className="flex-1 -mr-6">
+                <div className="flex-1 -mr-6 print-hide">
                     <Separator />
                     <ScrollArea className="h-full pr-6">
                         {groupedItemsForDisplay.length > 0 ? (
@@ -504,7 +505,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         )}
                     </ScrollArea>
                 </div>
-                <div>
+                <div className="print-hide">
                     <Separator />
                     <div className="mt-2">
                         <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full">
@@ -562,7 +563,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 </div>
             </>
             ) : (
-                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2">
+              <>
+                <div className="flex-1 my-4">
+                  <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md h-full overflow-y-auto">
+                      {generateCustomerReceiptText()}
+                  </pre>
+                </div>
+                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
                   <Button variant="outline" className="w-full" onClick={() => window.print()}>
                       <Printer className="mr-2 h-4 w-4" />
                       Imprimir Comprovante
@@ -588,6 +595,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       </AlertDialogContent>
                   </AlertDialog>
               </SheetFooter>
+              </>
             )}
           </div>
         </SheetContent>

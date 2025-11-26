@@ -88,16 +88,16 @@ body {
 }
 
 @media print {
-  body * {
+  body, html {
+    background: none;
+    padding: 0;
+    margin: 0;
+  }
+  .print-hide {
     display: none !important;
   }
-  .print-area, .print-area * {
-    display: block !important;
-  }
   .print-area {
-    position: absolute;
-    left: 0;
-    top: 0;
+    display: block !important;
   }
   .kitchen-receipt, .text-receipt {
     width: 280px; /* Common thermal printer width */
@@ -109,6 +109,7 @@ body {
     margin: 0;
     border: none;
     box-shadow: none;
+    white-space: pre-wrap;
   }
   .kitchen-receipt {
     font-size: 14px;
@@ -116,9 +117,5 @@ body {
   .text-receipt {
     font-size: 10px;
     line-height: 1.4;
-    white-space: pre-wrap; /* Ensures that the text wraps */
-  }
-  body, html {
-    background: none;
   }
 }
