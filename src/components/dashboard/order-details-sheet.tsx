@@ -379,7 +379,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       text += `${line}\n`;
 
       groupedItemsForDisplay.forEach(item => {
-          const itemTotal = `R$ ${item.menuItem.price.toFixed(2).replace('.', ',')}`;
+          const itemPrice = item.menuItem.price * item.quantity;
+          const itemTotal = `R$ ${itemPrice.toFixed(2).replace('.', ',')}`;
           const itemName = item.menuItem.name.substring(0, 22); // Truncate name
           const qty = `${item.quantity}x`;
           text += `${twoCols(`${qty.padEnd(4)} | ${itemName}`, itemTotal)}\n`;
@@ -415,8 +416,8 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                   </SheetHeader>
                 </div>
                 {/* On-screen preview */}
-                <div className="flex-1 my-4 print-hide">
-                    <pre className="printable-receipt bg-white text-black p-2 rounded-md font-mono text-xs leading-normal">
+                <div className="my-4 print-hide">
+                    <pre className="printable-receipt bg-white text-black p-4 rounded-md font-mono text-xs leading-normal shadow-md">
                         {generateCustomerReceiptText()}
                     </pre>
                 </div>
@@ -463,11 +464,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                     </SheetDescription>
                   </SheetHeader>
                 </div>
-                <div className="print-hide">
+                <div className="print-area hidden">
+                    <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+                </div>
+                <div className="flex-1 -mr-6 print-hide">
                     <Separator />
-                    <ScrollArea className="flex-1 -mr-6">
+                    <ScrollArea className="h-full pr-6">
                         {groupedItemsForDisplay.length > 0 ? (
-                        <div className="pr-6">
+                        <div>
                             {groupedItemsForDisplay.map((item, index) => (
                             <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
                                 <Image
@@ -537,12 +541,15 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                             </div>
                         )}
                     </ScrollArea>
-                    
+                </div>
+                <div className="print-hide">
                     <Separator />
-                    <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full mt-2">
-                        <PlusCircle className="mr-2 h-4 w-4"/>
-                        Adicionar Itens
-                    </Button>
+                    <div className="mt-2">
+                        <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full">
+                            <PlusCircle className="mr-2 h-4 w-4"/>
+                            Adicionar Itens
+                        </Button>
+                    </div>
 
                     <SheetFooter className="mt-auto pt-4">
                         <div className="w-full space-y-4">
@@ -590,9 +597,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                             </div>
                         </div>
                     </SheetFooter>
-                </div>
-                <div className="print-area hidden">
-                    <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
                 </div>
             </div>
           )}
