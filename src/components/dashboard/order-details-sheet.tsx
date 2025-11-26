@@ -412,18 +412,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
               <div className="print-hide">
                   <SheetHeader>
                     <SheetTitle className="text-2xl">Comprovante</SheetTitle>
-                     <SheetDescription>{getFormattedPaidAt()}</SheetDescription>
                   </SheetHeader>
               </div>
 
               {/* This is the printable area */}
               <div className="print-area my-4">
                   {/* Screen visualization of the receipt */}
-                  <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md print-hide">
-                      {generateCustomerReceiptText()}
-                  </pre>
-                  {/* Text-only version for the printer */}
-                  <pre className="text-receipt hidden print-show">
+                  <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md">
                       {generateCustomerReceiptText()}
                   </pre>
               </div>
