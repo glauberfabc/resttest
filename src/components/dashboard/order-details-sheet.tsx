@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -412,18 +411,14 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 <div className="print-hide">
                   <SheetHeader>
                     <SheetTitle className="text-2xl">Comprovante</SheetTitle>
-                    <SheetDescription>{getFormattedPaidAt()}</SheetDescription>
+                     <SheetDescription>{getFormattedPaidAt()}</SheetDescription>
                   </SheetHeader>
                 </div>
-                {/* On-screen preview */}
-                <div className="my-4 print-hide">
-                    <pre className="printable-receipt bg-white text-black p-4 rounded-md font-mono text-xs leading-normal shadow-md">
+                {/* Visual pre-formatted text for both screen and print */}
+                <div className="print-area my-4">
+                    <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md">
                         {generateCustomerReceiptText()}
                     </pre>
-                </div>
-                {/* Print-only version */}
-                <div className="print-area hidden">
-                    <pre className="text-receipt">{generateCustomerReceiptText()}</pre>
                 </div>
 
                 <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
