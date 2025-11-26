@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -361,92 +362,98 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   const totalToPay = Math.abs(totalDebt) - paidAmount;
 
   const generateCustomerReceiptText = () => {
-      const LINE_LENGTH = 40;
-      const line = '-'.repeat(LINE_LENGTH);
-      
-      const center = (text: string) => text.padStart(text.length + Math.floor((LINE_LENGTH - text.length) / 2), ' ').padEnd(LINE_LENGTH, ' ');
-      const twoCols = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
+    const LINE_LENGTH = 40;
+    const line = '-'.repeat(LINE_LENGTH);
+    
+    const center = (text: string) => text.padStart(text.length + Math.floor((LINE_LENGTH - text.length) / 2), ' ').padEnd(LINE_LENGTH, ' ');
+    const twoCols = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
 
-      let text = `${center('CUPOM FISCAL')}\n`;
-      text += `${center('SNOOKER BAR ARAMAÇAN')}\n\n`;
-      
-      const identifierText = order.type === 'table' ? `Mesa ${order.identifier}` : `${order.identifier}`;
-      text += `COMANDA: ${identifierText}\n`;
-      text += `DATA: ${formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}\n`;
-      text += `${line}\n`;
-      text += `${twoCols('QTD | ITEM', 'VALOR')}\n`;
-      text += `${line}\n`;
+    let text = `${center('CUPOM FISCAL')}\n`;
+    text += `${center('SNOOKER BAR ARAMAÇAN')}\n\n`;
+    
+    const identifierText = order.type === 'table' ? `Mesa ${order.identifier}` : `${order.identifier}`;
+    text += `COMANDA: ${identifierText}\n`;
+    text += `DATA: ${formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}\n`;
+    text += `${line}\n`;
+    text += `${twoCols('QTD | ITEM', 'VALOR')}\n`;
+    text += `${line}\n`;
 
-      groupedItemsForDisplay.forEach(item => {
-          const itemPrice = item.menuItem.price * item.quantity;
-          const itemTotal = `R$ ${itemPrice.toFixed(2).replace('.', ',')}`;
-          const itemName = item.menuItem.name.substring(0, 22); // Truncate name
-          const qty = `${item.quantity}x`;
-          text += `${twoCols(`${qty.padEnd(4)} | ${itemName}`, itemTotal)}\n`;
-          if (item.comment) {
-              text += `    Obs: ${item.comment}\n`;
-          }
-      });
+    groupedItemsForDisplay.forEach(item => {
+        const itemPrice = item.menuItem.price * item.quantity;
+        const itemTotal = `R$ ${itemPrice.toFixed(2).replace('.', ',')}`;
+        const itemName = item.menuItem.name.substring(0, 22); // Truncate name
+        const qty = `${item.quantity}x`;
+        text += `${twoCols(`${qty.padEnd(4)} | ${itemName}`, itemTotal)}\n`;
+        if (item.comment) {
+            text += `    Obs: ${item.comment}\n`;
+        }
+    });
 
-      text += `${line}\n`;
-      text += `${twoCols('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`)}\n`;
-      if (paidAmount > 0) {
-        text += `${twoCols('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`)}\n`;
-      }
-      const paymentMethods = order.payments?.map(p => p.method).join(', ') || '';
-      if(paymentMethods){
-        text += `${twoCols('PAGAMENTO:', paymentMethods)}\n`;
-      }
+    text += `${line}\n`;
+    text += `${twoCols('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`)}\n`;
+    if (paidAmount > 0) {
+      text += `${twoCols('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`)}\n`;
+    }
+    const paymentMethods = order.payments?.map(p => p.method).join(', ') || '';
+    if(paymentMethods){
+      text += `${twoCols('PAGAMENTO:', paymentMethods)}\n`;
+    }
 
-      return text;
-  };
+    return text;
+};
 
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
         <SheetContent className="w-full sm:max-w-lg flex flex-col">
-          
           {isPaid ? (
-            <div className="flex flex-col flex-1">
-                <div className="print-hide">
+            <>
+              {/* This part is hidden on print, only for screen */}
+              <div className="print-hide">
                   <SheetHeader>
                     <SheetTitle className="text-2xl">Comprovante</SheetTitle>
                      <SheetDescription>{getFormattedPaidAt()}</SheetDescription>
                   </SheetHeader>
-                </div>
-                {/* Visual pre-formatted text for both screen and print */}
-                <div className="print-area my-4">
-                    <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md">
-                        {generateCustomerReceiptText()}
-                    </pre>
-                </div>
+              </div>
 
-                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
-                    <Button variant="outline" className="w-full" onClick={() => window.print()}>
-                        <Printer className="mr-2 h-4 w-4" />
-                        Imprimir Comprovante
-                    </Button>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                           <Button variant="destructive" size="icon" className="w-full">
-                                <Trash2 />
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </SheetFooter>
-            </div>
+              {/* This is the printable area */}
+              <div className="print-area my-4">
+                  {/* Screen visualization of the receipt */}
+                  <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md print-hide">
+                      {generateCustomerReceiptText()}
+                  </pre>
+                  {/* Text-only version for the printer */}
+                  <pre className="text-receipt hidden print-show">
+                      {generateCustomerReceiptText()}
+                  </pre>
+              </div>
+
+              <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
+                  <Button variant="outline" className="w-full" onClick={() => window.print()}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Imprimir Comprovante
+                  </Button>
+                  <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                         <Button variant="destructive" size="icon" className="w-full">
+                              <Trash2 />
+                          </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                          <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
+                          </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
+                  </AlertDialog>
+              </SheetFooter>
+            </>
           ) : (
             <div className="flex flex-col flex-1">
                 <div className="print-hide">
@@ -633,3 +640,5 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
+
+    

@@ -93,20 +93,23 @@ body {
 }
 
 @media print {
-  body > *:not(.print-area) {
-    display: none !important;
+  body {
+    visibility: hidden;
   }
-
+  .print-area, .print-area * {
+    visibility: visible;
+  }
   .print-area {
-    display: block !important;
     position: absolute;
-    top: 0;
     left: 0;
+    top: 0;
     width: 100%;
   }
-  
   .print-hide {
     display: none !important;
+  }
+  .print-show {
+    display: block !important;
   }
 
   .kitchen-receipt, .text-receipt {
@@ -133,3 +136,5 @@ body {
     background: none;
   }
 }
+
+    
