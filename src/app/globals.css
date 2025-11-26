@@ -87,33 +87,19 @@ body {
   }
 }
 
-@page {
-  size: auto;
-  margin: 0mm;
-}
-
 @media print {
-  body {
-    visibility: hidden;
+  body * {
+    display: none !important;
   }
   .print-area, .print-area * {
-    visibility: visible;
+    display: block !important;
   }
   .print-area {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
   }
-  .print-hide {
-    display: none !important;
-  }
-  .print-show {
-    display: block !important;
-  }
-
   .kitchen-receipt, .text-receipt {
-    display: block;
     width: 280px; /* Common thermal printer width */
     font-family: 'Courier New', Courier, monospace;
     font-weight: 700;
@@ -126,10 +112,6 @@ body {
   }
   .kitchen-receipt {
     font-size: 14px;
-    visibility: visible !important;
-    position: absolute;
-    left: 0;
-    top: 0;
   }
   .text-receipt {
     font-size: 10px;

@@ -405,56 +405,31 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
-        <SheetContent className={`w-full sm:max-w-lg flex flex-col ${isPaid ? 'print-area' : ''}`}>
-          {isPaid ? (
-            <>
+        <SheetContent className={`w-full sm:max-w-lg flex flex-col`}>
+          <div className="print-area">
+            {isPaid ? (
               <div className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md my-4">
                   <pre className="whitespace-pre-wrap">{generateCustomerReceiptText()}</pre>
               </div>
-
-              <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
-                  <Button variant="outline" className="w-full" onClick={() => window.print()}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Imprimir Comprovante
-                  </Button>
-                  <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                         <Button variant="destructive" className="w-full">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir Comprovante
-                          </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                          <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                              Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
-                          </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
-                          </AlertDialogFooter>
-                      </AlertDialogContent>
-                  </AlertDialog>
-              </SheetFooter>
-            </>
-          ) : (
-            <div className="flex flex-col flex-1">
-                <div className="print-area hidden">
+            ) : (
+                <div className="hidden">
                     <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
                 </div>
-                <div className="print-hide">
-                  <SheetHeader>
-                    <SheetTitle className="text-2xl">
-                      {sheetTitle()}
-                    </SheetTitle>
-                    <SheetDescription>
-                      {displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.'}
-                    </SheetDescription>
-                  </SheetHeader>
-                </div>
-                <div className="flex-1 -mr-6 print-hide">
+            )}
+          </div>
+          <div className="print-hide flex flex-col flex-1">
+              <SheetHeader>
+                <SheetTitle className="text-2xl">
+                  {sheetTitle()}
+                </SheetTitle>
+                <SheetDescription>
+                  {isPaid ? getFormattedPaidAt() : (displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.')}
+                </SheetDescription>
+              </SheetHeader>
+            
+            {!isPaid ? (
+            <>
+                <div className="flex-1 -mr-6">
                     <Separator />
                     <ScrollArea className="h-full pr-6">
                         {groupedItemsForDisplay.length > 0 ? (
@@ -529,7 +504,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         )}
                     </ScrollArea>
                 </div>
-                <div className="print-hide">
+                <div>
                     <Separator />
                     <div className="mt-2">
                         <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full">
@@ -585,8 +560,36 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                         </div>
                     </SheetFooter>
                 </div>
-            </div>
-          )}
+            </>
+            ) : (
+                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2">
+                  <Button variant="outline" className="w-full" onClick={() => window.print()}>
+                      <Printer className="mr-2 h-4 w-4" />
+                      Imprimir Comprovante
+                  </Button>
+                  <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                         <Button variant="destructive" className="w-full">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir Comprovante
+                          </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                          <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
+                          </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
+                  </AlertDialog>
+              </SheetFooter>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 
