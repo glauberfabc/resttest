@@ -126,6 +126,10 @@ body {
   }
   .kitchen-receipt {
     font-size: 14px;
+    visibility: visible !important;
+    position: absolute;
+    left: 0;
+    top: 0;
   }
   .text-receipt {
     font-size: 10px;
@@ -136,5 +140,3 @@ body {
     background: none;
   }
 }
-
-    

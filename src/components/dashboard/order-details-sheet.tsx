@@ -405,22 +405,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
   return (
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg flex flex-col">
+        <SheetContent className={`w-full sm:max-w-lg flex flex-col ${isPaid ? 'print-area' : ''}`}>
           {isPaid ? (
             <>
-              {/* This part is hidden on print, only for screen */}
-              <div className="print-hide">
-                  <SheetHeader>
-                    <SheetTitle className="text-2xl">Comprovante</SheetTitle>
-                  </SheetHeader>
-              </div>
-
-              {/* This is the printable area */}
-              <div className="print-area my-4">
-                  {/* Screen visualization of the receipt */}
-                  <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md">
-                      {generateCustomerReceiptText()}
-                  </pre>
+              <div className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md my-4">
+                  <pre className="whitespace-pre-wrap">{generateCustomerReceiptText()}</pre>
               </div>
 
               <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
@@ -430,8 +419,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                   </Button>
                   <AlertDialog>
                       <AlertDialogTrigger asChild>
-                         <Button variant="destructive" size="icon" className="w-full">
-                              <Trash2 />
+                         <Button variant="destructive" className="w-full">
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Excluir Comprovante
                           </Button>
                       </AlertDialogTrigger>
                       <AlertDialogContent>
@@ -451,6 +441,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             </>
           ) : (
             <div className="flex flex-col flex-1">
+                <div className="print-area hidden">
+                    <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+                </div>
                 <div className="print-hide">
                   <SheetHeader>
                     <SheetTitle className="text-2xl">
@@ -460,9 +453,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                       {displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.'}
                     </SheetDescription>
                   </SheetHeader>
-                </div>
-                <div className="print-area hidden">
-                    <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
                 </div>
                 <div className="flex-1 -mr-6 print-hide">
                     <Separator />
@@ -635,5 +625,3 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     </>
   );
 }
-
-    
