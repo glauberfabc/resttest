@@ -308,7 +308,7 @@ const handleKitchenPrint = () => {
         <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
     );
 
-    const printWindow = window.open('', '_blank', 'width=300,height=500');
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
         printWindow.document.write(`
             <html>
@@ -365,7 +365,7 @@ const handleKitchenPrint = () => {
 
   const printCustomerReceipt = () => {
     const receiptText = generateCustomerReceiptText();
-    const printWindow = window.open('', '_blank', 'width=300,height=500');
+    const printWindow = window.open('', '_blank');
     if (printWindow) {
         printWindow.document.write(`
             <html>
@@ -705,4 +705,18 @@ const handleKitchenPrint = () => {
       )}
     </>
   );
+}
+
+interface OrderDetailsSheetProps {
+    order: Order;
+    allOrders: Order[];
+    allClients: Client[];
+    allCredits: ClientCredit[];
+    menuItems: MenuItem[];
+    onOpenChange: (isOpen: boolean) => void;
+    onUpdateOrder: (updatedOrder: Order) => void;
+    onProcessPayment: (orderId: string, amount: number, method: string) => void;
+    onDeleteOrder: (orderId: string) => void;
+    printedKitchenItems: OrderItem[];
+    onSetPrintedItems: (items: OrderItem[]) => void;
 }
