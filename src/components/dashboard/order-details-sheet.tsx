@@ -343,8 +343,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
 
   const sheetTitle = () => {
-    if (isPaid) return 'Comprovante';
-    
     let baseTitle = 'Comanda';
     if (isFromBeforeToday) baseTitle = 'Caderneta';
     
@@ -366,7 +364,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     
     const center = (text: string) => text.padStart(text.length + Math.floor((LINE_LENGTH - text.length) / 2), ' ').padEnd(LINE_LENGTH, ' ');
     const twoCols = (left: string, right: string) => {
-        const rightFormatted = `R$ ${parseFloat(right).toFixed(2).replace('.', ',')}`.padStart(10, ' ');
+        const rightFormatted = `${right}`;
         const leftTruncated = left.substring(0, LINE_LENGTH - rightFormatted.length - 1);
         return leftTruncated.padEnd(LINE_LENGTH - rightFormatted.length, ' ') + rightFormatted;
     }
@@ -377,15 +375,15 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     text += `${center('SNOOKER BAR ARAMAÇAN')}\n\n`;
     
     const identifierText = order.type === 'table' ? `Mesa ${order.identifier}` : `${order.identifier}`;
-    text += `COMANDA: ${identifierText}\n`;
-    text += `DATA: ${formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm')}\n`;
+    text += `${twoColsSimple('COMANDA:', identifierText)}\n`;
+    text += `${twoColsSimple('DATA:', formatInTimeZone(order.paid_at || new Date(), timeZone, 'dd/MM/yyyy HH:mm'))}\n`;
     text += `${line}\n`;
     text += `${twoColsSimple('QTD | ITEM', 'VALOR')}\n`;
     text += `${line}\n`;
 
     groupedItemsForDisplay.forEach(item => {
         const itemPrice = item.menuItem.price * item.quantity;
-        const itemTotal = `R$ ${itemPrice.toFixed(2).replace('.', ',')}`;
+        const itemTotal = `R$ ${itemPrice.toFixed(2).replace(',', ',')}`.padStart(10);
         const itemName = `${item.quantity}x`.padEnd(5) + `| ${item.menuItem.name.substring(0, 22)}`;
         text += `${twoColsSimple(itemName, itemTotal)}\n`;
         if (item.comment) {
@@ -394,13 +392,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     });
 
     text += `${line}\n`;
-    text += `${twoColsSimple('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`)}\n`;
+    text += `${twoColsSimple('TOTAL:', `R$ ${total.toFixed(2).replace('.', ',')}`.padStart(10))}\n`;
     if (paidAmount > 0) {
-      text += `${twoColsSimple('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`)}\n`;
+      text += `${twoColsSimple('PAGO:', `R$ ${paidAmount.toFixed(2).replace('.', ',')}`.padStart(10))}\n`;
     }
     const paymentMethods = order.payments?.map(p => p.method).join(', ') || '';
     if(paymentMethods){
-      text += `${twoColsSimple('PAGAMENTO:', paymentMethods)}\n`;
+      text += `${twoColsSimple('PAGAMENTO:', paymentMethods.padStart(10))}\n`;
     }
 
     return text;
@@ -411,25 +409,20 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
       <Sheet open={true} onOpenChange={onOpenChange}>
         <SheetContent className={`w-full sm:max-w-lg flex flex-col`}>
           <div className="print-area hidden">
-             {isPaid ? (
-               <pre className="text-receipt">{generateCustomerReceiptText()}</pre>
-             ) : (
-               <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
-             )}
+             <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
           </div>
 
           <div className="flex flex-col flex-1">
-            <SheetHeader className="print-hide">
-              <SheetTitle className="text-2xl">
-                {sheetTitle()}
-              </SheetTitle>
-              <SheetDescription>
-                {isPaid ? getFormattedPaidAt() : (displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.')}
-              </SheetDescription>
-            </SheetHeader>
-            
             {!isPaid ? (
             <>
+              <SheetHeader className="print-hide">
+                <SheetTitle className="text-2xl">
+                  {sheetTitle()}
+                </SheetTitle>
+                <SheetDescription>
+                  {displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.'}
+                </SheetDescription>
+              </SheetHeader>
                 <div className="flex-1 -mr-6 print-hide">
                     <Separator />
                     <ScrollArea className="h-full pr-6">
@@ -563,39 +556,41 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
                 </div>
             </>
             ) : (
-              <>
-                <div className="flex-1 my-4">
-                  <pre className="text-receipt bg-white text-black p-4 rounded-md font-mono shadow-md h-full overflow-y-auto">
-                      {generateCustomerReceiptText()}
-                  </pre>
-                </div>
-                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
-                  <Button variant="outline" className="w-full" onClick={() => window.print()}>
-                      <Printer className="mr-2 h-4 w-4" />
-                      Imprimir Comprovante
-                  </Button>
-                  <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                         <Button variant="destructive" className="w-full">
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir Comprovante
-                          </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                          <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                              Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
-                          </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
-                          </AlertDialogFooter>
-                      </AlertDialogContent>
-                  </AlertDialog>
-              </SheetFooter>
-              </>
+              // THIS IS THE PAID VIEW
+              <div className="flex flex-col flex-1 h-full">
+                  <div className="print-area flex-1 py-4 overflow-y-auto">
+                    <pre className="text-receipt bg-white text-black p-2 rounded-md shadow-md h-full">
+                        {generateCustomerReceiptText()}
+                    </pre>
+                  </div>
+                  <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
+                    <Button variant="outline" className="w-full" onClick={() => window.print()}>
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir Comprovante
+                    </Button>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                           <Button variant="destructive" className="w-full">
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Excluir Comprovante
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Você tem certeza absoluta?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Essa ação não pode ser desfeita. Isso excluirá permanentemente a comanda e todos os seus dados.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => onDeleteOrder(order.id)}>Excluir</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </SheetFooter>
+              </div>
+              
             )}
           </div>
         </SheetContent>
