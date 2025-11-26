@@ -87,35 +87,32 @@ body {
   }
 }
 
+.kitchen-receipt {
+  width: 280px; /* Common thermal printer width */
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  color: black;
+  background: white;
+  padding: 10px;
+  box-sizing: border-box;
+  font-size: 14px;
+}
+
+.text-receipt {
+  width: 280px;
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 700;
+  color: black;
+  background: white;
+  padding: 10px;
+  box-sizing: border-box;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
 @media print {
   .print-hide {
     display: none !important;
-  }
-  .print-area {
-    display: block !important;
-  }
-  body, html {
-    background: none;
-    padding: 0;
-    margin: 0;
-  }
-  .kitchen-receipt, .text-receipt {
-    width: 280px; /* Common thermal printer width */
-    font-family: 'Courier New', Courier, monospace;
-    font-weight: 700;
-    color: black;
-    background: none;
-    padding: 0;
-    margin: 0;
-    border: none;
-    box-shadow: none;
-    white-space: pre-wrap;
-  }
-  .kitchen-receipt {
-    font-size: 14px;
-  }
-  .text-receipt {
-    font-size: 10px;
-    line-height: 1.4;
   }
 }

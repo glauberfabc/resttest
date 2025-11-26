@@ -33,20 +33,8 @@ import { Plus, Minus, Trash2, Wallet, Share, PlusCircle, Printer, MessageSquareP
 import { format, isToday, startOfDay } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useToast } from "@/hooks/use-toast";
+import { renderToString } from 'react-dom/server';
 
-interface OrderDetailsSheetProps {
-  order: Order;
-  allOrders: Order[];
-  allClients: Client[];
-  allCredits: ClientCredit[];
-  menuItems: MenuItem[];
-  onOpenChange: (isOpen: boolean) => void;
-  onUpdateOrder: (order: Order) => void;
-  onProcessPayment: (orderId: string, amount: number, method: string) => void;
-  onDeleteOrder: (orderId: string) => void;
-  printedKitchenItems: OrderItem[];
-  onSetPrintedItems: (items: OrderItem[]) => void;
-}
 
 // Helper function to group items by key (menuItem.id + comment)
 const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
@@ -310,13 +298,110 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     onProcessPayment(order.id, amount, method);
   };
   
-  const handleKitchenPrint = () => {
+const handleKitchenPrint = () => {
     if (itemsToPrint.length === 0) {
       toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
       return;
     }
-    window.print();
-    onSetPrintedItems(getGroupedItems(order.items));
+
+    const receiptContent = renderToString(
+        <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
+    );
+
+    const printWindow = window.open('', '_blank', 'width=300,height=500');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Imprimir Pedido</title>
+                    <style>
+                        @page { margin: 0; size: auto; }
+                        body { margin: 0; font-family: 'Courier New', Courier, monospace; }
+                        .kitchen-receipt {
+                            width: 280px;
+                            font-weight: 700;
+                            color: black;
+                            background: none;
+                            padding: 0;
+                            margin: 0;
+                            border: none;
+                            box-shadow: none;
+                            white-space: pre-wrap;
+                            font-size: 14px;
+                            text-transform: uppercase;
+                        }
+                        .kitchen-receipt .text-center { text-align: center; }
+                        .kitchen-receipt .space-y-1 > * + * { margin-top: 0.25rem; }
+                        .kitchen-receipt .text-lg { font-size: 1.125rem; }
+                        .kitchen-receipt .font-bold { font-weight: 700; }
+                        .kitchen-receipt .text-sm { font-size: 0.875rem; }
+                        .kitchen-receipt .my-2 { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+                        .kitchen-receipt .my-1 { margin-top: 0.25rem; margin-bottom: 0.25rem; }
+                        .kitchen-receipt .flex { display: flex; }
+                        .kitchen-receipt .justify-between { justify-content: space-between; }
+                        .kitchen-receipt .pr-2 { padding-right: 0.5rem; }
+                        .kitchen-receipt .text-right { text-align: right; }
+                        .kitchen-receipt .pl-6 { padding-left: 1.5rem; }
+                        .kitchen-receipt .font-semibold { font-weight: 600; }
+                    </style>
+                </head>
+                <body>
+                    ${receiptContent}
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        // Timeout needed for the content to render before printing
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+            onSetPrintedItems(getGroupedItems(order.items));
+        }, 250);
+    } else {
+        toast({ variant: 'destructive', title: 'Erro de Impressão', description: 'Não foi possível abrir a janela de impressão. Verifique se os pop-ups estão bloqueados.' });
+    }
+};
+
+  const printCustomerReceipt = () => {
+    const receiptText = generateCustomerReceiptText();
+    const printWindow = window.open('', '_blank', 'width=300,height=500');
+    if (printWindow) {
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Imprimir Comprovante</title>
+                    <style>
+                        @page { margin: 0; size: auto; }
+                        body { margin: 0; }
+                        .text-receipt {
+                            width: 280px;
+                            font-family: 'Courier New', Courier, monospace;
+                            font-weight: 700;
+                            color: black;
+                            background: white;
+                            padding: 10px;
+                            box-sizing: border-box;
+                            font-size: 10px;
+                            line-height: 1.4;
+                            white-space: pre-wrap;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <pre class="text-receipt">${receiptText}</pre>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 250);
+    } else {
+        toast({ variant: 'destructive', title: 'Erro de Impressão', description: 'Não foi possível abrir a janela de impressão. Verifique se os pop-ups estão bloqueados.' });
+    }
   };
   
   const getFormattedPaidAt = () => {
@@ -363,13 +448,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     const line = '-'.repeat(LINE_LENGTH);
     
     const center = (text: string) => text.padStart(text.length + Math.floor((LINE_LENGTH - text.length) / 2), ' ').padEnd(LINE_LENGTH, ' ');
-    const twoCols = (left: string, right: string) => {
-        const rightFormatted = `${right}`;
-        const leftTruncated = left.substring(0, LINE_LENGTH - rightFormatted.length - 1);
-        return leftTruncated.padEnd(LINE_LENGTH - rightFormatted.length, ' ') + rightFormatted;
-    }
-     const twoColsSimple = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
-
+    const twoColsSimple = (left: string, right: string) => left.padEnd(LINE_LENGTH - right.length, ' ') + right;
 
     let text = `${center('CUPOM FISCAL')}\n`;
     text += `${center('SNOOKER BAR ARAMAÇAN')}\n\n`;
@@ -383,7 +462,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
 
     groupedItemsForDisplay.forEach(item => {
         const itemPrice = item.menuItem.price * item.quantity;
-        const itemTotal = `R$ ${itemPrice.toFixed(2).replace(',', ',')}`.padStart(10);
+        const itemTotal = `R$ ${itemPrice.toFixed(2).replace(',', '.')}`.padStart(10);
         const itemName = `${item.quantity}x`.padEnd(5) + `| ${item.menuItem.name.substring(0, 22)}`;
         text += `${twoColsSimple(itemName, itemTotal)}\n`;
         if (item.comment) {
@@ -408,10 +487,6 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
     <>
       <Sheet open={true} onOpenChange={onOpenChange}>
         <SheetContent className={`w-full sm:max-w-lg flex flex-col`}>
-          <div className="print-area hidden">
-             <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
-          </div>
-
           <div className="flex flex-col flex-1">
             {!isPaid ? (
             <>
@@ -558,13 +633,13 @@ export function OrderDetailsSheet({ order, allOrders, allClients, allCredits, me
             ) : (
               // THIS IS THE PAID VIEW
               <div className="flex flex-col flex-1 h-full">
-                  <div className="print-area flex-1 py-4 overflow-y-auto">
-                    <pre className="text-receipt bg-white text-black p-2 rounded-md shadow-md h-full">
-                        {generateCustomerReceiptText()}
-                    </pre>
-                  </div>
-                  <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
-                    <Button variant="outline" className="w-full" onClick={() => window.print()}>
+                <div className="flex-1 py-4 overflow-y-auto">
+                  <pre className="text-receipt bg-white text-black p-4 rounded-md shadow-md h-full">
+                      {generateCustomerReceiptText()}
+                  </pre>
+                </div>
+                <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide">
+                    <Button variant="outline" className="w-full" onClick={printCustomerReceipt}>
                         <Printer className="mr-2 h-4 w-4" />
                         Imprimir Comprovante
                     </Button>
