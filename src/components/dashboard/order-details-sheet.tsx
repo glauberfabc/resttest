@@ -308,7 +308,7 @@ const handleKitchenPrint = () => {
         <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
     );
 
-    const printWindow = window.open('', '_blank', 'fullscreen=yes,scrollbars=yes');
+    const printWindow = window.open('', '_blank', 'width=' + window.screen.width + ',height=' + window.screen.height + ',scrollbars=yes');
     if (printWindow) {
         printWindow.document.write(`
             <html>
@@ -365,7 +365,7 @@ const handleKitchenPrint = () => {
 
   const printCustomerReceipt = () => {
     const receiptText = generateCustomerReceiptText();
-    const printWindow = window.open('', '_blank', 'fullscreen=yes,scrollbars=yes');
+    const printWindow = window.open('', '_blank', 'width=' + window.screen.width + ',height=' + window.screen.height + ',scrollbars=yes');
     if (printWindow) {
         printWindow.document.write(`
             <html>
@@ -499,7 +499,7 @@ const handleKitchenPrint = () => {
               </SheetHeader>
               <Separator/>
               
-              <ScrollArea className="flex-1 my-4">
+              <div className="flex-1 overflow-y-auto my-4">
                   {groupedItemsForDisplay.length > 0 ? (
                   <div className="pr-6">
                       {groupedItemsForDisplay.map((item, index) => (
@@ -570,7 +570,7 @@ const handleKitchenPrint = () => {
                           </div>
                       </div>
                   )}
-              </ScrollArea>
+              </div>
               
               <div>
                   <Separator />
@@ -631,12 +631,14 @@ const handleKitchenPrint = () => {
             </>
             ) : (
                 <div className="flex flex-col h-full">
-                  <div className="flex-1 py-4 overflow-y-auto print-area">
-                      <pre className="text-receipt bg-white text-black p-4 rounded-md shadow-md h-full">
-                          {generateCustomerReceiptText()}
-                      </pre>
+                  <div className="flex-1 py-4 overflow-y-auto">
+                      <div className="bg-white text-black p-4 rounded-md shadow-md h-full">
+                        <pre className="text-receipt">
+                            {generateCustomerReceiptText()}
+                        </pre>
+                      </div>
                   </div>
-                  <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 print-hide border-t pt-4">
+                  <SheetFooter className="mt-auto flex-col sm:flex-col sm:space-x-0 gap-2 border-t pt-4">
                       <Button variant="outline" className="w-full" onClick={printCustomerReceipt}>
                           <Printer className="mr-2 h-4 w-4" />
                           Imprimir Comprovante
