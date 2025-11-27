@@ -308,7 +308,7 @@ const handleKitchenPrint = () => {
         <KitchenReceipt identifier={order.identifier} type={order.type} itemsToPrint={itemsToPrint} />
     );
 
-    const printWindow = window.open('', '_blank', 'width=300,height=500');
+    const printWindow = window.open('', '_blank', 'fullscreen=yes,scrollbars=yes');
     if (printWindow) {
         printWindow.document.write(`
             <html>
@@ -365,7 +365,7 @@ const handleKitchenPrint = () => {
 
   const printCustomerReceipt = () => {
     const receiptText = generateCustomerReceiptText();
-    const printWindow = window.open('', '_blank');
+    const printWindow = window.open('', '_blank', 'fullscreen=yes,scrollbars=yes');
     if (printWindow) {
         printWindow.document.write(`
             <html>
@@ -489,7 +489,7 @@ const handleKitchenPrint = () => {
         <SheetContent className={`w-full sm:max-w-lg flex flex-col`}>
           {!isPaid ? (
             <>
-              <SheetHeader className="print-hide">
+              <SheetHeader>
                 <SheetTitle className="text-2xl">
                   {sheetTitle()}
                 </SheetTitle>
@@ -497,9 +497,9 @@ const handleKitchenPrint = () => {
                   {displayObservation ? <span className="italic">{displayObservation}</span> : 'Visualize, adicione ou remova itens da comanda.'}
                 </SheetDescription>
               </SheetHeader>
-              <Separator className="print-hide"/>
+              <Separator/>
               
-              <ScrollArea className="flex-1 my-4 print-hide">
+              <ScrollArea className="flex-1 my-4">
                   {groupedItemsForDisplay.length > 0 ? (
                   <div className="pr-6">
                       {groupedItemsForDisplay.map((item, index) => (
@@ -572,7 +572,7 @@ const handleKitchenPrint = () => {
                   )}
               </ScrollArea>
               
-              <div className="print-hide">
+              <div>
                   <Separator />
                   <div className="py-4">
                       <Button variant="outline" onClick={() => setIsMenuPickerOpen(true)} className="w-full">
