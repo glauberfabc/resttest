@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { OrderCard } from "@/components/dashboard/order-card";
 import { OrderDetailsSheet } from "@/components/dashboard/order-details-sheet";
 import { NewOrderDialog } from "@/components/dashboard/new-order-dialog";
-import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
+import { PlusCircle, Search, ChevronLeft, ChevronRight, RefreshCw, ArrowUp, ArrowDown, Trash2, Eraser } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
@@ -638,6 +638,19 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   }, [paidOrders, sortConfig.fechadas]);
 
 
+  const handleCleanup = async () => {
+    const client = createClient();
+    try {
+      const { error } = await (client as any).rpc('cleanup_old_orders');
+      if (error) throw error;
+      toast({ title: "Faxina completa!", description: "Comandas antigas foram removidas." });
+      await fetchData(false);
+    } catch (error) {
+      console.error("Error cleaning up:", error);
+      toast({ variant: 'destructive', title: "Erro na faxina", description: "Não foi possível limpar os dados." });
+    }
+  };
+
   const loadMorePaidOrders = async () => {
     if (isLoadingMore) return;
     setIsLoadingMore(true);
@@ -842,6 +855,18 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           <Button variant="outline" size="icon" onClick={() => fetchData(true)} disabled={isFetching}>
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
           </Button>
+
+          {user?.role === 'admin' && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCleanup}
+              title="Fazer Faxina (Apagar comandas pagas > 4 meses)"
+              className="hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Eraser className="h-4 w-4" />
+            </Button>
+          )}
           <Button onClick={() => setIsNewOrderDialogOpen(true)} className="w-full">
             <PlusCircle className="mr-2 h-4 w-4" />
             Nova Comanda
