@@ -750,7 +750,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
               <TableHead className="text-center whitespace-nowrap">Itens</TableHead>
               <TableHead className="whitespace-nowrap">Status</TableHead>
               <TableHead className="text-right whitespace-nowrap">Valor</TableHead>
-              {tabName === 'fechadas' && <TableHead className="w-[50px]">Ações</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -779,31 +778,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
                     <Badge variant={paymentStatus.variant}>{paymentStatus.text}</Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium whitespace-nowrap">R$ {displayAmount.toFixed(2).replace('.', ',')}</TableCell>
-                  {tabName === 'fechadas' && (
-                    <TableCell>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
-                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Excluir Comprovante?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta ação removerá permanentemente o comprovante da lista. A venda já foi registrada e não será afetada.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={(e) => { e.stopPropagation(); handleDeleteOrder(order.id); }}>
-                              Excluir
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </TableCell>
-                  )}
                 </TableRow>
               )
             })}
