@@ -23,11 +23,11 @@ export interface OrderItem {
 }
 
 export interface Payment {
-    id: string;
-    order_id: string;
-    amount: number;
-    method: string;
-    paid_at: string;
+  id: string;
+  order_id: string;
+  amount: number;
+  method: string;
+  paid_at: string;
 }
 
 export interface Order {
@@ -51,9 +51,11 @@ export interface Order {
 export interface Client {
   id: string;
   name: string;
-  phone?: string;
-  document?: string;
-  user_id?: string;
+  phone?: string | null;
+  document?: string | null;
+  created_at?: Date;
+  user_id: string;
+  balance?: number;
 }
 
 export interface ClientCredit {

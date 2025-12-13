@@ -26,10 +26,10 @@ interface NewOrderDialogProps {
   clients: Client[];
   user: User;
   orders: Order[];
-  credits: ClientCredit[];
+
 }
 
-export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, orders, credits }: NewOrderDialogProps) {
+export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, orders }: NewOrderDialogProps) {
   const [activeTab, setActiveTab] = useState<'table' | 'name'>('table');
   const [tableNumber, setTableNumber] = useState('');
   const [tableCustomerName, setTableCustomerName] = useState('');
@@ -39,58 +39,37 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
   const [showResults, setShowResults] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientDebt, setClientDebt] = useState<number>(0);
-  
+
   useEffect(() => {
     if (!isOpen) {
-        // Reset state when dialog closes
-        setTimeout(() => {
-            setTableNumber('');
-            setTableCustomerName('');
-            setCustomerName('');
-            setPhone('');
-            setObservation('');
-            setActiveTab('table');
-            setShowResults(false);
-            setSelectedClient(null);
-            setClientDebt(0);
-        }, 200);
+      // Reset state when dialog closes
+      setTimeout(() => {
+        setTableNumber('');
+        setTableCustomerName('');
+        setCustomerName('');
+        setPhone('');
+        setObservation('');
+        setActiveTab('table');
+        setShowResults(false);
+        setSelectedClient(null);
+        setClientDebt(0);
+      }, 200);
     }
   }, [isOpen]);
 
-  const clientBalances = useMemo(() => {
-    const balanceMap = new Map<string, number>();
-
-    clients.forEach(client => {
-      balanceMap.set(client.id, 0);
-    });
-
-    credits.forEach(credit => {
-      balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
-    });
-
-    const openNameOrders = orders.filter(o => o.type === 'name' && o.status !== 'paid');
-    openNameOrders.forEach(order => {
-      const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
-      if (client) {
-        const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-        const paidAmount = order.payments?.reduce((acc, p) => acc + p.amount, 0) || 0;
-        const remainingDebt = orderTotal - paidAmount;
-        balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebt);
-      }
-    });
-
-    return balanceMap;
-  }, [orders, clients, credits]);
+  // Optimized: clientBalances no longer needed to be calculated manually.
 
   const handleSelectClient = (client: Client) => {
     setCustomerName(client.name.toUpperCase());
     setPhone(client.phone || '');
     setSelectedClient(client);
     setShowResults(false);
-    const balance = clientBalances.get(client.id) || 0;
+
+    // Balance is now directly on the client object
+    const balance = client.balance || 0;
     setClientDebt(balance < 0 ? balance : 0);
   };
-  
+
   const filteredClients = useMemo(() => {
     const lowercasedFilter = customerName.toLowerCase().trim();
     if (!lowercasedFilter) {
@@ -109,8 +88,8 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
 
 
   const handleTableSubmit = (e: React.FormEvent) => {
-     e.preventDefault();
-     if (tableNumber) {
+    e.preventDefault();
+    if (tableNumber) {
       onCreateOrder('table', parseInt(tableNumber, 10), tableCustomerName);
     }
   }
@@ -118,11 +97,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
   const handleNameOrderSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (customerName) {
-        const identifier = customerName.toUpperCase();
-        onCreateOrder('name', identifier, identifier, phone, observation);
+      const identifier = customerName.toUpperCase();
+      onCreateOrder('name', identifier, identifier, phone, observation);
     }
   }
-  
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setCustomerName(value);
@@ -134,11 +113,11 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
       setShowResults(false);
     }
   }
-  
+
   const handleInputBlur = () => {
     // Wait a bit before closing results to allow click event to register
     setTimeout(() => {
-        setShowResults(false);
+      setShowResults(false);
     }, 150);
   }
 
@@ -155,7 +134,7 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent 
+      <DialogContent
         className="sm:max-w-md"
         onPointerDownOutside={(e) => {
           const target = e.target as HTMLElement;
@@ -171,128 +150,128 @@ export function NewOrderDialog({ isOpen, onOpenChange, onCreateOrder, clients, o
             Escolha abrir por mesa ou por nome do cliente.
           </DialogDescription>
         </DialogHeader>
-        
+
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'table' | 'name')} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="table">Por Mesa</TabsTrigger>
             <TabsTrigger value="name">Por Nome</TabsTrigger>
-        </TabsList>
-        <TabsContent value="table" className="pt-4">
+          </TabsList>
+          <TabsContent value="table" className="pt-4">
             <form onSubmit={handleTableSubmit}>
-                <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="table-number">Número da Mesa</Label>
-                      <Input
-                          id="table-number"
-                          type="number"
-                          placeholder="Ex: 5"
-                          value={tableNumber}
-                          onChange={(e) => setTableNumber(e.target.value)}
-                          autoFocus
-                          required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="table-customer-name">Nome (Opcional)</Label>
-                      <Input
-                          id="table-customer-name"
-                          type="text"
-                          placeholder="Ex: João da Silva"
-                          value={tableCustomerName}
-                          onChange={(e) => setTableCustomerName(e.target.value)}
-                      />
-                    </div>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="table-number">Número da Mesa</Label>
+                  <Input
+                    id="table-number"
+                    type="number"
+                    placeholder="Ex: 5"
+                    value={tableNumber}
+                    onChange={(e) => setTableNumber(e.target.value)}
+                    autoFocus
+                    required
+                  />
                 </div>
-                <DialogFooter className="mt-4">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button type="submit" disabled={!tableNumber}>Criar Comanda</Button>
-                </DialogFooter>
+                <div>
+                  <Label htmlFor="table-customer-name">Nome (Opcional)</Label>
+                  <Input
+                    id="table-customer-name"
+                    type="text"
+                    placeholder="Ex: João da Silva"
+                    value={tableCustomerName}
+                    onChange={(e) => setTableCustomerName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <DialogFooter className="mt-4">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button type="submit" disabled={!tableNumber}>Criar Comanda</Button>
+              </DialogFooter>
             </form>
-        </TabsContent>
-        <TabsContent value="name" className="pt-4">
-             <form onSubmit={handleNameOrderSubmit}>
-                <div className="space-y-4">
+          </TabsContent>
+          <TabsContent value="name" className="pt-4">
+            <form onSubmit={handleNameOrderSubmit}>
+              <div className="space-y-4">
+                <div className="relative">
+                  <Label htmlFor="customer-name">Nome do Cliente</Label>
                   <div className="relative">
-                    <Label htmlFor="customer-name">Nome do Cliente</Label>
-                     <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                          id="customer-name" 
-                          placeholder="Buscar ou digitar novo nome..."
-                          onChange={handleInputChange}
-                          value={customerName}
-                          autoFocus
-                          autoComplete="off"
-                          className="pl-10"
-                          onBlur={handleInputBlur}
-                          onFocus={handleInputFocus}
-                      />
-                    </div>
-
-                    {showResults && filteredClients.length > 0 && (
-                      <div data-results-list className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
-                          {filteredClients.map((client) => (
-                            <button
-                              type="button"
-                              key={client.id}
-                              onClick={() => handleSelectClient(client)}
-                              className="flex w-full text-left items-center p-2 text-sm hover:bg-accent rounded-md"
-                            >
-                              <div>
-                                <p>{client.name}</p>
-                                <p className="text-xs text-muted-foreground">{client.phone}</p>
-                              </div>
-                            </button>
-                          ))}
-                      </div>
-                    )}
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="customer-name"
+                      placeholder="Buscar ou digitar novo nome..."
+                      onChange={handleInputChange}
+                      value={customerName}
+                      autoFocus
+                      autoComplete="off"
+                      className="pl-10"
+                      onBlur={handleInputBlur}
+                      onFocus={handleInputFocus}
+                    />
                   </div>
 
-                   <div>
-                      <Label htmlFor="observation">Observação (Opcional)</Label>
-                      <Textarea
-                          id="observation"
-                          placeholder="Ex: Mesa perto da janela, etc."
-                          value={observation}
-                          onChange={(e) => setObservation(e.target.value)}
-                      />
+                  {showResults && filteredClients.length > 0 && (
+                    <div data-results-list className="absolute top-full w-full z-[9999] mt-1 bg-background shadow-lg border rounded-md max-h-[180px] overflow-y-auto">
+                      {filteredClients.map((client) => (
+                        <button
+                          type="button"
+                          key={client.id}
+                          onClick={() => handleSelectClient(client)}
+                          className="flex w-full text-left items-center p-2 text-sm hover:bg-accent rounded-md"
+                        >
+                          <div>
+                            <p>{client.name}</p>
+                            <p className="text-xs text-muted-foreground">{client.phone}</p>
+                          </div>
+                        </button>
+                      ))}
                     </div>
+                  )}
                 </div>
 
+                <div>
+                  <Label htmlFor="observation">Observação (Opcional)</Label>
+                  <Textarea
+                    id="observation"
+                    placeholder="Ex: Mesa perto da janela, etc."
+                    value={observation}
+                    onChange={(e) => setObservation(e.target.value)}
+                  />
+                </div>
+              </div>
 
-                {clientDebt < 0 && (
-                  <Alert variant="destructive" className="mt-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertDescription>
-                      Este cliente possui uma dívida de <span className="font-bold">R$ {Math.abs(clientDebt).toFixed(2).replace('.', ',')}</span>.
-                    </AlertDescription>
-                  </Alert>
-                )}
+
+              {clientDebt < 0 && (
+                <Alert variant="destructive" className="mt-4">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription>
+                    Este cliente possui uma dívida de <span className="font-bold">R$ {Math.abs(clientDebt).toFixed(2).replace('.', ',')}</span>.
+                  </AlertDescription>
+                </Alert>
+              )}
 
 
-                {customerName && isNewCustomer && !selectedClient && (
-                    <>
-                        <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
-                            <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
-                            <Input
-                                id="phone"
-                                placeholder="Telefone para contato (opcional)"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                            />
-                        </div>
-                    </>
-                )}
+              {customerName && isNewCustomer && !selectedClient && (
+                <>
+                  <div className="space-y-2 animate-in fade-in-0 duration-300 mt-4">
+                    <Label htmlFor="phone">Telefone (Novo Cliente)</Label>
+                    <Input
+                      id="phone"
+                      placeholder="Telefone para contato (opcional)"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                    />
+                  </div>
+                </>
+              )}
 
-                <DialogFooter className="mt-4">
-                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                    <Button type="submit" disabled={!customerName}>
-                        {isNewCustomer && !selectedClient ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
-                    </Button>
-                </DialogFooter>
-                 
+              <DialogFooter className="mt-4">
+                <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button type="submit" disabled={!customerName}>
+                  {isNewCustomer && !selectedClient ? 'Criar Cliente e Abrir' : 'Abrir Comanda'}
+                </Button>
+              </DialogFooter>
+
             </form>
-        </TabsContent>
+          </TabsContent>
         </Tabs>
       </DialogContent>
     </Dialog>

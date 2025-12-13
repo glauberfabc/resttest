@@ -56,7 +56,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [orders, setOrders] = useState<Order[]>(initialOrdersProp);
   const [menuItems, setMenuItems] = useState<MenuItem[]>(menuItemsProp);
   const [clients, setClients] = useState<Client[]>(initialClientsProp);
-  const [credits, setCredits] = useState<ClientCredit[]>([]);
+
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -125,15 +125,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const { data: menuItemsData } = await client.from('menu_items').select('*');
     if (menuItemsData) {
-      const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+      const formattedItems = (menuItemsData as any[]).map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
       setMenuItems(formattedItems);
     }
 
     const { data: clientsData } = await client.from('clients').select('*');
     if (clientsData) setClients(clientsData as Client[]);
 
-    const { data: creditsData } = await client.from('client_credits').select('*').order('created_at', { ascending: false });
-    if (creditsData) setCredits(creditsData.map(c => ({ ...c, created_at: new Date(c.created_at) })) as ClientCredit[]);
+    // Optimized: client_credits not fetched. Balance is in clients table.
 
     setIsFetching(false);
     if (showToast) {
@@ -324,7 +323,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         comment: item.comment || null,
       }));
 
-      const { error: insertError } = await client.from('order_items').insert(itemsToInsert);
+      const { error: insertError } = await (client.from('order_items') as any).insert(itemsToInsert);
 
       if (insertError) {
         console.error("Error inserting new order items:", insertError);
@@ -392,8 +391,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const clientExists = clients.some(c => c.name.toUpperCase() === clientName);
 
       if (!clientExists) {
-        const { data: newClientData, error: clientError } = await client
-          .from('clients')
+        const { data: newClientData, error: clientError } = await (client
+          .from('clients') as any)
           .insert({ name: clientName, phone: phone || null, user_id: user.id })
           .select()
           .single();
@@ -460,23 +459,24 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const clientName = (orderToPay.identifier as string).toUpperCase();
       allOrdersForClient = orders.filter(o => o.status !== 'paid' && o.type === 'name' && (o.identifier as string).toUpperCase() === clientName);
 
+
+      // Optimized: Use client.balance from DB (Credits - Debts).
+      // If balance is negative, they owe money. If positive, they have credit.
+      // totalClientDebt is "how much they owe", so it is -balance.
       const clientRecord = clients.find(c => c.name.toUpperCase() === clientName);
-      const clientCreditBalance = clientRecord ? credits.filter(c => c.client_id === clientRecord.id).reduce((sum, c) => sum + c.amount, 0) : 0;
+      const clientBalance = clientRecord?.balance || 0;
 
-      const debtFromOrders = allOrdersForClient.reduce((debt, o) => {
-        const orderTotal = o.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-        const orderPaid = o.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-        return debt + (orderTotal - orderPaid);
-      }, 0);
+      totalClientDebt = -clientBalance;
 
-      totalClientDebt = debtFromOrders - clientCreditBalance;
-      isPayingFullDebt = amount >= totalClientDebt - 0.01;
+      // Safe check: if balance is positive (credit), debt is 0 (or negative in this var).
+      // Only pay full debt if debt > 0.
+      isPayingFullDebt = totalClientDebt > 0 && amount >= totalClientDebt - 0.01;
     }
 
     if (method === "Saldo Cliente") {
       const clientRecord = clients.find(c => c.name.toUpperCase() === (orderToPay.identifier as string).toUpperCase());
       if (clientRecord && user) {
-        const { error: creditError } = await client.from('client_credits').insert({
+        const { error: creditError } = await (client.from('client_credits') as any).insert({
           client_id: clientRecord.id,
           amount: -amount, // Deduct from balance
           method: "Consumo",
@@ -490,8 +490,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     }
 
 
-    const { error: paymentError } = await client
-      .from('order_payments')
+    const { error: paymentError } = await (client
+      .from('order_payments') as any)
       .insert({ order_id: orderId, amount, method });
 
     if (paymentError) {
@@ -501,8 +501,8 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     if (isPayingFullDebt && allOrdersForClient.length > 0) {
       const orderIdsToUpdate = allOrdersForClient.map(o => o.id);
-      await client
-        .from('orders')
+      await (client
+        .from('orders') as any)
         .update({ status: 'paid', paid_at: new Date().toISOString() })
         .in('id', orderIdsToUpdate);
       toast({ title: "Dívida Quitada!", description: `Todas as comandas de ${orderToPay.identifier} foram pagas.` });
@@ -513,14 +513,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const isOrderNowPaid = totalPaidForThisOrder >= orderTotal - 0.01;
 
       if (isOrderNowPaid) {
-        await client
-          .from('orders')
+        await (client
+          .from('orders') as any)
           .update({ status: 'paid', paid_at: new Date().toISOString() })
           .eq('id', orderId);
         toast({ title: "Comanda Paga!", description: `A comanda foi quitada.` });
       } else {
-        await client
-          .from('orders')
+        await (client
+          .from('orders') as any)
           .update({ status: 'paying' })
           .eq('id', orderId);
         toast({ title: "Pagamento recebido!", description: `R$ ${amount.toFixed(2)} recebidos.` });
@@ -913,7 +913,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           order={selectedOrder}
           allOrders={orders}
           allClients={clients}
-          allCredits={credits}
+
           menuItems={menuItems}
           printedKitchenItems={printedItemsMap.get(selectedOrder.id) || []}
           onSetPrintedItems={(items) => handleSetPrintedItems(selectedOrder.id, items)}
@@ -930,7 +930,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         onCreateOrder={handleCreateOrder}
         clients={clients}
         orders={orders}
-        credits={credits}
+
         user={user}
       />
     </div>

@@ -8,19 +8,19 @@ import { redirect } from 'next/navigation';
 
 export async function getCurrentUser(): Promise<User | null> {
     const supabase = await createClient();
-    
+
     const { data: { user } } = await supabase.auth.getUser();
-    
+
     if (!user) {
         return null;
     }
-    
+
     const { data: profile } = await supabase
         .from('profiles')
         .select('name, role, email')
         .eq('id', user.id)
         .single();
-    
+
     if (!profile) {
         return null;
     }
@@ -28,8 +28,8 @@ export async function getCurrentUser(): Promise<User | null> {
     return {
         id: user.id,
         email: user.email!,
-        name: profile.name,
-        role: profile.role as UserRole,
+        name: (profile as any).name,
+        role: (profile as any).role as UserRole,
     };
 }
 
@@ -43,7 +43,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
         console.error('Error fetching menu items:', error);
         return [];
     }
-    return data.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+    return (data as any[]).map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -51,7 +51,7 @@ export async function getClients(): Promise<Client[]> {
     const { data, error } = await supabase
         .from('clients')
         .select('*');
-    
+
     if (error) {
         console.error('Error fetching clients:', error);
         return [];
@@ -59,7 +59,7 @@ export async function getClients(): Promise<Client[]> {
     return data as Client[];
 }
 
-export async function getOrders(): Promise<Order[]> {
+export async function getOrders(user?: User, options?: { status?: 'paid' | 'open' | 'paying'; limit?: number }): Promise<Order[]> {
     const supabase = await createClient();
 
     let query = supabase
@@ -76,7 +76,17 @@ export async function getOrders(): Promise<Order[]> {
             ),
             payments:order_payments (*)
         `);
-    
+
+    if (options?.status === 'open') {
+        query = query.neq('status', 'paid');
+    } else if (options?.status) {
+        query = query.eq('status', options.status);
+    }
+
+    if (options?.limit) {
+        query = query.limit(options.limit);
+    }
+
     const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
@@ -84,7 +94,7 @@ export async function getOrders(): Promise<Order[]> {
         return [];
     }
 
-    return data.map(order => ({
+    return (data as any[]).map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
             id: item.id || crypto.randomUUID(),
@@ -111,12 +121,12 @@ export async function getClientCredits(): Promise<ClientCredit[]> {
         .from('client_credits')
         .select('*')
         .order('created_at', { ascending: false });
-    
+
     if (error) {
         console.error('Error fetching client credits:', error);
         return [];
     }
-    return data.map(credit => ({
+    return (data as any[]).map(credit => ({
         ...credit,
         created_at: new Date(credit.created_at)
     })) as ClientCredit[];

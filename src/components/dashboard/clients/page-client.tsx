@@ -20,9 +20,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign, ArrowUp, ArrowDown, Search } from "lucide-react";
+import { MoreHorizontal, PlusCircle, Pencil, Trash2, DollarSign, ArrowUp, ArrowDown, Search, Clock } from "lucide-react";
 import { ClientFormDialog } from "@/components/dashboard/clients/client-form-dialog";
 import { AddCreditDialog } from "@/components/dashboard/clients/add-credit-dialog";
+import { OrderHistoryDialog } from "@/components/dashboard/clients/order-history-dialog";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const [credits, setCredits] = useState<ClientCredit[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isCreditFormOpen, setIsCreditFormOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [searchTerm, setSearchTerm] = useState("");
@@ -52,102 +54,52 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   useEffect(() => {
     const searchFromUrl = searchParams.get('search');
     if (searchFromUrl) {
-        setSearchTerm(searchFromUrl);
+      setSearchTerm(searchFromUrl);
     }
   }, [searchParams]);
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
-    
+
     const { data: clientsData } = await supabase.from('clients').select('*');
     if (clientsData) setClients(clientsData as Client[]);
 
-    const { data: creditsData } = await supabase.from('client_credits').select('*').order('created_at', { ascending: false });
-    if (creditsData) setCredits(creditsData.map(c => ({...c, created_at: new Date(c.created_at)})) as ClientCredit[]);
-
-    const { data: ordersData } = await supabase
-      .from('orders')
-      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
-      .order('created_at', { ascending: false });
-
-    if (ordersData) {
-        const formattedOrders = ordersData.map(order => ({
-            ...order,
-            items: order.items.map((item: any) => ({
-                id: item.id || crypto.randomUUID(),
-                quantity: item.quantity,
-                comment: item.comment || '',
-                menuItem: {
-                    ...item.menu_item,
-                    id: item.menu_item.id || crypto.randomUUID(),
-                    imageUrl: item.menu_item.image_url,
-                    lowStockThreshold: item.menu_item.low_stock_threshold,
-                }
-            })),
-            created_at: new Date(order.created_at),
-            paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
-            createdAt: new Date(order.created_at),
-            paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
-        })) as unknown as Order[];
-        setOrders(formattedOrders);
-    }
+    // Optimized: No longer fetching all credits and orders. Balance is now in clients table.
   }, [supabase]);
 
   useEffect(() => {
-    if(user) {
+    if (user) {
       fetchData(user);
     }
   }, [user, fetchData]);
-  
+
   const clientBalances = useMemo(() => {
     const balanceMap = new Map<string, number>();
-
-    // 1. Initialize all clients with 0 balance
     clients.forEach(client => {
-      balanceMap.set(client.id, 0);
+      balanceMap.set(client.id, client.balance || 0);
     });
-
-    // 2. Apply all credits and direct debits from the client_credits table
-    credits.forEach(credit => {
-      balanceMap.set(credit.client_id, (balanceMap.get(credit.client_id) || 0) + credit.amount);
-    });
-    
-    // 3. Subtract the value of all *unpaid* orders
-    const openOrders = orders.filter(o => o.status !== 'paid' && o.type === 'name');
-
-    openOrders.forEach(order => {
-        const client = clients.find(c => c.name.toUpperCase() === (order.identifier as string).toUpperCase());
-        if (client) {
-            const orderTotal = order.items.reduce((sum, item) => sum + (item.menuItem.price * item.quantity), 0);
-            const totalPaidForOrder = order.payments?.reduce((sum, p) => sum + p.amount, 0) || 0;
-            const remainingDebtForOrder = orderTotal - totalPaidForOrder;
-
-            balanceMap.set(client.id, (balanceMap.get(client.id) || 0) - remainingDebtForOrder);
-        }
-    });
-
     return balanceMap;
-  }, [orders, clients, credits]);
+  }, [clients]);
 
 
   const sortedClients = useMemo(() => {
     const filteredByBalance = clients.filter(client => {
-        const balance = clientBalances.get(client.id) || 0;
-        if (balanceFilter === 'positive') return balance > 0;
-        if (balanceFilter === 'negative') return balance < 0;
-        return true; // 'all'
+      const balance = clientBalances.get(client.id) || 0;
+      if (balanceFilter === 'positive') return balance > 0;
+      if (balanceFilter === 'negative') return balance < 0;
+      return true; // 'all'
     });
 
     const filteredBySearch = filteredByBalance.filter(client =>
-        client.name.toLowerCase().includes(searchTerm.toLowerCase())
+      client.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return filteredBySearch.sort((a, b) => {
-        if (sortOrder === 'asc') {
-            return a.name.localeCompare(b.name);
-        } else {
-            return b.name.localeCompare(a.name);
-        }
+      if (sortOrder === 'asc') {
+        return a.name.localeCompare(b.name);
+      } else {
+        return b.name.localeCompare(a.name);
+      }
     });
   }, [clients, searchTerm, sortOrder, balanceFilter, clientBalances]);
 
@@ -158,33 +110,44 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
 
   const handleSaveClient = async (clientData: Omit<Client, 'id' | 'user_id'>) => {
     if (!user) {
-        toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado." });
-        return;
+      toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado." });
+      return;
     }
 
     const finalClientData = {
-        ...clientData,
-        name: clientData.name.toUpperCase(),
+      ...clientData,
+      name: clientData.name.toUpperCase(),
     };
 
     if (selectedClient) { // Editing existing client
-      const { data, error } = await supabase
-        .from('clients')
-        .update({ name: finalClientData.name, phone: finalClientData.phone, document: finalClientData.document })
-        .eq('id', selectedClient.id)
+      const { error: updateError, data } = await (supabase
+        .from('clients') as any)
+        .update({
+          name: clientData.name,
+          document: clientData.document,
+          phone: clientData.phone
+        })
+        .eq('id', selectedClient.id) // Assuming editingClient was a typo and should be selectedClient
         .select()
         .single();
-        
-      if (error || !data) {
+
+      if (updateError || !data) {
         toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o cliente." });
         return;
       }
       setClients(clients.map(c => c.id === data.id ? { ...data, user_id: data.user_id } : c));
 
     } else { // Adding new client
-      const { data, error } = await supabase
-        .from('clients')
-        .insert({ ...finalClientData, user_id: user.id })
+      const { data, error } = await (supabase
+        .from('clients') as any)
+        .insert({
+          user_id: user.id,
+          name: finalClientData.name,
+          phone: finalClientData.phone,
+          document: finalClientData.document,
+          created_at: new Date(),
+          balance: 0
+        })
         .select()
         .single();
 
@@ -195,35 +158,35 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
       }
       setClients([...clients, { ...data, user_id: data.user_id }]);
     }
-    
+
     setSelectedClient(null);
     setIsFormOpen(false);
   };
-  
+
   const handleAddCredit = async (clientId: string, amount: number, method: string) => {
     if (!user) {
-        toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado." });
-        return;
+      toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado." });
+      return;
     }
 
-    const { data, error } = await supabase
-        .from('client_credits')
-        .insert({
-            client_id: clientId,
-            amount,
-            method,
-            user_id: user.id,
-        })
-        .select()
-        .single();
-    
+    const { data, error } = await (supabase
+      .from('client_credits') as any)
+      .insert({
+        client_id: clientId,
+        amount,
+        method,
+        user_id: user.id,
+      })
+      .select()
+      .single();
+
     if (error || !data) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o crédito/débito." });
+      toast({ variant: 'destructive', title: "Erro", description: "Não foi possível adicionar o crédito/débito." });
     } else {
-        const newCredit = { ...data, created_at: new Date(data.created_at) } as ClientCredit;
-        setCredits(prev => [newCredit, ...prev]);
-        const action = amount > 0 ? 'adicionado' : 'debitado';
-        toast({ title: "Sucesso!", description: `Valor de R$ ${Math.abs(amount).toFixed(2).replace('.', ',')} ${action}.` });
+      const newCredit = { ...data, created_at: new Date(data.created_at) } as ClientCredit;
+      setCredits(prev => [newCredit, ...prev]);
+      const action = amount > 0 ? 'adicionado' : 'debitado';
+      toast({ title: "Sucesso!", description: `Valor de R$ ${Math.abs(amount).toFixed(2).replace('.', ',')} ${action}.` });
     }
 
     setIsCreditFormOpen(false);
@@ -232,25 +195,25 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
 
   const handleCreateOrderForClient = async (clientName: string) => {
     if (!user) {
-        toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
-        return;
+      toast({ variant: 'destructive', title: "Erro", description: "Você precisa estar logado para criar uma comanda." });
+      return;
     }
 
-    const { data, error } = await supabase
-      .from('orders')
-      .insert({ 
-        type: 'name', 
-        identifier: clientName.toUpperCase(), 
+    const { data, error } = await (supabase
+      .from('orders') as any)
+      .insert({
+        type: 'name',
+        identifier: clientName.toUpperCase(),
         status: 'open',
         user_id: user.id,
-       })
+      })
       .select()
       .single();
 
     if (error || !data) {
-        console.error("Error creating order:", error);
-        toast({ variant: 'destructive', title: "Erro ao criar comanda", description: "Tente novamente." });
-        return;
+      console.error("Error creating order:", error);
+      toast({ variant: 'destructive', title: "Erro ao criar comanda", description: "Tente novamente." });
+      return;
     }
 
     toast({ title: "Comanda aberta!", description: `Nova comanda aberta para ${clientName}.` });
@@ -267,6 +230,11 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
     setIsCreditFormOpen(true);
   }
 
+  const handleOpenHistory = (client: Client) => {
+    setSelectedClient(client);
+    setIsHistoryOpen(true);
+  }
+
   const handleAddNew = () => {
     setSelectedClient(null);
     setIsFormOpen(true);
@@ -275,17 +243,17 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const handleDelete = async (clientId: string) => {
     const balance = clientBalances.get(clientId) || 0;
     if (balance !== 0) {
-        toast({ variant: 'destructive', title: "Ação não permitida", description: "Não é possível excluir clientes com saldo ou débitos pendentes." });
-        return;
+      toast({ variant: 'destructive', title: "Ação não permitida", description: "Não é possível excluir clientes com saldo ou débitos pendentes." });
+      return;
     }
-    
+
     const { error } = await supabase.from('clients').delete().eq('id', clientId);
 
     if (error) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível excluir o cliente." });
+      toast({ variant: 'destructive', title: "Erro", description: "Não foi possível excluir o cliente." });
     } else {
-        setClients(clients.filter(c => c.id !== clientId));
-        toast({ title: "Sucesso", description: "Cliente excluído." });
+      setClients(clients.filter(c => c.id !== clientId));
+      toast({ title: "Sucesso", description: "Cliente excluído." });
     }
   };
 
@@ -302,31 +270,31 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
 
       <div className="flex flex-col gap-4">
         <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-            <Input
-                placeholder="Buscar cliente por nome..."
-                className="pl-10"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+          <Input
+            placeholder="Buscar cliente por nome..."
+            className="pl-10"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
         <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant={balanceFilter === 'all' ? 'default' : 'outline'} onClick={() => setBalanceFilter('all')}>Todos</Button>
-            <Button size="sm" variant={balanceFilter === 'negative' ? 'default' : 'outline'} onClick={() => setBalanceFilter('negative')}>Com Saldo Devedor</Button>
-            <Button size="sm" variant={balanceFilter === 'positive' ? 'default' : 'outline'} onClick={() => setBalanceFilter('positive')}>Com Saldo Positivo</Button>
+          <Button size="sm" variant={balanceFilter === 'all' ? 'default' : 'outline'} onClick={() => setBalanceFilter('all')}>Todos</Button>
+          <Button size="sm" variant={balanceFilter === 'negative' ? 'default' : 'outline'} onClick={() => setBalanceFilter('negative')}>Com Saldo Devedor</Button>
+          <Button size="sm" variant={balanceFilter === 'positive' ? 'default' : 'outline'} onClick={() => setBalanceFilter('positive')}>Com Saldo Positivo</Button>
         </div>
       </div>
 
 
-       <div className="border rounded-lg overflow-x-auto">
+      <div className="border rounded-lg overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="whitespace-nowrap">
-                 <Button variant="ghost" onClick={toggleSortOrder} className="px-0 hover:bg-transparent">
-                    Nome
-                    {sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />}
-                 </Button>
+                <Button variant="ghost" onClick={toggleSortOrder} className="px-0 hover:bg-transparent">
+                  Nome
+                  {sortOrder === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />}
+                </Button>
               </TableHead>
               <TableHead className="whitespace-nowrap">Contato (Telefone/Documento)</TableHead>
               <TableHead className="w-[150px] text-right whitespace-nowrap">Saldo</TableHead>
@@ -335,73 +303,83 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
           </TableHeader>
           <TableBody>
             {sortedClients.map((client) => {
-                const balance = clientBalances.get(client.id) || 0;
-                const balanceColor = balance > 0 ? "text-green-600" : balance < 0 ? "text-red-600" : "";
-                return (
-                    <TableRow key={client.id} className={balance < 0 ? "bg-destructive/10" : ""}>
-                        <TableCell 
-                            className="font-medium cursor-pointer hover:underline whitespace-nowrap"
-                            onClick={() => handleCreateOrderForClient(client.name)}
-                        >
-                            {client.name}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">{client.phone || client.document || "-"}</TableCell>
-                        <TableCell className={`text-right font-mono font-semibold whitespace-nowrap ${balanceColor}`}>
-                            {balance.toFixed(2) !== '0.00' ? `R$ ${balance.toFixed(2).replace('.', ',')}` : "-"}
-                        </TableCell>
-                        <TableCell>
-                             <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0">
-                                    <span className="sr-only">Abrir menu</span>
-                                    <MoreHorizontal className="h-4 w-4" />
-                                </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => handleOpenCreditDialog(client)}>
-                                    <DollarSign className="mr-2 h-4 w-4" />
-                                    Adicionar Crédito/Débito
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleEdit(client)}>
-                                    <Pencil className="mr-2 h-4 w-4" />
-                                    Editar
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(client.id)}>
-                                    <Trash2 className="mr-2 h-4 w-4" />
-                                    Excluir
-                                </DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </TableCell>
-                    </TableRow>
-                )
+              const balance = clientBalances.get(client.id) || 0;
+              const balanceColor = balance > 0 ? "text-green-600" : balance < 0 ? "text-red-600" : "";
+              return (
+                <TableRow key={client.id} className={balance < 0 ? "bg-destructive/10" : ""}>
+                  <TableCell
+                    className="font-medium cursor-pointer hover:underline whitespace-nowrap"
+                    onClick={() => handleCreateOrderForClient(client.name)}
+                  >
+                    {client.name}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{client.phone || client.document || "-"}</TableCell>
+                  <TableCell className={`text-right font-mono font-semibold whitespace-nowrap ${balanceColor}`}>
+                    {balance.toFixed(2) !== '0.00' ? `R$ ${balance.toFixed(2).replace('.', ',')}` : "-"}
+                  </TableCell>
+                  <TableCell>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <span className="sr-only">Abrir menu</span>
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleOpenCreditDialog(client)}>
+                          <DollarSign className="mr-2 h-4 w-4" />
+                          Adicionar Crédito/Débito
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenHistory(client)}>
+                          <Clock className="mr-2 h-4 w-4" />
+                          Ver Histórico
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleEdit(client)}>
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(client.id)}>
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Excluir
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              )
             })}
           </TableBody>
         </Table>
       </div>
-      
+
       {isFormOpen && (
         <ClientFormDialog
-            isOpen={isFormOpen}
-            onOpenChange={setIsFormOpen}
-            onSave={handleSaveClient}
-            client={selectedClient}
-            user={user}
-            existingClients={clients}
+          isOpen={isFormOpen}
+          onOpenChange={setIsFormOpen}
+          onSave={handleSaveClient}
+          client={selectedClient}
+          user={user}
+          existingClients={clients}
         />
       )}
       {isCreditFormOpen && selectedClient && (
         <AddCreditDialog
-            isOpen={isCreditFormOpen}
-            onOpenChange={setIsCreditFormOpen}
-            onSave={handleAddCredit}
-            client={selectedClient}
-            user={user}
+          isOpen={isCreditFormOpen}
+          onOpenChange={setIsCreditFormOpen}
+          onSave={handleAddCredit}
+          client={selectedClient}
+          user={user}
+        />
+      )}
+      {isHistoryOpen && selectedClient && (
+        <OrderHistoryDialog
+          isOpen={isHistoryOpen}
+          onOpenChange={setIsHistoryOpen}
+          client={selectedClient}
         />
       )}
     </div>
   );
 }
 
-    
