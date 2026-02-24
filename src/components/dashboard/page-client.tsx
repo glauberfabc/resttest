@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { createClient } from "@/utils/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { startOfToday, format, startOfDay, isBefore } from 'date-fns';
-import { cn } from "@/lib/utils";
+import { cn, generateUUID } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -102,12 +102,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const formattedOrders = ordersData.map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
-          id: item.id || crypto.randomUUID(),
+          id: item.id || generateUUID(),
           quantity: item.quantity,
           comment: item.comment || '',
           menuItem: {
             ...item.menu_item,
-            id: item.menu_item.id || crypto.randomUUID(),
+            id: item.menu_item.id || generateUUID(),
             imageUrl: item.menu_item.image_url,
             lowStockThreshold: item.menu_item.low_stock_threshold,
           }
@@ -125,7 +125,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const { data: menuItemsData } = await client.from('menu_items').select('*');
     if (menuItemsData) {
-      const formattedItems = (menuItemsData as any[]).map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+      const formattedItems = (menuItemsData as any[]).map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
       setMenuItems(formattedItems);
     }
 
@@ -169,12 +169,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           const formattedOrder = {
             ...orderData,
             items: orderData.items.map((item: any) => ({
-              id: item.id || crypto.randomUUID(),
+              id: item.id || generateUUID(),
               quantity: item.quantity,
               comment: item.comment || '',
               menuItem: {
                 ...item.menu_item,
-                id: item.menu_item.id || crypto.randomUUID(),
+                id: item.menu_item.id || generateUUID(),
                 imageUrl: item.menu_item.image_url,
                 lowStockThreshold: item.menu_item.low_stock_threshold,
               }
@@ -343,12 +343,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const formattedOrder: Order = {
         ...freshlyUpdatedOrderData,
         items: freshlyUpdatedOrderData.items.map((item: any) => ({
-          id: item.id || crypto.randomUUID(),
+          id: item.id || generateUUID(),
           quantity: item.quantity,
           comment: item.comment || '',
           menuItem: {
             ...item.menu_item,
-            id: item.menu_item.id || crypto.randomUUID(),
+            id: item.menu_item.id || generateUUID(),
             imageUrl: item.menu_item.image_url,
             lowStockThreshold: item.menu_item.low_stock_threshold,
           }
@@ -671,12 +671,12 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const formattedMoreOrders = morePaidOrders.map((order: any) => ({
         ...order,
         items: order.items.map((item: any) => ({
-          id: item.id || crypto.randomUUID(),
+          id: item.id || generateUUID(),
           quantity: item.quantity,
           comment: item.comment || '',
           menuItem: {
             ...item.menu_item,
-            id: item.menu_item.id || crypto.randomUUID(),
+            id: item.menu_item.id || generateUUID(),
             imageUrl: item.menu_item.image_url,
             lowStockThreshold: item.menu_item.low_stock_threshold,
           }

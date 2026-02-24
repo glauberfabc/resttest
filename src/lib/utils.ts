@@ -46,3 +46,27 @@ function editDistance(s1: string, s2: string): number {
   }
   return costs[s2.length];
 }
+
+export function generateUUID() {
+  // Client-side
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+
+  // Server-side (Node.js) or fallback
+  try {
+    const crypto = require('crypto');
+    if (crypto && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // Pure JS Fallback
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}

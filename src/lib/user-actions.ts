@@ -4,6 +4,7 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@/utils/supabase/server';
 import type { User, UserRole, Order, MenuItem, Client, ClientCredit } from '@/lib/types';
+import { generateUUID } from '@/lib/utils';
 import { redirect } from 'next/navigation';
 
 export async function getCurrentUser(): Promise<User | null> {
@@ -43,7 +44,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
         console.error('Error fetching menu items:', error);
         return [];
     }
-    return (data as any[]).map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+    return (data as any[]).map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
 }
 
 export async function getClients(): Promise<Client[]> {
@@ -97,12 +98,12 @@ export async function getOrders(user?: User, options?: { status?: 'paid' | 'open
     return (data as any[]).map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
-            id: item.id || crypto.randomUUID(),
+            id: item.id || generateUUID(),
             quantity: item.quantity,
             comment: item.comment || '',
             menuItem: {
                 ...item.menu_item,
-                id: item.menu_item.id || crypto.randomUUID(),
+                id: item.menu_item.id || generateUUID(),
                 imageUrl: item.menu_item.image_url,
                 lowStockThreshold: item.menu_item.low_stock_threshold,
             }

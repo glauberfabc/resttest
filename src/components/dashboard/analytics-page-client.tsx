@@ -21,7 +21,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar as CalendarIcon, DollarSign, ListOrdered, FileClock, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, generateUUID } from "@/lib/utils";
 import { SalesChart } from "./sales-chart";
 import { createClient } from "@/utils/supabase/client";
 
@@ -40,13 +40,13 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
-    
+
     const { data: menuItemsData, error: menuItemsError } = await supabase.from('menu_items').select('*');
     if (menuItemsData) {
-      const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[]
+      const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[]
       setMenuItems(formattedItems);
     }
-    
+
     const { data: ordersData, error: ordersError } = await supabase
       .from('orders')
       .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
@@ -56,21 +56,21 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
       const formattedOrders = ordersData.map(order => ({
         ...order,
         items: order.items.map((item: any) => ({
-            id: item.id || crypto.randomUUID(),
-            quantity: item.quantity,
-            comment: item.comment || '',
-            menuItem: {
-                ...item.menu_item,
-                id: item.menu_item.id || crypto.randomUUID(),
-                imageUrl: item.menu_item.image_url,
-                lowStockThreshold: item.menu_item.low_stock_threshold,
-            }
+          id: item.id || generateUUID(),
+          quantity: item.quantity,
+          comment: item.comment || '',
+          menuItem: {
+            ...item.menu_item,
+            id: item.menu_item.id || generateUUID(),
+            imageUrl: item.menu_item.image_url,
+            lowStockThreshold: item.menu_item.low_stock_threshold,
+          }
         })),
         created_at: new Date(order.created_at),
         paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
         createdAt: new Date(order.created_at),
         paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
-    })) as unknown as Order[];
+      })) as unknown as Order[];
       setOrders(formattedOrders);
     }
 
@@ -78,7 +78,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
 
   useEffect(() => {
     if (user) {
-        fetchData(user);
+      fetchData(user);
     }
   }, [user, fetchData]);
 
@@ -99,7 +99,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
   const openOrders = orders.filter(
     (o) => o.status === "open" || o.status === "paying"
   );
-  
+
   const receivableAmount = openOrders.reduce((total, order) => {
     const orderTotal = order.items.reduce(
       (acc, item) => acc + item.menuItem.price * item.quantity,
@@ -112,16 +112,16 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
 
   const paidOrdersInDateRange = allPaidOrders.filter(
     (o) => {
-        const paidAt = o.paidAt || o.paid_at;
-        if (!paidAt) return false;
+      const paidAt = o.paidAt || o.paid_at;
+      if (!paidAt) return false;
 
-        const paidDate = paidAt; // It's already a Date object
-        const fromDate = date?.from ? startOfDay(date.from) : null;
-        const toDate = date?.to ? endOfDay(date.to) : null;
+      const paidDate = paidAt; // It's already a Date object
+      const fromDate = date?.from ? startOfDay(date.from) : null;
+      const toDate = date?.to ? endOfDay(date.to) : null;
 
-        if (fromDate && paidDate < fromDate) return false;
-        if (toDate && paidDate > toDate) return false;
-        return true;
+      if (fromDate && paidDate < fromDate) return false;
+      if (toDate && paidDate > toDate) return false;
+      return true;
     }
   );
 
@@ -135,29 +135,29 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
 
   const salesByDay = React.useMemo(() => {
     if (!date?.from || !date?.to) {
-        return [];
+      return [];
     }
 
     const interval = eachDayOfInterval({
-        start: date.from,
-        end: date.to,
+      start: date.from,
+      end: date.to,
     });
 
     const dailySales = interval.map(day => ({
-        date: format(day, 'dd/MM'),
-        total: 0,
+      date: format(day, 'dd/MM'),
+      total: 0,
     }));
 
     paidOrdersInDateRange.forEach(order => {
-        const paidAt = order.paidAt || order.paid_at;
-        if (paidAt) {
-            const orderDateStr = format(paidAt, 'dd/MM');
-            const dayData = dailySales.find(d => d.date === orderDateStr);
-            if (dayData) {
-                const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
-                dayData.total += orderTotal;
-            }
+      const paidAt = order.paidAt || order.paid_at;
+      if (paidAt) {
+        const orderDateStr = format(paidAt, 'dd/MM');
+        const dayData = dailySales.find(d => d.date === orderDateStr);
+        if (dayData) {
+          const orderTotal = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
+          dayData.total += orderTotal;
         }
+      }
     });
 
     return dailySales;
@@ -209,7 +209,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
           </div>
         )}
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -249,7 +249,7 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
             </p>
           </CardContent>
         </Card>
-         <Card>
+        <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
               Alertas de Estoque
@@ -259,25 +259,24 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
           <CardContent>
             <div className="text-2xl font-bold">{lowStockItems.length + outOfStockItems.length}</div>
             <Link href="/dashboard/inventory">
-                <p className="text-xs text-muted-foreground hover:underline">
-                  {lowStockItems.length} em alerta, {outOfStockItems.length} esgotados
-                </p>
+              <p className="text-xs text-muted-foreground hover:underline">
+                {lowStockItems.length} em alerta, {outOfStockItems.length} esgotados
+              </p>
             </Link>
           </CardContent>
         </Card>
       </div>
       {isAdmin && (
         <Card>
-            <CardHeader>
-                <CardTitle>Vendas por Dia</CardTitle>
-            </CardHeader>
-            <CardContent className="pl-2">
-                <SalesChart data={salesByDay} />
-            </CardContent>
+          <CardHeader>
+            <CardTitle>Vendas por Dia</CardTitle>
+          </CardHeader>
+          <CardContent className="pl-2">
+            <SalesChart data={salesByDay} />
+          </CardContent>
         </Card>
       )}
     </div>
   );
 }
 
-    

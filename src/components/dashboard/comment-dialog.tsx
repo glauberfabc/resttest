@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -43,6 +44,7 @@ export function CommentDialog({ isOpen, onOpenChange, onSave, initialComment }: 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Adicionar/Editar Observação</DialogTitle>
+          <DialogDescription className="sr-only">Adicione uma observação personalizada a este item.</DialogDescription>
         </DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <Textarea

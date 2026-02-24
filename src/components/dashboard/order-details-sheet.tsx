@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import Image from "next/image";
 import type { Order, MenuItem, OrderItem, Client, ClientCredit } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { cn, generateUUID } from "@/lib/utils";
 import {
     Sheet,
     SheetContent,
@@ -34,6 +35,8 @@ import { format, isToday, startOfDay } from 'date-fns';
 import { formatInTimeZone } from 'date-fns-tz';
 import { useToast } from "@/hooks/use-toast";
 import { renderToString } from 'react-dom/server';
+import { connectBluetoothPrinter, printEscPos, formatOrderForEscPos } from "@/lib/bluetooth-print";
+import { Bluetooth, Settings2 } from "lucide-react";
 
 
 // Helper function to group items by key (menuItem.id + comment)
@@ -59,6 +62,19 @@ const groupOrderItems = (items: OrderItem[]): Map<string, OrderItem> => {
 };
 
 
+interface OrderDetailsSheetProps {
+    order: Order;
+    allOrders: Order[];
+    allClients: Client[];
+    menuItems: MenuItem[];
+    onOpenChange: (isOpen: boolean) => void;
+    onUpdateOrder: (updatedOrder: Order) => void;
+    onProcessPayment: (orderId: string, amount: number, method: string) => void;
+    onDeleteOrder: (orderId: string) => void;
+    printedKitchenItems: OrderItem[];
+    onSetPrintedItems: (items: OrderItem[]) => void;
+}
+
 export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onOpenChange, onUpdateOrder, onProcessPayment, onDeleteOrder, printedKitchenItems, onSetPrintedItems }: OrderDetailsSheetProps) {
     const [isMenuPickerOpen, setIsMenuPickerOpen] = useState(false);
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
@@ -66,6 +82,9 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
     const [editingItem, setEditingItem] = useState<OrderItem | null>(null);
 
     const [itemsToPrint, setItemsToPrint] = useState<OrderItem[]>([]);
+    const [printMethod, setPrintMethod] = useState<'system' | 'bluetooth'>('system');
+    const [bluetoothChar, setBluetoothChar] = useState<any>(null);
+    const [isConnecting, setIsConnecting] = useState(false);
 
     const { toast } = useToast();
 
@@ -109,6 +128,24 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
         });
         setItemsToPrint(newItems);
     }, [order.items, printedKitchenItems]);
+
+    useEffect(() => {
+        const savedMethod = localStorage.getItem('printMethod') as 'system' | 'bluetooth';
+        if (savedMethod) setPrintMethod(savedMethod);
+    }, []);
+
+    const handleConnectBluetooth = async () => {
+        setIsConnecting(true);
+        try {
+            const char = await connectBluetoothPrinter();
+            setBluetoothChar(char);
+            toast({ title: "Impressora Conectada", description: "Pronta para imprimir via bluetooth." });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: "Erro de Conexão", description: error.message });
+        } finally {
+            setIsConnecting(false);
+        }
+    };
 
 
     const total = order.items.reduce((acc, item) => acc + item.menuItem.price * item.quantity, 0);
@@ -193,7 +230,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
             );
         } else {
             items.push({
-                id: crypto.randomUUID(),
+                id: generateUUID(),
                 menuItem: menuItem,
                 quantity: 1,
                 comment: '',
@@ -292,9 +329,25 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
         onProcessPayment(order.id, amount, method);
     };
 
-    const handleKitchenPrint = () => {
+    const handleKitchenPrint = async () => {
         if (itemsToPrint.length === 0) {
             toast({ title: 'Nada para imprimir', description: 'Nenhum item novo foi adicionado à comanda.' });
+            return;
+        }
+
+        if (printMethod === 'bluetooth') {
+            if (!bluetoothChar) {
+                toast({ variant: 'destructive', title: 'Bluetooth Desconectado', description: 'Por favor, conecte a impressora primeiro.' });
+                return;
+            }
+            try {
+                const text = formatOrderForEscPos(order, itemsToPrint, dailyConsumption, totalDebt, paidAmount);
+                await printEscPos(bluetoothChar, text);
+                onSetPrintedItems(getGroupedItems(order.items));
+                toast({ title: 'Imprimindo...', description: 'Pedido enviado para a impressora bluetooth.' });
+            } catch (error: any) {
+                toast({ variant: 'destructive', title: 'Erro de Impressão', description: error.message });
+            }
             return;
         }
 
@@ -357,7 +410,22 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
         }
     };
 
-    const printCustomerReceipt = () => {
+    const printCustomerReceipt = async () => {
+        if (printMethod === 'bluetooth') {
+            if (!bluetoothChar) {
+                toast({ variant: 'destructive', title: 'Bluetooth Desconectado', description: 'Por favor, conecte a impressora primeiro.' });
+                return;
+            }
+            try {
+                const text = formatOrderForEscPos(order, groupedItemsForDisplay, dailyConsumption, totalDebt, paidAmount);
+                await printEscPos(bluetoothChar, text);
+                toast({ title: 'Imprimindo...', description: 'Comprovante enviado para a impressora bluetooth.' });
+            } catch (error: any) {
+                toast({ variant: 'destructive', title: 'Erro de Impressão', description: error.message });
+            }
+            return;
+        }
+
         const receiptText = generateCustomerReceiptText();
         const printWindow = window.open('', '_blank', 'width=' + window.screen.width + ',height=' + window.screen.height + ',scrollbars=yes');
         if (printWindow) {
@@ -504,6 +572,7 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
                                                     width={64}
                                                     height={64}
                                                     className="rounded-md object-contain w-12 h-12 sm:w-16 sm:h-16"
+                                                    style={{ width: 'auto', height: 'auto' }}
                                                     data-ai-hint="food drink"
                                                 />
                                                 <div className="flex-1">
@@ -607,6 +676,34 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
                                             <span>R$ {totalToPay.toFixed(2).replace('.', ',')}</span>
                                         </div>
 
+                                        <div className="flex flex-col gap-2 p-2 bg-muted/30 rounded-lg border">
+                                            <div className="flex items-center justify-between text-xs font-medium">
+                                                <span className="flex items-center gap-1"><Printer className="w-3 h-3" /> Método de Impressão</span>
+                                                <div className="flex bg-background rounded-md border p-0.5">
+                                                    <button
+                                                        onClick={() => { setPrintMethod('system'); localStorage.setItem('printMethod', 'system'); }}
+                                                        className={cn("px-2 py-1 rounded-sm transition-all text-[10px]", printMethod === 'system' ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted")}
+                                                    >Sistema/USB</button>
+                                                    <button
+                                                        onClick={() => { setPrintMethod('bluetooth'); localStorage.setItem('printMethod', 'bluetooth'); }}
+                                                        className={cn("px-2 py-1 rounded-sm transition-all text-[10px]", printMethod === 'bluetooth' ? "bg-primary text-primary-foreground shadow-sm" : "hover:bg-muted")}
+                                                    >Bluetooth</button>
+                                                </div>
+                                            </div>
+                                            {printMethod === 'bluetooth' && (
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className={cn("h-7 text-[10px] w-full", bluetoothChar ? "text-green-600 border-green-200 bg-green-50" : "text-blue-600 border-blue-200 bg-blue-50")}
+                                                    onClick={handleConnectBluetooth}
+                                                    disabled={isConnecting}
+                                                >
+                                                    <Bluetooth className={cn("w-3 h-3 mr-1", isConnecting && "animate-pulse")} />
+                                                    {isConnecting ? "Conectando..." : bluetoothChar ? "Impressora Conectada" : "Conectar Impressora"}
+                                                </Button>
+                                            )}
+                                        </div>
+
                                         <div className="flex gap-2">
                                             <Button variant="outline" size="icon" onClick={handleWhatsAppShare}>
                                                 <Share className="h-4 w-4" />
@@ -625,6 +722,10 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
                         </>
                     ) : (
                         <div className="flex flex-col h-full">
+                            <SheetHeader className="sr-only">
+                                <SheetTitle>{sheetTitle()}</SheetTitle>
+                                <SheetDescription>Comprovante de pagamento</SheetDescription>
+                            </SheetHeader>
                             <div className="flex-1 py-4 overflow-y-auto">
                                 <div className="bg-white text-black p-4 rounded-md shadow-md h-full">
                                     <pre className="text-receipt">

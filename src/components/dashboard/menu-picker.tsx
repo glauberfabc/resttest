@@ -10,6 +10,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -61,9 +62,9 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
     const normalizedSearchTerm = normalizeString(searchTerm);
     const normalizedItemName = normalizeString(item.name);
     const normalizedItemCode = item.code ? normalizeString(item.code) : "";
-    
+
     const matchesSearch = normalizedItemName.includes(normalizedSearchTerm) || normalizedItemCode.includes(normalizedSearchTerm);
-    
+
     return matchesCategory && matchesSearch;
   });
 
@@ -72,6 +73,7 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
       <DialogContent className="max-w-4xl w-full h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2">
           <DialogTitle className="text-2xl">Adicionar Itens ao Pedido</DialogTitle>
+          <DialogDescription className="sr-only">Selecione os itens do cardápio para adicionar à comanda.</DialogDescription>
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
@@ -87,58 +89,58 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
           <Carousel opts={{ align: "start", dragFree: true }} className="w-full">
             <CarouselContent>
               <CarouselItem className="basis-auto">
-                  <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
-                      <TabsList>
-                        <TabsTrigger value="Todos">Todos</TabsTrigger>
-                      </TabsList>
-                  </Tabs>
+                <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
+                  <TabsList>
+                    <TabsTrigger value="Todos">Todos</TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </CarouselItem>
               {categories.map((cat) => (
-                  <CarouselItem key={cat} className="basis-auto">
-                       <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
-                          <TabsList>
-                              <TabsTrigger value={cat}>{cat}</TabsTrigger>
-                          </TabsList>
-                      </Tabs>
-                  </CarouselItem>
+                <CarouselItem key={cat} className="basis-auto">
+                  <Tabs value={activeCategory} onValueChange={(value) => setActiveCategory(value as MenuItemCategory | "Todos")}>
+                    <TabsList>
+                      <TabsTrigger value={cat}>{cat}</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </CarouselItem>
               ))}
             </CarouselContent>
             <CarouselPrevious className="-left-4 md:-left-8" />
             <CarouselNext className="-right-4 md:-right-8" />
           </Carousel>
         </div>
-        
+
 
         <ScrollArea className="flex-1 px-6">
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
-                {filteredItems.map(item => (
-                <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow">
-                    <div className="w-full h-32 flex items-center justify-center bg-muted/30 rounded-md">
-                        <Image
-                        src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
-                        alt={item.name}
-                        width={200}
-                        height={200}
-                        className="w-auto h-full object-contain"
-                        data-ai-hint="food drink"
-                        />
-                    </div>
-                    <div className="flex-1 mt-2">
-                        {item.code && <p className="text-xs font-mono text-muted-foreground">#{item.code}</p>}
-                        <h3 className="font-semibold">{item.name}</h3>
-                        <p className="text-sm text-muted-foreground">{item.description}</p>
-                    </div>
-                    <div className="flex justify-between items-center w-full mt-auto pt-2">
-                        <p className="font-bold text-primary">R$ {item.price.toFixed(2).replace('.', ',')}</p>
-                        <Button size="sm" variant="secondary" onClick={() => handleAddItem(item)}>Adicionar</Button>
-                    </div>
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
+            {filteredItems.map(item => (
+              <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow">
+                <div className="w-full h-32 flex items-center justify-center bg-muted/30 rounded-md">
+                  <Image
+                    src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
+                    alt={item.name}
+                    width={200}
+                    height={200}
+                    className="w-auto h-full object-contain"
+                    style={{ width: 'auto', height: 'auto' }}
+                    data-ai-hint="food drink"
+                  />
                 </div>
-                ))}
-            </div>
+                <div className="flex-1 mt-2">
+                  {item.code && <p className="text-xs font-mono text-muted-foreground">#{item.code}</p>}
+                  <h3 className="font-semibold">{item.name}</h3>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                </div>
+                <div className="flex justify-between items-center w-full mt-auto pt-2">
+                  <p className="font-bold text-primary">R$ {item.price.toFixed(2).replace('.', ',')}</p>
+                  <Button size="sm" variant="secondary" onClick={() => handleAddItem(item)}>Adicionar</Button>
+                </div>
+              </div>
+            ))}
+          </div>
         </ScrollArea>
       </DialogContent>
     </Dialog>
   );
 }
 
-    

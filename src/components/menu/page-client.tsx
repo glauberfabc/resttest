@@ -5,6 +5,7 @@ import { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import type { MenuItem, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { generateUUID } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -43,21 +44,21 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
 
   useEffect(() => {
     const fetchData = async () => {
-        const { data, error } = await supabase.from('menu_items').select('*');
-        if (data) {
-          const formattedItems = data.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
-          setMenuItems(formattedItems);
-        }
+      const { data, error } = await supabase.from('menu_items').select('*') as { data: any[] | null; error: any };
+      if (data) {
+        const formattedItems = data.map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+        setMenuItems(formattedItems);
+      }
 
-        const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-        if (supabaseUser) {
-           const { data: profile } = await supabase.from('profiles').select('name, role').eq('id', supabaseUser.id).single();
-           if(profile) {
-             const { data: { user: supaUser } } = await supabase.auth.getUser();
-              if(!supaUser) return;
-             setUser({ id: supaUser.id, email: supaUser.email!, name: profile.name, role: profile.role });
-           }
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+      if (supabaseUser) {
+        const { data: profile } = await supabase.from('profiles').select('name, role').eq('id', supabaseUser.id).single() as { data: any; error: any };
+        if (profile) {
+          const { data: { user: supaUser } } = await supabase.auth.getUser();
+          if (!supaUser) return;
+          setUser({ id: supaUser.id, email: supaUser.email!, name: profile.name, role: profile.role });
         }
+      }
     };
 
     fetchData();
@@ -66,22 +67,22 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
   const sortedMenuItems = useMemo(() => {
     const sortableItems = [...menuItems];
     if (sortConfig !== null) {
-        sortableItems.sort((a, b) => {
-            const aValue = a[sortConfig.key as keyof MenuItem] || '';
-            const bValue = b[sortConfig.key as keyof MenuItem] || '';
+      sortableItems.sort((a, b) => {
+        const aValue = a[sortConfig.key as keyof MenuItem] || '';
+        const bValue = b[sortConfig.key as keyof MenuItem] || '';
 
-            // Ensure consistent type for comparison, especially for 'code' which can be null
-            const valA = String(aValue).toLowerCase();
-            const valB = String(bValue).toLowerCase();
+        // Ensure consistent type for comparison, especially for 'code' which can be null
+        const valA = String(aValue).toLowerCase();
+        const valB = String(bValue).toLowerCase();
 
-            if (valA < valB) {
-                return sortConfig.direction === 'asc' ? -1 : 1;
-            }
-            if (valA > valB) {
-                return sortConfig.direction === 'asc' ? 1 : -1;
-            }
-            return 0;
-        });
+        if (valA < valB) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (valA > valB) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
     }
     return sortableItems;
   }, [menuItems, sortConfig]);
@@ -89,39 +90,39 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
   const requestSort = (key: SortKey) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
-        direction = 'desc';
+      direction = 'desc';
     }
     setSortConfig({ key, direction });
   };
 
 
   const handleSaveItem = async (item: MenuItem) => {
-    
+
     if (!user) {
-        toast({ variant: 'destructive', title: "Erro", description: "Você não está logado." });
-        return;
+      toast({ variant: 'destructive', title: "Erro", description: "Você não está logado." });
+      return;
     }
 
     if (selectedItem) { // Editing existing item
       const itemForDbUpdate = {
-          name: item.name,
-          code: item.code,
-          description: item.description,
-          price: item.price,
-          category: item.category,
-          image_url: item.imageUrl,
-          stock: item.stock,
-          low_stock_threshold: item.lowStockThreshold,
-          unit: item.unit,
+        name: item.name,
+        code: item.code,
+        description: item.description,
+        price: item.price,
+        category: item.category,
+        image_url: item.imageUrl,
+        stock: item.stock,
+        low_stock_threshold: item.lowStockThreshold,
+        unit: item.unit,
       };
 
-      const { data, error } = await supabase
-        .from('menu_items')
+      const { data, error } = await (supabase
+        .from('menu_items') as any)
         .update(itemForDbUpdate)
         .eq('id', item.id)
         .select()
-        .maybeSingle();
-      
+        .maybeSingle() as { data: any; error: any };
+
       if (error) {
         toast({ variant: 'destructive', title: "Erro ao atualizar", description: "Não foi possível atualizar o item: " + error.message });
       } else if (data) {
@@ -131,24 +132,24 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
       }
 
     } else { // Adding new item
-       const itemForDbInsert = {
-          name: item.name,
-          code: item.code,
-          description: item.description,
-          price: item.price,
-          category: item.category,
-          image_url: item.imageUrl,
-          stock: item.stock,
-          low_stock_threshold: item.lowStockThreshold,
-          unit: item.unit,
-          user_id: user.id,
+      const itemForDbInsert = {
+        name: item.name,
+        code: item.code,
+        description: item.description,
+        price: item.price,
+        category: item.category,
+        image_url: item.imageUrl,
+        stock: item.stock,
+        low_stock_threshold: item.lowStockThreshold,
+        unit: item.unit,
+        user_id: user.id,
       };
 
-      const { data, error } = await supabase
-        .from('menu_items')
+      const { data, error } = await (supabase
+        .from('menu_items') as any)
         .insert(itemForDbInsert)
         .select()
-        .single();
+        .single() as { data: any; error: any };
 
       if (error) {
         toast({ variant: 'destructive', title: "Erro ao adicionar", description: "Não foi possível adicionar o item: " + error.message });
@@ -167,7 +168,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     setSelectedItem(item);
     setIsFormOpen(true);
   };
-  
+
   const handleAddNew = () => {
     setSelectedItem(null);
     setIsFormOpen(true);
@@ -177,10 +178,10 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
     const { error } = await supabase.from('menu_items').delete().eq('id', itemId);
 
     if (error) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível excluir o item." });
+      toast({ variant: 'destructive', title: "Erro", description: "Não foi possível excluir o item." });
     } else {
-        setMenuItems(menuItems.filter(i => i.id !== itemId));
-        toast({ title: "Sucesso!", description: "Item excluído." });
+      setMenuItems(menuItems.filter(i => i.id !== itemId));
+      toast({ title: "Sucesso!", description: "Item excluído." });
     }
   };
 
@@ -211,7 +212,7 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                 </Button>
               </TableHead>
               <TableHead>
-                 <Button variant="ghost" onClick={() => requestSort('code')} className="px-0 hover:bg-transparent whitespace-nowrap">
+                <Button variant="ghost" onClick={() => requestSort('code')} className="px-0 hover:bg-transparent whitespace-nowrap">
                   Código
                   {renderSortArrow('code')}
                 </Button>
@@ -231,13 +232,14 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
                     width={64}
                     height={64}
                     className="rounded-md object-cover w-16 h-16"
+                    style={{ width: 'auto', height: 'auto' }}
                     data-ai-hint="food drink"
                   />
                 </TableCell>
                 <TableCell className="font-medium whitespace-nowrap">{item.name}</TableCell>
                 <TableCell className="whitespace-nowrap">{item.code || "-"}</TableCell>
                 <TableCell>
-                    <Badge variant="secondary" className="whitespace-nowrap">{item.category}</Badge>
+                  <Badge variant="secondary" className="whitespace-nowrap">{item.category}</Badge>
                 </TableCell>
                 <TableCell className="whitespace-nowrap">R$ {item.price.toFixed(2).replace('.', ',')}</TableCell>
                 <TableCell>
@@ -265,18 +267,17 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
           </TableBody>
         </Table>
       </div>
-      
+
       {isFormOpen && user && (
         <MenuFormDialog
-            isOpen={isFormOpen}
-            onOpenChange={setIsFormOpen}
-            onSave={handleSaveItem}
-            item={selectedItem}
-            user={user}
+          isOpen={isFormOpen}
+          onOpenChange={setIsFormOpen}
+          onSave={handleSaveItem}
+          item={selectedItem}
+          user={user}
         />
       )}
     </div>
   );
 }
 
-    

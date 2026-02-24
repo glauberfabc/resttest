@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import type { MenuItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { generateUUID } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -31,11 +32,11 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
 
   useEffect(() => {
     const fetchData = async () => {
-        const { data, error } = await supabase.from('menu_items').select('*');
-        if (data) {
-          const formattedItems = data.map(item => ({ ...item, id: item.id || crypto.randomUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
-          setMenuItems(formattedItems);
-        }
+      const { data, error } = await supabase.from('menu_items').select('*') as { data: any[] | null; error: any };
+      if (data) {
+        const formattedItems = data.map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
+        setMenuItems(formattedItems);
+      }
     };
 
     fetchData();
@@ -61,21 +62,21 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
 
   const handleSave = async (updatedItem: MenuItem) => {
     const { data, error } = await supabase
-        .from('menu_items')
-        .update({
-            stock: updatedItem.stock,
-            low_stock_threshold: updatedItem.lowStockThreshold,
-        })
-        .eq('id', updatedItem.id)
-        .select()
-        .single();
-    
+      .from('menu_items')
+      .update({
+        stock: updatedItem.stock,
+        low_stock_threshold: updatedItem.lowStockThreshold,
+      })
+      .eq('id', updatedItem.id)
+      .select()
+      .single() as { data: any; error: any };
+
     if (error || !data) {
-        toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o estoque." });
+      toast({ variant: 'destructive', title: "Erro", description: "Não foi possível atualizar o estoque." });
     } else {
-        const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
-        setMenuItems(menuItems.map(item => item.id === remappedData.id ? remappedData : item));
-        toast({ title: "Sucesso", description: "Estoque atualizado."});
+      const remappedData = { ...data, imageUrl: data.image_url, lowStockThreshold: data.low_stock_threshold };
+      setMenuItems(menuItems.map(item => item.id === remappedData.id ? remappedData : item));
+      toast({ title: "Sucesso", description: "Estoque atualizado." });
     }
 
     setIsFormOpen(false);
@@ -136,4 +137,3 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
   );
 }
 
-    
