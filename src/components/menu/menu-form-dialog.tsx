@@ -187,14 +187,14 @@ export function MenuFormDialog({ isOpen, onOpenChange, onSave, item, user }: Men
             <div className="grid grid-cols-4 items-center gap-4">
               <div />
               <div className="col-span-3">
-                <Image
-                  src={imageUrl}
-                  alt="Pré-visualização"
-                  width={100}
-                  height={100}
-                  className="rounded-md object-cover"
-                  style={{ width: 'auto', height: 'auto' }}
-                />
+                <div className="relative w-24 h-24">
+                  <Image
+                    src={imageUrl}
+                    alt="Pré-visualização"
+                    fill
+                    className="rounded-md object-cover"
+                  />
+                </div>
               </div>
             </div>
           )}

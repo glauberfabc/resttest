@@ -566,15 +566,15 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
                                     <div className="pr-6">
                                         {groupedItemsForDisplay.map((item, index) => (
                                             <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
-                                                <Image
-                                                    src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
-                                                    alt={item.menuItem.name}
-                                                    width={64}
-                                                    height={64}
-                                                    className="rounded-md object-contain w-12 h-12 sm:w-16 sm:h-16"
-                                                    style={{ width: 'auto', height: 'auto' }}
-                                                    data-ai-hint="food drink"
-                                                />
+                                                <div className="relative w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
+                                                    <Image
+                                                        src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
+                                                        alt={item.menuItem.name}
+                                                        fill
+                                                        className="rounded-md object-contain"
+                                                        data-ai-hint="food drink"
+                                                    />
+                                                </div>
                                                 <div className="flex-1">
                                                     <p className="font-semibold">{item.menuItem.name}</p>
                                                     <p className="text-sm text-muted-foreground">R$ {(item.menuItem.price * item.quantity).toFixed(2).replace('.', ',')}</p>

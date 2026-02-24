@@ -115,14 +115,12 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
           <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 py-4">
             {filteredItems.map(item => (
               <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow">
-                <div className="w-full h-32 flex items-center justify-center bg-muted/30 rounded-md">
+                <div className="w-full h-32 relative flex items-center justify-center bg-muted/30 rounded-md overflow-hidden">
                   <Image
                     src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
                     alt={item.name}
-                    width={200}
-                    height={200}
-                    className="w-auto h-full object-contain"
-                    style={{ width: 'auto', height: 'auto' }}
+                    fill
+                    className="object-contain p-2"
                     data-ai-hint="food drink"
                   />
                 </div>

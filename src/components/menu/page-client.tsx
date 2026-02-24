@@ -226,15 +226,15 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
             {sortedMenuItems.map((item) => (
               <TableRow key={item.id}>
                 <TableCell>
-                  <Image
-                    src={item.imageUrl || "https://picsum.photos/seed/placeholder/64/64"}
-                    alt={item.name}
-                    width={64}
-                    height={64}
-                    className="rounded-md object-cover w-16 h-16"
-                    style={{ width: 'auto', height: 'auto' }}
-                    data-ai-hint="food drink"
-                  />
+                  <div className="relative w-16 h-16">
+                    <Image
+                      src={item.imageUrl || "https://picsum.photos/seed/placeholder/64/64"}
+                      alt={item.name}
+                      fill
+                      className="rounded-md object-cover"
+                      data-ai-hint="food drink"
+                    />
+                  </div>
                 </TableCell>
                 <TableCell className="font-medium whitespace-nowrap">{item.name}</TableCell>
                 <TableCell className="whitespace-nowrap">{item.code || "-"}</TableCell>
