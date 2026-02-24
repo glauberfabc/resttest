@@ -60,7 +60,9 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isNewOrderDialogOpen, setIsNewOrderDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [dbSearchQuery, setDbSearchQuery] = useState("");
   const [isFetching, setIsFetching] = useState(false);
+  const [isSearchingDb, setIsSearchingDb] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [printedItemsMap, setPrintedItemsMap] = useState<Map<string, OrderItem[]>>(new Map());
@@ -78,29 +80,33 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
   const fetchData = useCallback(async (showToast: boolean = false) => {
     setIsFetching(true);
-
     const client = createClient();
 
-    // Fetch all open/paying orders (critical for operations)
-    const { data: openOrdersData } = await client
-      .from('orders')
-      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
-      .neq('status', 'paid')
-      .order('created_at', { ascending: false }) as { data: any[] | null };
+    try {
+      // Fetch all open/paying orders (critical for operations)
+      const { data: openOrdersData, error: openError } = await client
+        .from('orders')
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .neq('status', 'paid')
+        .order('created_at', { ascending: false });
 
-    // Fetch recent paid orders (limited for performance)
-    const { data: paidOrdersData } = await client
-      .from('orders')
-      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
-      .eq('status', 'paid')
-      .order('paid_at', { ascending: false }) // Order by paid_at for history
-      .limit(50) as { data: any[] | null };
+      if (openError) throw openError;
 
-    const ordersData = [...(openOrdersData || []), ...(paidOrdersData || [])];
+      // Fetch recent paid orders (limited for performance)
+      const { data: paidOrdersData, error: paidError } = await client
+        .from('orders')
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .eq('status', 'paid')
+        .order('paid_at', { ascending: false }) // Order by paid_at for history
+        .limit(50);
 
-    if (ordersData) {
+      if (paidError) throw paidError;
+
+      const ordersData: any[] = [...(openOrdersData || []), ...(paidOrdersData || [])];
+
       const formattedOrders = ordersData.map(order => ({
         ...order,
+<<<<<<< HEAD
         items: order.items.map((item: any) => ({
           id: item.id || generateUUID(),
           quantity: item.quantity,
@@ -112,6 +118,28 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             lowStockThreshold: item.menu_item.low_stock_threshold,
           }
         })),
+=======
+        items: (order.items || []).map((item: any) => {
+          const menuItem = item.menu_item || {
+            name: 'Item Removido',
+            price: 0,
+            category: 'N/A',
+            id: item.menu_item_id || crypto.randomUUID(),
+          };
+          
+          return {
+            id: item.id || crypto.randomUUID(),
+            quantity: item.quantity,
+            comment: item.comment || '',
+            menuItem: {
+              ...menuItem,
+              id: (menuItem as any).id || (menuItem as any)._id || crypto.randomUUID(),
+              imageUrl: (menuItem as any).image_url || (menuItem as any).imageUrl || '',
+              lowStockThreshold: (menuItem as any).low_stock_threshold || (menuItem as any).lowStockThreshold || 0,
+            }
+          };
+        }),
+>>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
         created_at: new Date(order.created_at),
         paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
         createdAt: new Date(order.created_at),
@@ -121,22 +149,46 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       // Deduplicate just in case (though logic shouldn't overlap much)
       const uniqueOrders = Array.from(new Map(formattedOrders.map(item => [item.id, item])).values());
       setOrders(uniqueOrders);
-    }
 
+<<<<<<< HEAD
     const { data: menuItemsData } = await client.from('menu_items').select('*');
     if (menuItemsData) {
       const formattedItems = (menuItemsData as any[]).map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
       setMenuItems(formattedItems);
     }
+=======
+      // Fetch menu items
+      const { data: menuItemsData } = await client.from('menu_items').select('*');
+      if (menuItemsData) {
+        const formattedItems = (menuItemsData as any[]).map(item => ({ 
+          ...item, 
+          id: item.id || crypto.randomUUID(), 
+          code: item.code, 
+          imageUrl: item.image_url, 
+          lowStockThreshold: item.low_stock_threshold 
+        })) as unknown as MenuItem[];
+        setMenuItems(formattedItems);
+      }
+>>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
 
-    const { data: clientsData } = await client.from('clients').select('*');
-    if (clientsData) setClients(clientsData as Client[]);
+      // Fetch clients
+      const { data: clientsData } = await client.from('clients').select('*');
+      if (clientsData) setClients(clientsData as Client[]);
 
-    // Optimized: client_credits not fetched. Balance is in clients table.
-
-    setIsFetching(false);
-    if (showToast) {
-      toast({ title: 'Dados atualizados!', description: 'As comandas foram sincronizadas.' });
+      if (showToast) {
+        toast({ title: "Sucesso!", description: "Dados atualizados." });
+      }
+    } catch (error: any) {
+      console.error('Error fetching data:', error);
+      toast({ 
+        variant: 'destructive', 
+        title: "Erro ao carregar dados", 
+        description: error.message === 'canceling statement due to statement timeout' 
+          ? "O banco de dados demorou muito para responder. Tente recarregar a página." 
+          : "Não foi possível carregar os dados. Verifique a conexão."
+      });
+    } finally {
+      setIsFetching(false);
     }
   }, [toast]);
 
@@ -168,6 +220,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         if (orderData) {
           const formattedOrder = {
             ...orderData,
+<<<<<<< HEAD
             items: orderData.items.map((item: any) => ({
               id: item.id || generateUUID(),
               quantity: item.quantity,
@@ -179,6 +232,28 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
                 lowStockThreshold: item.menu_item.low_stock_threshold,
               }
             })),
+=======
+            items: (orderData.items || []).map((item: any) => {
+              const menuItem = item.menu_item || {
+                name: 'Item Removido',
+                price: 0,
+                category: 'N/A',
+                id: item.menu_item_id || crypto.randomUUID(),
+              };
+              
+              return {
+                id: item.id || crypto.randomUUID(),
+                quantity: item.quantity,
+                comment: item.comment || '',
+                menuItem: {
+                  ...menuItem,
+                  id: (menuItem as any).id || crypto.randomUUID(),
+                  imageUrl: (menuItem as any).image_url || '',
+                  lowStockThreshold: (menuItem as any).low_stock_threshold || 0,
+                }
+              };
+            }),
+>>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
             created_at: new Date(orderData.created_at),
             paid_at: orderData.paid_at ? new Date(orderData.paid_at) : undefined,
             createdAt: new Date(orderData.created_at),
@@ -670,6 +745,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (morePaidOrders) {
       const formattedMoreOrders = morePaidOrders.map((order: any) => ({
         ...order,
+<<<<<<< HEAD
         items: order.items.map((item: any) => ({
           id: item.id || generateUUID(),
           quantity: item.quantity,
@@ -681,6 +757,28 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             lowStockThreshold: item.menu_item.low_stock_threshold,
           }
         })),
+=======
+        items: (order.items || []).map((item: any) => {
+          const menuItem = item.menu_item || {
+            name: 'Item Removido',
+            price: 0,
+            category: 'N/A',
+            id: item.menu_item_id || crypto.randomUUID(),
+          };
+          
+          return {
+            id: item.id || crypto.randomUUID(),
+            quantity: item.quantity,
+            comment: item.comment || '',
+            menuItem: {
+              ...menuItem,
+              id: (menuItem as any).id || (menuItem as any)._id || crypto.randomUUID(),
+              imageUrl: (menuItem as any).image_url || (menuItem as any).imageUrl || '',
+              lowStockThreshold: (menuItem as any).low_stock_threshold || (menuItem as any).lowStockThreshold || 0,
+            }
+          };
+        }),
+>>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
         created_at: new Date(order.created_at),
         paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
         createdAt: new Date(order.created_at),
@@ -693,6 +791,71 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       });
     }
     setIsLoadingMore(false);
+  };
+
+  const searchClosedOrders = async () => {
+    if (!dbSearchQuery.trim()) {
+      fetchData(true);
+      return;
+    }
+    
+    setIsSearchingDb(true);
+    const client = createClient();
+    
+    try {
+      const { data, error } = await client
+        .from('orders')
+        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .eq('status', 'paid')
+        .ilike('identifier', `%${dbSearchQuery}%`)
+        .order('paid_at', { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      if (data) {
+        const formattedOrders = data.map((order: any) => ({
+          ...order,
+          items: (order.items || []).map((item: any) => {
+            const menuItem = item.menu_item || {
+              name: 'Item Removido',
+              price: 0,
+              category: 'N/A',
+              id: item.menu_item_id || crypto.randomUUID(),
+            };
+            
+            return {
+              id: item.id || crypto.randomUUID(),
+              quantity: item.quantity,
+              comment: item.comment || '',
+              menuItem: {
+                ...menuItem,
+                id: (menuItem as any).id || (menuItem as any)._id || crypto.randomUUID(),
+                imageUrl: (menuItem as any).image_url || (menuItem as any).imageUrl || '',
+                lowStockThreshold: (menuItem as any).low_stock_threshold || (menuItem as any).lowStockThreshold || 0,
+              }
+            };
+          }),
+          created_at: new Date(order.created_at),
+          paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
+          createdAt: new Date(order.created_at),
+          paidAt: order.paid_at ? new Date(order.paid_at) : undefined,
+        })) as unknown as Order[];
+
+        // Replace only the paid orders in state when searching, but keep open ones
+        setOrders(prev => {
+          const openOrders = prev.filter(o => o.status !== 'paid');
+          return [...openOrders, ...formattedOrders];
+        });
+        
+        toast({ title: "Busca concluída", description: `${formattedOrders.length} comandas encontradas.` });
+      }
+    } catch (error: any) {
+      console.error('Error searching orders:', error);
+      toast({ variant: 'destructive', title: "Erro na busca", description: error.message });
+    } finally {
+      setIsSearchingDb(false);
+    }
   };
 
   const handlePageChange = (tab: 'abertas' | 'caderneta' | 'fechadas', direction: 'next' | 'prev') => {
@@ -897,6 +1060,21 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
           {renderPaginatedOrders(sortedNotebookOrders, 'caderneta')}
         </TabsContent>
         <TabsContent value="fechadas" className="mt-4">
+          <div className="flex gap-2 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Pesquisar por nome no banco de dados..."
+                className="pl-9"
+                value={dbSearchQuery}
+                onChange={(e) => setDbSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchClosedOrders()}
+              />
+            </div>
+            <Button onClick={searchClosedOrders} disabled={isSearchingDb}>
+              {isSearchingDb ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Buscar"}
+            </Button>
+          </div>
           {renderPaginatedOrders(sortedPaidOrders, 'fechadas')}
           <div className="flex justify-center mt-4">
             <Button variant="outline" onClick={loadMorePaidOrders} disabled={isLoadingMore}>

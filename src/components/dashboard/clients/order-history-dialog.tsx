@@ -68,9 +68,12 @@ export function OrderHistoryDialog({ isOpen, onOpenChange, client }: OrderHistor
                 ...order,
                 created_at: new Date(order.created_at),
                 paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
-                items: order.items.map((item: any) => ({
+                items: (order.items || []).map((item: any) => ({
                     ...item,
-                    menuItem: item.menu_item
+                    menuItem: item.menu_item || {
+                        name: 'Item Removido',
+                        price: 0
+                    }
                 }))
             })) as Order[];
             setOrders(formattedOrders);
