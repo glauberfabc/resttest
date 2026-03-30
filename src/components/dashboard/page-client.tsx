@@ -106,19 +106,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
       const formattedOrders = ordersData.map(order => ({
         ...order,
-<<<<<<< HEAD
-        items: order.items.map((item: any) => ({
-          id: item.id || generateUUID(),
-          quantity: item.quantity,
-          comment: item.comment || '',
-          menuItem: {
-            ...item.menu_item,
-            id: item.menu_item.id || generateUUID(),
-            imageUrl: item.menu_item.image_url,
-            lowStockThreshold: item.menu_item.low_stock_threshold,
-          }
-        })),
-=======
         items: (order.items || []).map((item: any) => {
           const menuItem = item.menu_item || {
             name: 'Item Removido',
@@ -139,7 +126,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             }
           };
         }),
->>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
         created_at: new Date(order.created_at),
         paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
         createdAt: new Date(order.created_at),
@@ -150,13 +136,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       const uniqueOrders = Array.from(new Map(formattedOrders.map(item => [item.id, item])).values());
       setOrders(uniqueOrders);
 
-<<<<<<< HEAD
-    const { data: menuItemsData } = await client.from('menu_items').select('*');
-    if (menuItemsData) {
-      const formattedItems = (menuItemsData as any[]).map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
-      setMenuItems(formattedItems);
-    }
-=======
       // Fetch menu items
       const { data: menuItemsData } = await client.from('menu_items').select('*');
       if (menuItemsData) {
@@ -169,7 +148,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         })) as unknown as MenuItem[];
         setMenuItems(formattedItems);
       }
->>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
 
       // Fetch clients
       const { data: clientsData } = await client.from('clients').select('*');
@@ -220,19 +198,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         if (orderData) {
           const formattedOrder = {
             ...orderData,
-<<<<<<< HEAD
-            items: orderData.items.map((item: any) => ({
-              id: item.id || generateUUID(),
-              quantity: item.quantity,
-              comment: item.comment || '',
-              menuItem: {
-                ...item.menu_item,
-                id: item.menu_item.id || generateUUID(),
-                imageUrl: item.menu_item.image_url,
-                lowStockThreshold: item.menu_item.low_stock_threshold,
-              }
-            })),
-=======
             items: (orderData.items || []).map((item: any) => {
               const menuItem = item.menu_item || {
                 name: 'Item Removido',
@@ -253,7 +218,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
                 }
               };
             }),
->>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
             created_at: new Date(orderData.created_at),
             paid_at: orderData.paid_at ? new Date(orderData.paid_at) : undefined,
             createdAt: new Date(orderData.created_at),
@@ -745,19 +709,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     if (morePaidOrders) {
       const formattedMoreOrders = morePaidOrders.map((order: any) => ({
         ...order,
-<<<<<<< HEAD
-        items: order.items.map((item: any) => ({
-          id: item.id || generateUUID(),
-          quantity: item.quantity,
-          comment: item.comment || '',
-          menuItem: {
-            ...item.menu_item,
-            id: item.menu_item.id || generateUUID(),
-            imageUrl: item.menu_item.image_url,
-            lowStockThreshold: item.menu_item.low_stock_threshold,
-          }
-        })),
-=======
         items: (order.items || []).map((item: any) => {
           const menuItem = item.menu_item || {
             name: 'Item Removido',
@@ -778,7 +729,6 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
             }
           };
         }),
->>>>>>> 449eb30 (Fix: Closed orders visibility, query performance, and name search.)
         created_at: new Date(order.created_at),
         paid_at: order.paid_at ? new Date(order.paid_at) : undefined,
         createdAt: new Date(order.created_at),
