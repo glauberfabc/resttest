@@ -61,7 +61,7 @@ export default function ClientsPageClient({ initialClients: initialClientsProp, 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
 
-    const { data: clientsData } = await supabase.from('clients').select('*');
+    const { data: clientsData } = await supabase.from('clients').select('id, name, phone, balance, user_id');
     if (clientsData) setClients(clientsData as Client[]);
 
     // Optimized: No longer fetching all credits and orders. Balance is now in clients table.

@@ -38,7 +38,7 @@ export async function getMenuItems(): Promise<MenuItem[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
         .from('menu_items')
-        .select('*');
+        .select('id, name, code, price, category, image_url, low_stock_threshold, stock, unit');
 
     if (error) {
         console.error('Error fetching menu items:', error);
@@ -51,7 +51,7 @@ export async function getClients(): Promise<Client[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
         .from('clients')
-        .select('*');
+        .select('id, name, phone, document, balance');
 
     if (error) {
         console.error('Error fetching clients:', error);
@@ -66,16 +66,16 @@ export async function getOrders(user?: User, options?: { status?: 'paid' | 'open
     let query = supabase
         .from('orders')
         .select(`
-            *,
+            id, created_at, status, type, identifier, observation, customer_name, paid_at,
             items:order_items (
                 id,
                 quantity,
                 comment,
                 menu_item:menu_items (
-                    *
+                    id, name, price, image_url, low_stock_threshold
                 )
             ),
-            payments:order_payments (*)
+            payments:order_payments (id, amount, method, created_at)
         `);
 
     if (options?.status === 'open') {

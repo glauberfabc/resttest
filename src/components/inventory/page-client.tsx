@@ -32,7 +32,7 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase.from('menu_items').select('*') as { data: any[] | null; error: any };
+      const { data, error } = await supabase.from('menu_items').select('id, name, stock, low_stock_threshold, unit, code, image_url') as { data: any[] | null; error: any };
       if (data) {
         const formattedItems = data.map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
         setMenuItems(formattedItems);
@@ -61,8 +61,8 @@ export default function InventoryPageClient({ initialMenuItems: initialMenuItems
   };
 
   const handleSave = async (updatedItem: MenuItem) => {
-    const { data, error } = await supabase
-      .from('menu_items')
+    const { data, error } = await (supabase
+      .from('menu_items') as any)
       .update({
         stock: updatedItem.stock,
         low_stock_threshold: updatedItem.lowStockThreshold,

@@ -41,19 +41,25 @@ export default function AnalyticsPageClient({ orders: initialOrders, menuItems: 
   const fetchData = useCallback(async (currentUser: User | null) => {
     if (!currentUser) return;
 
-    const { data: menuItemsData, error: menuItemsError } = await supabase.from('menu_items').select('*');
+    const { data: menuItemsData, error: menuItemsError } = await (supabase.from('menu_items') as any).select('id, name, price, category, code, image_url, low_stock_threshold, stock');
     if (menuItemsData) {
-      const formattedItems = menuItemsData.map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[]
+      const formattedItems = menuItemsData.map((item: any) => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[]
       setMenuItems(formattedItems);
     }
 
-    const { data: ordersData, error: ordersError } = await supabase
-      .from('orders')
-      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+    const { data: ordersData, error: ordersError } = await (supabase.from('orders') as any)
+      .select(`
+        id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+        items:order_items(
+          id, quantity, comment, menu_item_id,
+          menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+        ),
+        payments:order_payments(id, order_id, amount, method, paid_at)
+      `)
       .order('created_at', { ascending: false });
 
     if (ordersData) {
-      const formattedOrders = ordersData.map(order => ({
+      const formattedOrders = ordersData.map((order: any) => ({
         ...order,
         items: order.items.map((item: any) => ({
           id: item.id || generateUUID(),

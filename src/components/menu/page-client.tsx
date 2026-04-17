@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import Image from "next/image";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import type { MenuItem, User } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { generateUUID } from "@/lib/utils";
@@ -44,7 +44,8 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data, error } = await supabase.from('menu_items').select('*') as { data: any[] | null; error: any };
+      // Otimizado: Seleciona apenas o necessário para a listagem
+      const { data, error } = await supabase.from('menu_items').select('id, name, code, category, price, image_url, low_stock_threshold, stock, unit') as { data: any[] | null; error: any };
       if (data) {
         const formattedItems = data.map(item => ({ ...item, id: item.id || generateUUID(), code: item.code, imageUrl: item.image_url, lowStockThreshold: item.low_stock_threshold })) as unknown as MenuItem[];
         setMenuItems(formattedItems);
@@ -227,10 +228,11 @@ export default function MenuPageClient({ initialMenuItems: initialMenuItemsProp 
               <TableRow key={item.id}>
                 <TableCell>
                   <div className="relative w-16 h-16">
-                    <Image
+                    <FallbackImage
                       src={item.imageUrl || "https://picsum.photos/seed/placeholder/64/64"}
                       alt={item.name}
                       fill
+                      sizes="64px"
                       className="rounded-md object-cover"
                       data-ai-hint="food drink"
                     />

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import Image from "next/image";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import type { Order, MenuItem, OrderItem, Client, ClientCredit } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { cn, generateUUID } from "@/lib/utils";
@@ -567,10 +567,11 @@ export function OrderDetailsSheet({ order, allOrders, allClients, menuItems, onO
                                         {groupedItemsForDisplay.map((item, index) => (
                                             <div key={`${item.menuItem.id}-${item.comment}-${index}`} className="flex items-center gap-4 py-3">
                                                 <div className="relative w-12 h-12 sm:w-16 sm:h-16 flex-shrink-0">
-                                                    <Image
+                                                    <FallbackImage
                                                         src={item.menuItem.imageUrl || 'https://picsum.photos/seed/placeholder/64/64'}
                                                         alt={item.menuItem.name}
                                                         fill
+                                                        sizes="64px"
                                                         className="rounded-md object-contain"
                                                         data-ai-hint="food drink"
                                                     />

@@ -13,7 +13,7 @@ export default async function UsersPage() {
     }
 
     const supabase = await createClient();
-    const { data, error } = await supabase.from('profiles').select('*');
+    const { data, error } = await supabase.from('profiles').select('id, email, name, role');
 
     if (error) {
         console.error("Error fetching users:", error);

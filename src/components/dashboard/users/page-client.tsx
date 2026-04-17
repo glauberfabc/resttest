@@ -42,9 +42,9 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
 
   const handleSaveUser = async (userData: Partial<User>, password?: string) => {
     if (selectedUser) { // Editing
-        const { error } = await supabase
-            .from('profiles')
-            .update({ name: userData.name, role: userData.role })
+        const { error } = await (supabase.from('profiles') as any)
+      .update({
+ name: userData.name, role: userData.role })
             .eq('id', selectedUser.id);
         
         if (error) {
@@ -78,7 +78,7 @@ export default function UsersPageClient({ initialUsers, currentUser }: UsersPage
         if (authData.user) {
             // The profile is now created by a trigger in Supabase, 
             // but we'll manually refetch the users to update the UI.
-             const { data: refreshedUsers, error: profileError } = await supabase.from('profiles').select('*');
+             const { data: refreshedUsers, error: profileError } = await (supabase.from('profiles') as any).select('id, email, name, role');
             if (profileError) {
                  toast({ variant: 'destructive', title: 'Erro de Perfil', description: 'Não foi possível buscar o novo usuário.' });
             } else {

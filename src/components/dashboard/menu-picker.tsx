@@ -1,8 +1,7 @@
-
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+import { FallbackImage } from "@/components/ui/fallback-image";
 import type { MenuItem, MenuItemCategory } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -116,10 +115,11 @@ export function MenuPicker({ menuItems, onAddItem, isOpen, onOpenChange }: MenuP
             {filteredItems.map(item => (
               <div key={item.id} className="border rounded-lg p-3 flex flex-col items-start gap-2 hover:shadow-md transition-shadow">
                 <div className="w-full h-32 relative flex items-center justify-center bg-muted/30 rounded-md overflow-hidden">
-                  <Image
+                  <FallbackImage
                     src={item.imageUrl || 'https://picsum.photos/seed/placeholder/200/200'}
                     alt={item.name}
                     fill
+                    sizes="(max-width: 768px) 100vw, 200px"
                     className="object-contain p-2"
                     data-ai-hint="food drink"
                   />

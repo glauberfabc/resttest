@@ -86,7 +86,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       // Fetch all open/paying orders (critical for operations)
       const { data: openOrdersData, error: openError } = await client
         .from('orders')
-        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .select(`
+          id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+          items:order_items(
+            id, quantity, comment, menu_item_id,
+            menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+          ),
+          payments:order_payments(id, order_id, amount, method)
+        `)
         .neq('status', 'paid')
         .order('created_at', { ascending: false });
 
@@ -95,7 +102,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       // Fetch recent paid orders (limited for performance)
       const { data: paidOrdersData, error: paidError } = await client
         .from('orders')
-        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .select(`
+          id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+          items:order_items(
+            id, quantity, comment, menu_item_id,
+            menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+          ),
+          payments:order_payments(id, order_id, amount, method)
+        `)
         .eq('status', 'paid')
         .order('paid_at', { ascending: false }) // Order by paid_at for history
         .limit(50);
@@ -137,7 +151,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       setOrders(uniqueOrders);
 
       // Fetch menu items
-      const { data: menuItemsData } = await client.from('menu_items').select('*');
+      const { data: menuItemsData } = await client.from('menu_items').select('id, name, price, category, image_url, code, low_stock_threshold');
       if (menuItemsData) {
         const formattedItems = (menuItemsData as any[]).map(item => ({ 
           ...item, 
@@ -150,7 +164,7 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
       }
 
       // Fetch clients
-      const { data: clientsData } = await client.from('clients').select('*');
+      const { data: clientsData } = await client.from('clients').select('id, name, phone, balance, user_id');
       if (clientsData) setClients(clientsData as Client[]);
 
       if (showToast) {
@@ -191,7 +205,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
         // Fetch the full order with relations to ensure consistency
         const { data: orderData } = await client
           .from('orders')
-          .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+          .select(`
+            id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+            items:order_items(
+              id, quantity, comment, menu_item_id,
+              menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+            ),
+            payments:order_payments(id, order_id, amount, method)
+          `)
           .eq('id', newRecord.id)
           .single() as { data: any };
 
@@ -374,7 +395,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
 
     const { data: freshlyUpdatedOrderData } = await client
       .from('orders')
-      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+      .select(`
+        id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+        items:order_items(
+          id, quantity, comment, menu_item_id,
+          menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+        ),
+        payments:order_payments(id, order_id, amount, method)
+      `)
       .eq('id', updatedOrder.id)
       .single() as { data: any };
 
@@ -700,7 +728,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     const client = createClient();
     const { data: morePaidOrders } = await client
       .from('orders')
-      .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+      .select(`
+        id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+        items:order_items(
+          id, quantity, comment, menu_item_id,
+          menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+        ),
+        payments:order_payments(id, order_id, amount, method)
+      `)
       .eq('status', 'paid')
       .lt('paid_at', typeof lastPaidDate === 'string' ? lastPaidDate : new Date(lastPaidDate).toISOString())
       .order('paid_at', { ascending: false })
@@ -755,7 +790,14 @@ export default function DashboardPageClient({ initialOrders: initialOrdersProp, 
     try {
       const { data, error } = await client
         .from('orders')
-        .select(`*, items:order_items(*, menu_item:menu_items(*)), payments:order_payments(*)`)
+        .select(`
+          id, type, identifier, customer_name, status, created_at, paid_at, observation, user_id,
+          items:order_items(
+            id, quantity, comment, menu_item_id,
+            menu_item:menu_items(id, name, price, category, image_url, code, low_stock_threshold)
+          ),
+          payments:order_payments(id, order_id, amount, method)
+        `)
         .eq('status', 'paid')
         .ilike('identifier', `%${dbSearchQuery}%`)
         .order('paid_at', { ascending: false })
