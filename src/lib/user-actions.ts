@@ -75,7 +75,7 @@ export async function getOrders(user?: User, options?: { status?: 'paid' | 'open
                     id, name, price, image_url, low_stock_threshold
                 )
             ),
-            payments:order_payments (id, amount, method, created_at)
+            payments:order_payments (id, amount, method, paid_at)
         `);
 
     if (options?.status === 'open') {
