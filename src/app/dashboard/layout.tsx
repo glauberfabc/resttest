@@ -1,6 +1,4 @@
 
-'use server';
-
 import DashboardLayoutClient from "@/components/dashboard/layout";
 import { getCurrentUser } from "@/lib/user-actions";
 import { redirect } from 'next/navigation';

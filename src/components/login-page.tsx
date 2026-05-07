@@ -38,8 +38,7 @@ export function LoginPage() {
         setLoading(false);
     } else {
         console.log("[LOGIN_PAGE] Login com Supabase bem-sucedido. Redirecionando para /dashboard...");
-        router.push("/dashboard");
-        router.refresh();
+        window.location.href = "/dashboard";
     }
   };
 
