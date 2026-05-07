@@ -8,23 +8,38 @@ import { generateUUID } from '@/lib/utils';
 import { redirect } from 'next/navigation';
 
 export async function getCurrentUser(): Promise<User | null> {
+    console.log("[getCurrentUser] Verificando autenticação no servidor...");
     const supabase = await createClient();
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError) {
+        console.error("[getCurrentUser] Erro ao obter usuário do Supabase Auth:", authError.message);
+    }
 
     if (!user) {
+        console.log("[getCurrentUser] Nenhum usuário autenticado encontrado na sessão do servidor.");
         return null;
     }
 
-    const { data: profile } = await supabase
+    console.log("[getCurrentUser] Usuário encontrado no Auth:", user.email, "ID:", user.id);
+
+    const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('name, role, email')
         .eq('id', user.id)
         .single();
 
+    if (profileError) {
+        console.error("[getCurrentUser] Erro ao buscar perfil na tabela 'profiles':", profileError.message);
+    }
+
     if (!profile) {
+        console.log("[getCurrentUser] Perfil não encontrado para o ID:", user.id, "no banco de dados.");
         return null;
     }
+
+    console.log("[getCurrentUser] Perfil obtido com sucesso:", profile);
 
     return {
         id: user.id,
